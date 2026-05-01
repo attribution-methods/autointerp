@@ -11,3 +11,4 @@ build/
 outputs/
 analysis/
 .cache/
+case_studies/private/

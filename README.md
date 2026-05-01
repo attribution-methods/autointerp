@@ -59,6 +59,12 @@ Run the CI-safe end-to-end scaffold example:
 python examples/blackbox_to_validation.py
 ```
 
+Validate the golden case-study catalog:
+
+```bash
+python scripts/validate_case_studies.py
+```
+
 Start an interactive session:
 
 ```bash
@@ -72,6 +78,7 @@ src/autointerp/          Mechanistic interpretability methods and helpers
 src/autointerp/schemas.py Shared investigation artifact schemas
 src/autointerp_agent/    Agent runtime, CLI, tools, context, permissions
 examples/                Runnable scaffold examples
+case_studies/            Public-safe golden case-study catalog
 skills/                  Reusable method skills
 configs/agent.yaml       Default agent configuration
 docs/                    Architecture and scaffold notes
@@ -105,3 +112,5 @@ python -B -c "from autointerp_agent import load_config; from autointerp_agent.sk
 See [docs/schemas.md](docs/schemas.md) for the shared artifact contracts and
 [docs/end_to_end_mvp.md](docs/end_to_end_mvp.md) for the initial investigation
 path.
+See [docs/case_studies.md](docs/case_studies.md) for the golden case catalog
+and private ground-truth handling.

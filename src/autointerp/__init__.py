@@ -1,3 +1,3 @@
 """Autointerp agent scaffold and reusable analysis tools."""
 
-__all__ = ["schemas", "tools"]
+__all__ = ["case_studies", "schemas", "tools"]

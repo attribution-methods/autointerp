@@ -31,6 +31,9 @@ jobs:
       - name: Validate skills
         run: python scripts/validate_skills.py
 
+      - name: Validate case studies
+        run: python scripts/validate_case_studies.py
+
       - name: Compile Python sources
         run: |
           python -m py_compile \
@@ -39,6 +42,7 @@ jobs:
             src/autointerp/tools/*.py \
             src/autointerp_agent/*.py \
             scripts/validate_skills.py \
+            scripts/validate_case_studies.py \
             examples/blackbox_to_validation.py \
             tests/*.py
 
@@ -46,7 +50,7 @@ jobs:
         run: ruff check .
 
       - name: Type-check stable schemas and pipelines
-        run: mypy src/autointerp/schemas.py src/autointerp/pipelines
+        run: mypy src/autointerp/schemas.py src/autointerp/pipelines src/autointerp/case_studies.py
 
       - name: Run tests
         run: pytest -q
