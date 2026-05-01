@@ -1,9 +1,10 @@
 # Architecture
 
-`autointerp` has two layers:
+`autointerp` has three layers:
 
-1. `autointerp`: domain tools for mechanistic interpretability.
-2. `autointerp_agent`: an agent runtime that can select skills, call tools, request approval, and run locally or through MCP-style integrations.
+1. `autointerp`: schemas, pipelines, and domain tools for interpretability.
+2. `skills`: procedural knowledge for choosing and applying methods.
+3. `autointerp_agent`: an agent runtime that can select skills, call tools, request approval, and run locally or through MCP-style integrations.
 
 ## Runtime Loop
 
@@ -48,6 +49,21 @@ The method library includes:
 - circuit ranking helpers.
 
 The skills describe when and how to use these methods. The code implements repeatable operations.
+
+## Artifact Layer
+
+`autointerp.schemas` defines the portable JSON contracts that let components
+exchange evidence:
+
+- `BehaviorSpec`, `PromptBatch`, and `GenerationSample` for black-box work;
+- `ActivationCacheRef`, `CandidateSite`, and `FeatureFinding` for white-box
+  discovery;
+- `InterventionResult`, `ValidationResult`, and `InvestigationReport` for
+  causal checks and summaries.
+
+Large tensors stay out of report JSON and are referenced by path. This keeps the
+same report usable by the CLI agent, circuitbreaker, notebooks, and later MCP
+servers.
 
 ## Near-Term Direction
 

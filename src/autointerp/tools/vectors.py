@@ -11,7 +11,6 @@ import torch
 from .activations import LayerLike, capture_activations
 from .model import ModelHandle
 
-
 DEFAULT_BASELINE_TERMS = [
     "desks", "jackets", "laughter", "bicycles", "chairs", "sand", "pottery",
     "jewelry", "archives", "stars", "traffic", "honey", "ribbons",

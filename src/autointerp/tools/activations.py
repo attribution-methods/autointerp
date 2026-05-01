@@ -10,7 +10,6 @@ import torch
 
 from .model import ModelHandle
 
-
 LayerLike = Union[int, float, str]
 
 

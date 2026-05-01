@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-
 MODEL_ALIASES: Dict[str, str] = {
     "llama-3.1-8b": "meta-llama/Llama-3.1-8B-Instruct",
     "llama-3.1-70b": "meta-llama/Llama-3.1-70B-Instruct",

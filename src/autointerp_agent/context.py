@@ -7,7 +7,6 @@ from typing import Any
 
 from .skills import SkillRegistry
 
-
 DEFAULT_SYSTEM_PROMPT = """You are Autointerp, an automated mechanistic interpretability agent.
 
 Work like a careful research engineer:

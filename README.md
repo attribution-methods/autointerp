@@ -53,6 +53,12 @@ Run a headless investigation:
 autointerp "Plan an investigation of sycophancy using black-box probes first, then SAE features."
 ```
 
+Run the CI-safe end-to-end scaffold example:
+
+```bash
+python examples/blackbox_to_validation.py
+```
+
 Start an interactive session:
 
 ```bash
@@ -63,7 +69,9 @@ autointerp
 
 ```text
 src/autointerp/          Mechanistic interpretability methods and helpers
+src/autointerp/schemas.py Shared investigation artifact schemas
 src/autointerp_agent/    Agent runtime, CLI, tools, context, permissions
+examples/                Runnable scaffold examples
 skills/                  Reusable method skills
 configs/agent.yaml       Default agent configuration
 docs/                    Architecture and scaffold notes
@@ -82,8 +90,18 @@ Validate skills:
 python scripts/validate_skills.py
 ```
 
+Run the local test suite:
+
+```bash
+pytest -q
+```
+
 Smoke-test imports:
 
 ```bash
 python -B -c "from autointerp_agent import load_config; from autointerp_agent.skills import SkillRegistry; print(len(SkillRegistry.from_repo().skills))"
 ```
+
+See [docs/schemas.md](docs/schemas.md) for the shared artifact contracts and
+[docs/end_to_end_mvp.md](docs/end_to_end_mvp.md) for the initial investigation
+path.

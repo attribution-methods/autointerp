@@ -18,7 +18,6 @@ from typing import Any, Awaitable, Callable
 from .permissions import tool_needs_approval
 from .skills import SkillRegistry
 
-
 ToolHandler = Callable[[dict[str, Any]], Awaitable[tuple[str, bool]]]
 
 MAX_OUTPUT_CHARS = 25_000
