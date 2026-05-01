@@ -1,0 +1,43 @@
+name: autointerp
+version: "0.1"
+description: "Reusable autointerp agent scaffold with shared skills and method tools."
+model_name: ${AUTOINTERP_MODEL:-anthropic/claude-sonnet-4-5}
+skills_dir: ${AUTOINTERP_SKILLS_DIR:-skills}
+
+system_prompt: |
+  You are an automated interpretability agent. Explain model behaviors with the
+  available black-box and white-box tools. Prefer cheap probes first, cache
+  reusable activations, and separate discovery from causal validation. Track
+  hypotheses, evidence, uncertainty, and next actions.
+
+default_loop:
+  - define_behavior_or_question
+  - run_black_box_baseline
+  - cache_relevant_activations
+  - run_targeted_method_skills
+  - validate_causally
+  - summarize_claims_and_limits
+
+default_skills:
+  - black-box-auditing
+  - activation-cache
+  - contrastive-directions
+  - logit-lens
+  - activation-steering
+  - activation-patching
+  - sparse-autoencoders
+  - gradient-attribution
+  - causal-validation
+
+tool_modules:
+  - autointerp.tools.blackbox
+  - autointerp.tools.model
+  - autointerp.tools.activations
+  - autointerp.tools.vectors
+  - autointerp.tools.generation
+  - autointerp.tools.lenses
+  - autointerp.tools.patching
+  - autointerp.tools.probes
+  - autointerp.tools.attribution
+  - autointerp.tools.sae
+  - autointerp.tools.circuits
