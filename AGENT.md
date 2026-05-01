@@ -4,6 +4,7 @@ This repository defines a first-pass autointerp agent as a reusable scaffold:
 
 - `skills/`: procedural knowledge for when and how to use each method.
 - `src/autointerp/`: Python implementations for repeatable interpretability operations.
+- `src/autointerp/schemas.py`: shared artifacts for behavior specs, prompt batches, findings, candidate sites, and validation reports.
 - `src/autointerp_agent/`: an ML Intern-inspired agent runtime.
 - `configs/agent.yaml`: a compact agent configuration and default skill set.
 - `scripts/validate_skills.py`: local validation for skill frontmatter.
@@ -19,7 +20,7 @@ Skills are not a replacement for tools, APIs, or libraries. Treat them as the la
 3. Run black-box probes before heavier white-box methods when model internals are unavailable or the behavior is not localized.
 4. Cache activations once and reuse them across lenses, probes, SAE lookups, patching, and attribution.
 5. Separate discovery from validation. Discovery methods can be noisy; validation requires held-out prompts and causal interventions.
-6. Record evidence as claims, counterexamples, and follow-up tests.
+6. Record evidence in an `InvestigationReport` so later agents and downstream repositories can consume it.
 
 ## Default System Prompt
 

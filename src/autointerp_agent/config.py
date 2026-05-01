@@ -16,7 +16,6 @@ import yaml
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-
 DEFAULT_MODEL = "anthropic/claude-sonnet-4-5"
 DEFAULT_CONFIG_PATH = Path("configs/agent.yaml")
 

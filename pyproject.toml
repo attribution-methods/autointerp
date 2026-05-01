@@ -52,6 +52,7 @@ where = ["src"]
 include = ["autointerp*", "autointerp_agent*"]
 
 [tool.setuptools.package-data]
+autointerp = ["py.typed"]
 autointerp_agent = ["py.typed"]
 
 [tool.ruff]
