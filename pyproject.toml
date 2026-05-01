@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autointerp"
+version = "0.1.0"
+description = "Mechanistic interpretability tools, skills, and an agent runtime for automated model investigation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "attribution-methods" },
+]
+dependencies = [
+  "pydantic>=2.6.0",
+  "pyyaml>=6.0",
+  "rich>=13.7.0",
+  "prompt-toolkit>=3.0.0",
+  "python-dotenv>=1.0.0",
+  "litellm>=1.70.0",
+]
+
+[project.optional-dependencies]
+mcp = [
+  "fastmcp>=2.0.0",
+]
+mechinterp = [
+  "numpy>=1.26.0",
+  "torch>=2.2.0",
+  "transformers>=4.40.0",
+  "scikit-learn>=1.4.0",
+  "accelerate>=0.28.0",
+  "safetensors>=0.4.0",
+  "huggingface-hub>=0.22.0",
+  "datasets>=2.18.0",
+]
+dev = [
+  "pytest>=8.0.0",
+  "ruff>=0.4.0",
+  "mypy>=1.9.0",
+]
+all = [
+  "autointerp[mcp,mechinterp,dev]",
+]
+
+[project.scripts]
+autointerp = "autointerp_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["autointerp*", "autointerp_agent*"]
+
+[tool.setuptools.package-data]
+autointerp_agent = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
