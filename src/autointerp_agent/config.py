@@ -32,7 +32,7 @@ class MCPServerConfig(BaseModel):
 
 class AgentConfig(BaseModel):
     model_name: str = DEFAULT_MODEL
-    max_iterations: int = 60
+    max_iterations: int = 500
     stream: bool = True
     auto_approve: bool = False
     local_mode: bool = True

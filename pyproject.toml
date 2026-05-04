@@ -45,7 +45,7 @@ all = [
 ]
 
 [project.scripts]
-autointerp = "autointerp_agent.cli:main"
+autointerp = "autointerp_agent.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

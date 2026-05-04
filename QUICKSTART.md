@@ -17,13 +17,27 @@ export ANTHROPIC_API_KEY=...
 You'll need a GPU for any run that loads a real model (GPT-2-small needs
 <2 GB, anything bigger needs a real card).
 
-## 1. Design a spec (Stage 0)
-
-Start an interactive session and open with a research question:
+## 1. Design a spec (Stage 0) and run it — in one command
 
 ```bash
-autointerp --model anthropic/claude-sonnet-4-5
-> How does GPT-2-small mechanistically implement indirect object identification?
+autointerp investigate "How does GPT-2-small mechanistically implement indirect object identification?"
+```
+
+`investigate` runs Stage 0 conversationally; the moment you approve a spec
+via `finalize_spec`, it auto-launches the investigation pipeline against
+that spec with sane defaults (`--max-iterations 500`, `--auto-approve`).
+You can also stay one-shot:
+
+```bash
+autointerp investigate --spec examples/specs/ioi-gpt2-small-blind-v1_rev1.json
+```
+
+Or design first and run later:
+
+```bash
+autointerp                      # interactive Stage 0 REPL
+# ...approve a spec, then later:
+autointerp investigate --spec outputs/specs/<spec_id>_rev<n>.json
 ```
 
 The agent enters spec-mode and walks you through:
@@ -52,28 +66,7 @@ A worked spec — exactly the one Sonnet ran for IOI — lives at
 [examples/specs/ioi-gpt2-small-blind-v1_rev1.json](examples/specs/ioi-gpt2-small-blind-v1_rev1.json).
 You can copy it into `outputs/specs/` and skip Stage 0 to reproduce the run.
 
-## 2. Run the investigation
-
-Hand the approved spec to the investigation pipeline:
-
-```bash
-python -m autointerp_agent.investigation \
-  --spec outputs/specs/<spec_id>_rev<n>.json \
-  --model anthropic/claude-sonnet-4-5 \
-  --auto-approve \
-  --max-iterations 500
-```
-
-Useful flags:
-
-- `--auto-approve` — skip per-tool permission prompts (use for batch runs).
-- `--max-iterations N` — default is 60, which is too low for a real
-  multi-stage investigation. Use **500** as a sane default; the run will
-  finish well before that on small models.
-- `--no-resume` — refuse to reuse an existing run dir (forces a fresh
-  one). Default is *resume if a partial run exists*.
-- `--quiet` — suppress live console streaming. The on-disk transcript is
-  unaffected.
+## 2. Pipeline mechanics (what `investigate` does under the hood)
 
 Output lands in `runs/<spec_id>_rev<n>/`. The agent walks `spec.stages`
 in order; it can:
@@ -87,22 +80,33 @@ Tier-2 is the only path that writes to `findings/` or moves the run
 forward. Metric values come from registered functions over hashed
 inputs — the agent cannot fabricate a number.
 
-## 3. Watch the run
+Useful flags on `autointerp investigate`:
 
-Every run captures a complete debugging transcript:
+- `--max-iterations N` — default **500** (was 60; too low killed our first run).
+- `--auto-approve / --no-auto-approve` — auto-approve is **on** by default
+  for non-interactive runs; flip it off if you want to confirm each tool.
+- `--no-resume` — force a fresh run dir (default is *resume if partial*).
+- `--quiet` — suppress live console streaming. On-disk transcript is unaffected.
+
+Pre-flight check before a paid run:
 
 ```bash
-RUN=runs/<spec_id>_rev<n>
-
-tail -f $RUN/assistant_turns.jsonl     # one line per LLM turn
-tail -f $RUN/tool_invocations.jsonl    # one line per tool call
-ls    $RUN/findings/                   # committed metric results
-cat   $RUN/state.json | jq             # current stage, criteria, budget
-cat   $RUN/INVESTIGATION_LOG.md        # the agent's narrative notes
+autointerp validate --spec examples/specs/ioi-gpt2-small-blind-v1_rev1.json
+# add --load-model to also confirm the model loads
 ```
 
-For full untruncated tool output (bash stdout/stderr, JSON dumps, error
-traces), open `$RUN/tool_invocations/<iter>_<idx>_<tool>_<id>.txt`.
+## 3. Watch / inspect runs
+
+```bash
+autointerp runs list             # table: stage, status, criteria, wallclock
+autointerp runs show <run_id>    # pretty-printed report.json
+autointerp runs tail <run_id>    # live stream of tool calls + assistant turns
+```
+
+`runs tail` reads `tool_invocations.jsonl` and `assistant_turns.jsonl`
+under the hood. For full untruncated tool output (bash stdout/stderr,
+JSON dumps, error traces), open
+`runs/<run_id>/tool_invocations/<iter>_<idx>_<tool>_<id>.txt`.
 
 ## 4. Read the results
 
@@ -122,21 +126,10 @@ When the run finishes (or hits `request_spec_revision`), look at:
 
 ## 5. Reproduce the IOI run
 
-The whole flow on the worked example:
-
 ```bash
-# 1. Drop the worked spec in
-mkdir -p outputs/specs
-cp examples/specs/ioi-gpt2-small-blind-v1_rev1.json outputs/specs/
-
-# 2. Run
-python -m autointerp_agent.investigation \
-  --spec outputs/specs/ioi-gpt2-small-blind-v1_rev1.json \
-  --model anthropic/claude-sonnet-4-5 \
-  --auto-approve --max-iterations 500
-
-# 3. Inspect
-cat runs/ioi-gpt2-small-blind-v1_rev1/report.json | jq '.metadata.criteria_evaluated'
+autointerp validate --spec examples/specs/ioi-gpt2-small-blind-v1_rev1.json
+autointerp investigate --spec examples/specs/ioi-gpt2-small-blind-v1_rev1.json
+autointerp runs show ioi-gpt2-small-blind-v1_rev1
 ```
 
 Expected outcome: discovers the circuit `[(L9, H9), (L9, H6), (L10, H0)]`,
