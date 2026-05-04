@@ -1,0 +1,408 @@
+"""Conversational Stage 0 tools.
+
+These let the agent build an `InvestigationSpec` incrementally across turns,
+retrieve phenomenon priors, validate the draft, and finalize with an Approval.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from autointerp.spec import (
+    METRIC_META,
+    TOOL_META,
+    InvestigationSpec,
+    MetricFamily,
+    MetricName,
+    SpecStatus,
+)
+from autointerp.spec_describe import describe_spec_markdown
+from autointerp.spec_partial import (
+    PartialSpec,
+    UnknownSpecField,
+    make_approval,
+)
+
+from .tools import ToolSpec
+
+PRIORS_DIR = Path(__file__).resolve().parents[2] / "priors"
+METRICS_DIR = Path(__file__).resolve().parents[2] / "metrics"
+SPEC_OUTPUT_DIR = Path("outputs") / "specs"
+DRAFT_PATH = SPEC_OUTPUT_DIR / "_draft.json"
+
+_partial = PartialSpec()
+_pending_finalize: dict[str, Any] = {}
+
+
+def _snapshot_draft() -> None:
+    """Persist the in-memory partial spec to disk so it survives a restart."""
+    if not _partial.data:
+        return
+    SPEC_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    DRAFT_PATH.write_text(json.dumps(_partial.data, indent=2, default=str) + "\n")
+
+
+def _load_draft_if_present() -> bool:
+    """Restore the partial spec from disk if a draft exists. Returns whether
+    anything was loaded. Idempotent — does nothing once `_partial` is populated."""
+    if _partial.data:
+        return False
+    if not DRAFT_PATH.exists():
+        return False
+    try:
+        _partial.data.update(json.loads(DRAFT_PATH.read_text()))
+    except json.JSONDecodeError:
+        return False
+    return True
+
+
+def _clear_draft() -> None:
+    if DRAFT_PATH.exists():
+        DRAFT_PATH.unlink()
+
+
+async def _retrieve_prior(args: dict[str, Any]) -> tuple[str, bool]:
+    phenomenon = str(args.get("phenomenon_id", "")).strip()
+    if not phenomenon:
+        return "phenomenon_id is required.", False
+    path = PRIORS_DIR / f"{phenomenon}.yaml"
+    if not path.exists():
+        available = sorted(p.stem for p in PRIORS_DIR.glob("*.yaml"))
+        return (
+            f"No prior for {phenomenon!r}. Available: {available or '(none)'}. "
+            "You may proceed without one (set phenomenon_id='custom' in update_spec).",
+            False,
+        )
+    prior = yaml.safe_load(path.read_text()) or {}
+    diff = _partial.merge_prior(prior)
+    if not diff:
+        return f"Prior {phenomenon!r} loaded but all fields were already set.", True
+    return (
+        f"Loaded prior {phenomenon!r}. Filled fields: {sorted(diff.keys())}. "
+        "Existing fields were not overwritten.",
+        True,
+    )
+
+
+async def _update_spec(args: dict[str, Any]) -> tuple[str, bool]:
+    _load_draft_if_present()
+    patch = args.get("patch")
+    if not isinstance(patch, dict) or not patch:
+        return "patch must be a non-empty object of fields to set.", False
+    try:
+        diff = _partial.patch(patch)
+    except UnknownSpecField as exc:
+        return str(exc), False
+    if not diff:
+        return "No changes (values matched current draft).", True
+    _snapshot_draft()
+    return (
+        "Updated (draft auto-saved to outputs/specs/_draft.json):\n"
+        + json.dumps(diff, indent=2, default=str),
+        True,
+    )
+
+
+async def _remove_spec_fields(args: dict[str, Any]) -> tuple[str, bool]:
+    _load_draft_if_present()
+    keys = args.get("keys")
+    if not isinstance(keys, list) or not keys:
+        return "keys must be a non-empty list of top-level field names to remove.", False
+    bad_types = [k for k in keys if not isinstance(k, str)]
+    if bad_types:
+        return f"keys must be strings; got non-strings: {bad_types}", False
+    removed = _partial.remove(keys)
+    if not removed:
+        return f"No matching keys to remove. Current keys: {sorted(_partial.data.keys())}", True
+    _snapshot_draft()
+    return (
+        "Removed (draft auto-saved):\n" + json.dumps(removed, indent=2, default=str),
+        True,
+    )
+
+
+async def _show_spec(_args: dict[str, Any]) -> tuple[str, bool]:
+    _load_draft_if_present()
+    return _partial.as_markdown(), True
+
+
+async def _validate_spec(_args: dict[str, Any]) -> tuple[str, bool]:
+    _load_draft_if_present()
+    from pydantic import ValidationError
+
+    missing = _partial.missing_required()
+    errors: list[str] = []
+    if missing:
+        errors.append(f"missing required fields: {', '.join(missing)}")
+    try:
+        _partial.try_build(status=SpecStatus.DRAFT)
+    except ValidationError as exc:
+        for err in exc.errors()[:25]:
+            loc = ".".join(str(p) for p in err.get("loc", ()))
+            errors.append(f"{loc}: {err.get('msg', '')}")
+        if exc.error_count() > 25:
+            errors.append(f"... and {exc.error_count() - 25} more")
+    except Exception as exc:
+        errors.append(str(exc))
+    if not errors:
+        return "OK — spec is structurally valid.", True
+    return "Errors (must fix):\n- " + "\n- ".join(errors), True
+
+
+async def _describe_spec(_args: dict[str, Any]) -> tuple[str, bool]:
+    return describe_spec_markdown(), True
+
+
+async def _finalize_spec(args: dict[str, Any]) -> tuple[str, bool]:
+    _load_draft_if_present()
+    approver = str(args.get("approver", "")).strip()
+    kind = str(args.get("approver_kind", "human")).strip()
+    user_confirmation = bool(args.get("user_confirmed", False))
+    notes = args.get("notes")
+
+    if not approver:
+        return "approver is required (e.g. user email or agent id).", False
+    if kind not in {"human", "agent"}:
+        return "approver_kind must be 'human' or 'agent'.", False
+
+    rendered = _partial.as_markdown()
+
+    if not user_confirmation:
+        _pending_finalize.update({"approver": approver, "kind": kind, "notes": notes})
+        return (
+            "Show the rendered spec below to the user and ask for approval.\n\n"
+            + rendered,
+            True,
+        )
+
+    try:
+        spec = _partial.try_build(status=SpecStatus.AWAITING_APPROVAL)
+    except Exception as exc:
+        return f"Cannot finalize — spec has structural errors:\n{exc}", False
+
+    approval = make_approval(approver=approver, kind=kind, notes=notes)
+    finalized = spec.model_copy(
+        update={"status": SpecStatus.APPROVED, "approval": approval}
+    )
+    SPEC_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = SPEC_OUTPUT_DIR / f"{finalized.spec_id}_rev{finalized.revision}.json"
+    out_path.write_text(finalized.model_dump_json(indent=2) + "\n")
+    _pending_finalize.clear()
+    _clear_draft()
+    return (
+        f"Approved. Wrote {out_path}. Stage 1 may now run against spec_id "
+        f"{finalized.spec_id} (rev {finalized.revision}).",
+        True,
+    )
+
+
+def _retrieve_prior_tool() -> ToolSpec:
+    return ToolSpec(
+        name="retrieve_prior",
+        description=(
+            "Load a phenomenon prior from priors/<id>.yaml into the draft spec. "
+            "Existing fields are not overwritten. Call this first when the user "
+            "names a known phenomenon (e.g. 'ioi', 'induction')."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {"phenomenon_id": {"type": "string"}},
+            "required": ["phenomenon_id"],
+        },
+        handler=_retrieve_prior,
+    )
+
+
+def _update_spec_tool() -> ToolSpec:
+    return ToolSpec(
+        name="update_spec",
+        description="Patch top-level fields in the draft InvestigationSpec. Unknown keys are rejected.",
+        parameters={
+            "type": "object",
+            "properties": {"patch": {"type": "object", "additionalProperties": True}},
+            "required": ["patch"],
+        },
+        handler=_update_spec,
+    )
+
+
+def _remove_spec_fields_tool() -> ToolSpec:
+    return ToolSpec(
+        name="remove_spec_fields",
+        description="Delete top-level keys from the draft.",
+        parameters={
+            "type": "object",
+            "properties": {"keys": {"type": "array", "items": {"type": "string"}}},
+            "required": ["keys"],
+        },
+        handler=_remove_spec_fields,
+    )
+
+
+def _show_spec_tool() -> ToolSpec:
+    return ToolSpec(
+        name="show_spec",
+        description="Render the full InvestigationSpec shape with current values; unset fields show as _(unset)_.",
+        parameters={"type": "object", "properties": {}},
+        handler=_show_spec,
+    )
+
+
+def _validate_spec_tool() -> ToolSpec:
+    return ToolSpec(
+        name="validate_spec",
+        description="Run deterministic checks on the draft (schema, metric ranges, tool deps, split disjointness, budget).",
+        parameters={"type": "object", "properties": {}},
+        handler=_validate_spec,
+    )
+
+
+def _describe_spec_tool() -> ToolSpec:
+    return ToolSpec(
+        name="describe_spec",
+        description="Return the InvestigationSpec schema reference: fields, types, required/optional, enum values.",
+        parameters={"type": "object", "properties": {}},
+        handler=_describe_spec,
+    )
+
+
+def _finalize_spec_tool() -> ToolSpec:
+    return ToolSpec(
+        name="finalize_spec",
+        description="Two-phase approval. Phase 1 renders the spec for the user; phase 2 (user_confirmed=true) writes it.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "approver": {"type": "string"},
+                "approver_kind": {"type": "string", "enum": ["human", "agent"]},
+                "user_confirmed": {"type": "boolean"},
+                "notes": {"type": "string"},
+            },
+            "required": ["approver"],
+        },
+        handler=_finalize_spec,
+    )
+
+
+def create_stage0_tools(include_priors: bool = False) -> list[ToolSpec]:
+    _load_draft_if_present()
+    tools = [
+        _describe_spec_tool(),
+        _update_spec_tool(),
+        _remove_spec_fields_tool(),
+        _show_spec_tool(),
+        _validate_spec_tool(),
+        _finalize_spec_tool(),
+        _list_metrics_tool(),
+        _read_metric_tool(),
+    ]
+    if include_priors:
+        tools.insert(0, _retrieve_prior_tool())
+    return tools
+
+
+async def _list_metrics(args: dict[str, Any]) -> tuple[str, bool]:
+    family_filter = str(args.get("family", "")).strip().lower() or None
+    if family_filter:
+        try:
+            wanted = MetricFamily(family_filter)
+        except ValueError:
+            return (
+                f"Unknown family {family_filter!r}. Valid: "
+                + ", ".join(f.value for f in MetricFamily),
+                False,
+            )
+        metrics = [m for m, meta in METRIC_META.items() if meta.family == wanted]
+    else:
+        metrics = list(METRIC_META.keys())
+    lines = []
+    for m in metrics:
+        meta = METRIC_META[m]
+        lo, hi = meta.value_range
+        rng = f"[{lo if lo is not None else '-∞'}, {hi if hi is not None else '∞'}]"
+        lines.append(
+            f"- {m.value} ({meta.family.value}, range {rng}, "
+            f"{meta.direction}-is-better): {meta.one_line}"
+        )
+    return "\n".join(lines), True
+
+
+async def _read_metric(args: dict[str, Any]) -> tuple[str, bool]:
+    name = str(args.get("name", "")).strip()
+    if not name:
+        return "name is required.", False
+    try:
+        metric = MetricName(name)
+    except ValueError:
+        return (
+            f"Unknown metric {name!r}. Use list_metrics to see the closed vocabulary.",
+            False,
+        )
+    meta = METRIC_META.get(metric)
+    contract_block = ""
+    if meta is not None:
+        lo, hi = meta.value_range
+        rng = f"[{lo if lo is not None else '-∞'}, {hi if hi is not None else '∞'}]"
+        contract_block = (
+            f"\n\n## Contract\n"
+            f"- family: {meta.family.value}\n"
+            f"- value_range: {rng}\n"
+            f"- direction: {meta.direction}-is-better\n"
+            f"- requires_inputs: {meta.requires_inputs}\n"
+        )
+    path = METRICS_DIR / f"{name}.md"
+    body = path.read_text() if path.exists() else f"# {name}\n\n(no reference card written yet)"
+    return body + contract_block, True
+
+
+def _list_metrics_tool() -> ToolSpec:
+    return ToolSpec(
+        name="list_metrics",
+        description="List metrics in the closed vocabulary, optionally filtered by family.",
+        parameters={
+            "type": "object",
+            "properties": {"family": {"type": "string"}},
+        },
+        handler=_list_metrics,
+    )
+
+
+def _read_metric_tool() -> ToolSpec:
+    return ToolSpec(
+        name="read_metric",
+        description="Read one metric's reference card and contract (range, direction, inputs).",
+        parameters={
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
+        handler=_read_metric,
+    )
+
+
+def reset_stage0_state() -> None:
+    """Test/utility hook to clear module-level draft state."""
+    _partial.reset()
+    _pending_finalize.clear()
+
+
+def current_partial() -> PartialSpec:
+    return _partial
+
+
+__all__ = [
+    "create_stage0_tools",
+    "reset_stage0_state",
+    "current_partial",
+    "PRIORS_DIR",
+    "SPEC_OUTPUT_DIR",
+]
+
+
+# Touch-tests imported here so the module is self-contained on import.
+_ = (datetime, timezone, InvestigationSpec)

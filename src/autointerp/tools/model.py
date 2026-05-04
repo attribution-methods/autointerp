@@ -77,6 +77,8 @@ class ModelHandle:
                 return len(inner.layers)
             if hasattr(inner, "model") and hasattr(inner.model, "layers"):
                 return len(inner.model.layers)
+        if hasattr(self.model, "transformer") and hasattr(self.model.transformer, "h"):
+            return len(self.model.transformer.h)
         config = self.model.config
         for name in ("num_hidden_layers", "n_layer", "num_layers"):
             if hasattr(config, name):
@@ -119,6 +121,8 @@ class ModelHandle:
                 return inner.layers[layer_idx]
             if hasattr(inner, "model") and hasattr(inner.model, "layers"):
                 return inner.model.layers[layer_idx]
+        if hasattr(self.model, "transformer") and hasattr(self.model.transformer, "h"):
+            return self.model.transformer.h[layer_idx]
         raise ValueError(f"Could not access layer {layer_idx}")
 
     def filter_messages(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:

@@ -113,6 +113,8 @@ class ToolRouter:
 
 
 def create_builtin_tools(skill_registry: SkillRegistry) -> list[ToolSpec]:
+    from .stage0_tools import create_stage0_tools
+
     return [
         _plan_tool(),
         _list_skills_tool(skill_registry),
@@ -121,6 +123,7 @@ def create_builtin_tools(skill_registry: SkillRegistry) -> list[ToolSpec]:
         _read_file_tool(),
         _write_file_tool(),
         _edit_file_tool(),
+        *create_stage0_tools(),
     ]
 
 

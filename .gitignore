@@ -11,3 +11,6 @@ build/
 outputs/
 analysis/
 .cache/
+runs/
+logs/
+scratch/

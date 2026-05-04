@@ -50,6 +50,7 @@ async def async_main(argv: list[str] | None = None) -> int:
         skill_registry=registry,
         default_skill_names=config.default_skills,
         system_prompt=config.system_prompt,
+        model_name=config.model_name,
     )
     async with ToolRouter(
         skill_registry=registry,
