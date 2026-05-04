@@ -170,14 +170,29 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
                 "Run the canonical implementation of a closed-vocabulary metric "
                 "and receive a one-time provenance_token. Pass the returned "
                 "payload + token to commit_artifact('MetricResult', ...). The "
-                "agent cannot edit the value before committing."
+                "agent cannot edit the value before committing.\n"
+                "When metric='custom', the spec may define multiple custom "
+                "metrics; you must disambiguate by including a "
+                "'__custom_name__' key in `inputs` whose value matches the "
+                "`name` field of the relevant `custom_metric_def` in the "
+                "spec. The runtime then uses that def's source_code to compute "
+                "the value. Required-input keys (besides '__custom_name__') "
+                "come from the def's `requires_inputs`."
             ),
             parameters={
                 "type": "object",
                 "properties": {
                     "metric": {"type": "string", "enum": metric_enum},
                     "metric_id": {"type": "string"},
-                    "inputs": {"type": "object", "additionalProperties": True},
+                    "inputs": {
+                        "type": "object",
+                        "additionalProperties": True,
+                        "description": (
+                            "Required-input map for the metric. For "
+                            "metric='custom', also include "
+                            "'__custom_name__': '<custom_metric_def.name>'."
+                        ),
+                    },
                     "threshold": {"type": "number"},
                     "comparator": {
                         "type": "string",

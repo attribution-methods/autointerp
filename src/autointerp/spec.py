@@ -91,6 +91,9 @@ class ToolName(str, Enum):
     SAE_INSPECT = "sae_inspect"
     STEERING = "steering"
     CONTRASTIVE_DIRECTIONS = "contrastive_directions"
+    ATTENTION_HEADS = "attention_heads"
+    ACTIVATION_CACHE = "activation_cache"
+    QK_OV_DECOMPOSITION = "qk_ov_decomposition"
 
 
 class MetricMeta(StrictBaseModel):
@@ -293,6 +296,21 @@ TOOL_META: dict[ToolName, ToolMeta] = {
         name=ToolName.CONTRASTIVE_DIRECTIONS, requires_fields=["contrast"],
         families_emitted=[MetricFamily.LOCALIZATION, MetricFamily.FEATURE],
         one_line="Find directions distinguishing positive vs negative populations.",
+    ),
+    ToolName.ATTENTION_HEADS: ToolMeta(
+        name=ToolName.ATTENTION_HEADS, requires_fields=[],
+        families_emitted=[MetricFamily.LOCALIZATION, MetricFamily.CAUSAL],
+        one_line="Cache, inspect, ablate, and patch individual attention heads.",
+    ),
+    ToolName.ACTIVATION_CACHE: ToolMeta(
+        name=ToolName.ACTIVATION_CACHE, requires_fields=[],
+        families_emitted=[MetricFamily.LOCALIZATION, MetricFamily.FEATURE],
+        one_line="Capture and persist activations (incl. attention weights) at chosen sites.",
+    ),
+    ToolName.QK_OV_DECOMPOSITION: ToolMeta(
+        name=ToolName.QK_OV_DECOMPOSITION, requires_fields=[],
+        families_emitted=[MetricFamily.LOCALIZATION],
+        one_line="Decompose head circuits into QK (where to attend) and OV (what to write).",
     ),
 }
 

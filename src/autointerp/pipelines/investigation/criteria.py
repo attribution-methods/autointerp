@@ -72,9 +72,16 @@ def _iter_metric_artifacts(handle: RunHandle) -> list[tuple[Path, dict[str, Any]
     return out
 
 
-def _matches(payload: dict[str, Any], *, metric: MetricName, split: str) -> bool:
+def _matches(
+    payload: dict[str, Any],
+    *,
+    metric: MetricName,
+    split: str,
+    custom_name: str | None = None,
+) -> bool:
     md = payload.get("metadata") or {}
-    if md.get("metric_name") != metric.value:
+    expected = custom_name if metric == MetricName.CUSTOM else metric.value
+    if md.get("metric_name") != expected:
         return False
     prov = md.get("_provenance") or {}
     return prov.get("split") == split
@@ -106,11 +113,19 @@ def _resolve_metric_result(
         md = payload.get("metadata") or {}
         observed_metric = md.get("metric_name")
         observed_split = (md.get("_provenance") or {}).get("split")
-        if observed_metric != criterion.metric.value:
+        if criterion.metric == MetricName.CUSTOM:
+            expected_metric = (
+                criterion.custom_metric_def.name
+                if criterion.custom_metric_def is not None
+                else None
+            )
+        else:
+            expected_metric = criterion.metric.value
+        if observed_metric != expected_metric:
             raise CriterionGateError(
                 f"metric_result_ref measures {observed_metric!r} but "
                 f"criterion {criterion.criterion_id!r} requires "
-                f"{criterion.metric.value!r}"
+                f"{expected_metric!r}"
             )
         if observed_split != criterion.on_split:
             raise CriterionGateError(
@@ -121,10 +136,20 @@ def _resolve_metric_result(
         return path, payload
 
     # Auto-discover.
+    custom_name = (
+        criterion.custom_metric_def.name
+        if criterion.metric == MetricName.CUSTOM and criterion.custom_metric_def is not None
+        else None
+    )
     candidates = [
         (p, pl)
         for p, pl in _iter_metric_artifacts(handle)
-        if _matches(pl, metric=criterion.metric, split=criterion.on_split)
+        if _matches(
+            pl,
+            metric=criterion.metric,
+            split=criterion.on_split,
+            custom_name=custom_name,
+        )
     ]
     if not candidates:
         raise CriterionGateError(

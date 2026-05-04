@@ -212,6 +212,65 @@ def _ablation_drop(inputs: dict[str, Any]) -> float:
     return baseline - ablated
 
 
+def _effect_size(inputs: dict[str, Any]) -> float:
+    """Cohen's d between two distributions.
+
+    Unpaired form: d = (mean(group_a) - mean(group_b)) / pooled_sd, where
+    pooled_sd uses the sample SD (ddof=1) and equal-weight pooling. Sign
+    follows group_a - group_b: positive d means group_a is larger on average.
+
+    Paired form (when ``paired=True`` is set in inputs): d_z = mean(diff) /
+    sd(diff), where diff = group_a[i] - group_b[i].
+
+    Required inputs:
+      - group_a: list[float] — observations from condition A
+      - group_b: list[float] — observations from condition B
+    Optional inputs:
+      - paired: bool — if True, compute Cohen's d_z; group_a and group_b
+        must then have equal length
+    """
+    _require_keys(MetricName.EFFECT_SIZE, inputs, ("group_a", "group_b"))
+    a = _as_float_list(MetricName.EFFECT_SIZE, "group_a", inputs["group_a"])
+    b = _as_float_list(MetricName.EFFECT_SIZE, "group_b", inputs["group_b"])
+    paired = bool(inputs.get("paired", False))
+
+    if paired:
+        if len(a) != len(b):
+            raise MetricRegistryError(
+                f"effect_size: paired=True requires equal lengths "
+                f"(got {len(a)} vs {len(b)})"
+            )
+        if len(a) < 2:
+            raise MetricRegistryError(
+                "effect_size: paired form needs at least 2 observations"
+            )
+        diffs = [ai - bi for ai, bi in zip(a, b)]
+        m = sum(diffs) / len(diffs)
+        var = sum((d - m) ** 2 for d in diffs) / (len(diffs) - 1)
+        sd = math.sqrt(var)
+        if sd == 0.0:
+            raise MetricRegistryError(
+                "effect_size: paired diffs have zero SD; effect size undefined"
+            )
+        return m / sd
+
+    if len(a) < 2 or len(b) < 2:
+        raise MetricRegistryError(
+            "effect_size: each group needs at least 2 observations"
+        )
+    ma = sum(a) / len(a)
+    mb = sum(b) / len(b)
+    var_a = sum((x - ma) ** 2 for x in a) / (len(a) - 1)
+    var_b = sum((x - mb) ** 2 for x in b) / (len(b) - 1)
+    pooled = ((len(a) - 1) * var_a + (len(b) - 1) * var_b) / (len(a) + len(b) - 2)
+    sd = math.sqrt(pooled)
+    if sd == 0.0:
+        raise MetricRegistryError(
+            "effect_size: pooled SD is zero; effect size undefined"
+        )
+    return (ma - mb) / sd
+
+
 def _minimality(inputs: dict[str, Any]) -> float:
     """Smallest single-component faithfulness drop in the circuit.
 
@@ -286,6 +345,12 @@ REGISTRY: dict[MetricName, MetricImpl] = {
         required_inputs=("full_circuit_faithfulness", "removed_faithfulness"),
         compute=_minimality,
         one_line="min(full_circuit_faithfulness - removed_faithfulness[i]).",
+    ),
+    MetricName.EFFECT_SIZE: MetricImpl(
+        name=MetricName.EFFECT_SIZE,
+        required_inputs=("group_a", "group_b"),
+        compute=_effect_size,
+        one_line="Cohen's d (or paired d_z) between group_a and group_b.",
     ),
 }
 

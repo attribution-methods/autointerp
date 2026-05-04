@@ -29,7 +29,39 @@ from autointerp.spec_partial import (
     make_approval,
 )
 
+from autointerp.pipelines.investigation.metrics import REGISTRY as _METRIC_REGISTRY
+
 from .tools import ToolSpec
+
+
+def _unregistered_metric_refs(spec: InvestigationSpec) -> list[str]:
+    """Return locations referencing a MetricName with no compute fn registered.
+
+    A metric is acceptable if (a) it is ``MetricName.CUSTOM`` (and the criterion
+    supplies a ``custom_metric_def``, validated elsewhere) or (b) it appears in
+    the runtime ``REGISTRY``. Anything else — typically an enum value declared
+    without a registered implementation — would fail at runtime when the
+    pipeline tries to evaluate it. Catch it at finalize time so the agent has
+    to revise the spec before approval.
+    """
+    bad: list[str] = []
+    registered = set(_METRIC_REGISTRY.keys()) | {MetricName.CUSTOM}
+    for i, stage in enumerate(spec.stages):
+        for j, m in enumerate(stage.metrics):
+            if m not in registered:
+                bad.append(
+                    f"stages[{i}].metrics[{j}]={m.value!r} — not in metric "
+                    f"registry. Use a registered metric or define a custom one."
+                )
+    for i, crit in enumerate(spec.success_criteria):
+        if crit.metric not in registered:
+            bad.append(
+                f"success_criteria[{i}] (id={crit.criterion_id!r}).metric="
+                f"{crit.metric.value!r} — not in metric registry. Either pick "
+                f"a registered metric or set metric='custom' with a "
+                f"custom_metric_def."
+            )
+    return bad
 
 def _render_custom_metrics_section(data: dict[str, Any]) -> str:
     """Pretty-print every CustomMetricDef referenced in success_criteria.
@@ -203,6 +235,19 @@ async def _finalize_spec(args: dict[str, Any]) -> tuple[str, bool]:
         return "approver is required (e.g. user email or agent id).", False
     if kind not in {"human", "agent"}:
         return "approver_kind must be 'human' or 'agent'.", False
+
+    try:
+        _preview = _partial.try_build(status=SpecStatus.AWAITING_APPROVAL)
+    except Exception as exc:
+        return f"Cannot finalize — spec has structural errors:\n{exc}", False
+    bad_refs = _unregistered_metric_refs(_preview)
+    if bad_refs:
+        return (
+            "Cannot finalize — the spec references metrics that are not in the "
+            "runtime registry. Fix each reference (via update_spec) before "
+            "calling finalize_spec again:\n- " + "\n- ".join(bad_refs),
+            False,
+        )
 
     rendered = _partial.as_markdown() + _render_custom_metrics_section(_partial.data)
 

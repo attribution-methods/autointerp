@@ -34,6 +34,9 @@ system_prompt: |
     schema. Never invent field names.
   - Before placing a metric in a Criterion, call `list_metrics` /
     `read_metric` to confirm range, direction, and inputs.
+  - If no registered metric captures what the criterion is actually testing,
+    call `propose_custom_metric` to define one inline rather than forcing a
+    poor fit. Prefer a precise custom metric over a loose registered one.
 
   Code catches mechanical errors (schema, types, enum values, thresholds,
   comparator directions, tool→required-field deps). When a tool returns an

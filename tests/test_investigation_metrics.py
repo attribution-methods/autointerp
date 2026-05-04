@@ -107,6 +107,28 @@ def test_faithfulness_basic() -> None:
     assert math.isclose(v, 0.8)
 
 
+def test_effect_size_unpaired() -> None:
+    impl = METRIC_REGISTRY[MetricName.EFFECT_SIZE]
+    # Two groups with mean diff 2.0 and pooled SD 1.0 → d = 2.0
+    v = impl.compute({"group_a": [3.0, 4.0, 5.0], "group_b": [1.0, 2.0, 3.0]})
+    assert math.isclose(v, 2.0)
+
+
+def test_effect_size_paired() -> None:
+    impl = METRIC_REGISTRY[MetricName.EFFECT_SIZE]
+    # diffs = [2, 1, 0] → mean=1.0, sd=1.0 → d_z = 1.0
+    v = impl.compute(
+        {"group_a": [3.0, 4.0, 5.0], "group_b": [1.0, 3.0, 5.0], "paired": True}
+    )
+    assert math.isclose(v, 1.0)
+
+
+def test_effect_size_zero_sd_raises() -> None:
+    impl = METRIC_REGISTRY[MetricName.EFFECT_SIZE]
+    with pytest.raises(MetricRegistryError, match="undefined"):
+        impl.compute({"group_a": [1.0, 1.0, 1.0], "group_b": [2.0, 2.0, 2.0]})
+
+
 def test_faithfulness_zero_gap_raises() -> None:
     impl = METRIC_REGISTRY[MetricName.FAITHFULNESS]
     with pytest.raises(MetricRegistryError, match="undefined"):

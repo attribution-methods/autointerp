@@ -4,7 +4,22 @@ from __future__ import annotations
 
 import inspect
 import json
+import re
 from typing import Any, Awaitable, Callable, Protocol, runtime_checkable
+
+# Pattern for tool-call XML syntax leaking into assistant text content.
+# Anthropic's models occasionally regress to the legacy <invoke>/<parameter>
+# XML format inside content blocks instead of using structured tool_use blocks.
+# When that happens the harness sees text-only content and would otherwise
+# treat the turn as the agent's final answer; we detect and retry instead.
+# The leading `<` is sometimes truncated by stop sequences (e.g. "tml:"
+# instead of "<" or "<param" instead of "<parameter"), so the pattern
+# matches both intact and truncated leaks.
+_LEAKED_TOOL_XML = re.compile(
+    r"</?(?:antml:)?(?:invoke|parameter|tool_use)\b|\btml:(?:invoke|parameter)\b",
+    re.IGNORECASE,
+)
+_MAX_LEAKED_XML_RETRIES = 3
 
 from litellm import acompletion
 
@@ -65,6 +80,7 @@ async def run_agent_turn(
 ) -> str:
     context.add_user(user_prompt)
     final_text = ""
+    leaked_xml_retries = 0
     for iteration in range(config.max_iterations):
         await _emit(observer, "on_iteration_start", iteration)
         response = await acompletion(
@@ -80,10 +96,30 @@ async def run_agent_turn(
 
         tool_calls = assistant_message.get("tool_calls") or []
         if not tool_calls:
-            final_text = str(assistant_message.get("content") or "")
+            content = str(assistant_message.get("content") or "")
+            # Catch the failure mode where the model emits tool-call XML in
+            # text content instead of returning a structured tool_use block.
+            # Without this, the harness exits believing the agent is done.
+            if (
+                _LEAKED_TOOL_XML.search(content)
+                and leaked_xml_retries < _MAX_LEAKED_XML_RETRIES
+            ):
+                leaked_xml_retries += 1
+                context.add_assistant({"role": "assistant", "content": content})
+                context.add_user(
+                    "Your last response contained tool-call XML syntax "
+                    "(e.g. <invoke>, <parameter>) inside the text content "
+                    "instead of a structured tool_use block. That format is "
+                    "not supported here. Re-issue the intended tool call "
+                    "using the structured tool-calling API; do not include "
+                    "tool XML in text content."
+                )
+                continue
+            final_text = content
             context.add_assistant({"role": "assistant", "content": final_text})
             await _emit(observer, "on_final", iteration, final_text)
             return final_text
+        leaked_xml_retries = 0
         context.add_assistant(assistant_message)
         for call_idx, tool_call in enumerate(tool_calls):
             function = tool_call.get("function", {})
