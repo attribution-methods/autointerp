@@ -42,6 +42,33 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+_SPEC_DIR = Path("outputs/specs")
+
+
+def _snapshot_specs() -> set[Path]:
+    if not _SPEC_DIR.exists():
+        return set()
+    return {p for p in _SPEC_DIR.glob("*_rev*.json") if not p.name.startswith("_")}
+
+
+def _auto_launch_pipeline(spec_path: str, console: Console) -> int:
+    """Hand off an approved spec to the investigation pipeline.
+
+    Mirrors the auto-launch behavior of ``autointerp investigate`` so the
+    bare REPL doesn't dead-end after ``finalize_spec``.
+    """
+    console.print(f"[bold]Spec finalized:[/bold] {spec_path}")
+    console.print("[bold]Launching investigation…[/bold]")
+    pipeline_argv = [
+        "--spec", spec_path,
+        "--runs-root", "runs",
+        "--max-iterations", "500",
+        "--auto-approve",
+    ]
+    from .investigation import main as investigation_main
+    return investigation_main(pipeline_argv)
+
+
 async def async_main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config = _load_cli_config(args)
@@ -58,6 +85,10 @@ async def async_main(argv: list[str] | None = None) -> int:
         system_prompt=config.system_prompt,
         model_name=config.model_name,
     )
+    _SPEC_DIR.mkdir(parents=True, exist_ok=True)
+    specs_before = _snapshot_specs()
+    finalized_spec: str | None = None
+
     async with ToolRouter(
         skill_registry=registry,
         auto_approve=config.auto_approve,
@@ -69,36 +100,49 @@ async def async_main(argv: list[str] | None = None) -> int:
         if args.prompt:
             answer = await run_agent_turn(args.prompt, config, context, router)
             console.print(answer)
-            return 0
-        session = PromptSession()
-        cap = args.max_turns if args.max_turns and args.max_turns > 0 else None
-        cap_msg = f"max {cap} turns" if cap else "no turn cap"
-        console.print(
-            f"[bold]Autointerp[/bold] interactive mode ({cap_msg}). Ctrl-D to exit."
-        )
-        turn = 0
-        while True:
-            try:
-                prompt = await session.prompt_async("autointerp> ")
-            except (EOFError, KeyboardInterrupt):
-                console.print()
-                return 0
-            prompt = prompt.strip()
-            if not prompt:
-                continue
-            turn += 1
-            answer = await run_agent_turn(prompt, config, context, router)
-            console.print(answer)
-            if cap and turn >= cap:
-                console.print(
-                    f"[yellow]Turn cap reached ({turn}/{cap}). "
-                    f"Run `autointerp --max-turns N` to extend, or Ctrl-D to exit.[/yellow]"
-                )
-                return 0
-            if cap and turn == max(1, int(cap * 0.8)):
-                console.print(
-                    f"[dim]({turn}/{cap} turns used)[/dim]"
-                )
+            new_specs = _snapshot_specs() - specs_before
+            if new_specs:
+                finalized_spec = str(sorted(new_specs)[-1])
+        else:
+            session = PromptSession()
+            cap = args.max_turns if args.max_turns and args.max_turns > 0 else None
+            cap_msg = f"max {cap} turns" if cap else "no turn cap"
+            console.print(
+                f"[bold]Autointerp[/bold] interactive mode ({cap_msg}). Ctrl-D to exit. "
+                "Approving a spec via [bold]finalize_spec[/bold] auto-launches "
+                "the investigation."
+            )
+            turn = 0
+            while True:
+                try:
+                    prompt = await session.prompt_async("autointerp> ")
+                except (EOFError, KeyboardInterrupt):
+                    console.print()
+                    return 0
+                prompt = prompt.strip()
+                if not prompt:
+                    continue
+                turn += 1
+                answer = await run_agent_turn(prompt, config, context, router)
+                console.print(answer)
+                new_specs = _snapshot_specs() - specs_before
+                if new_specs:
+                    finalized_spec = str(sorted(new_specs)[-1])
+                    break
+                if cap and turn >= cap:
+                    console.print(
+                        f"[yellow]Turn cap reached ({turn}/{cap}). "
+                        f"Run `autointerp --max-turns N` to extend, or Ctrl-D to exit.[/yellow]"
+                    )
+                    return 0
+                if cap and turn == max(1, int(cap * 0.8)):
+                    console.print(
+                        f"[dim]({turn}/{cap} turns used)[/dim]"
+                    )
+
+    if finalized_spec is not None:
+        return _auto_launch_pipeline(finalized_spec, console)
+    return 0
 
 
 def _load_cli_config(args: argparse.Namespace) -> AgentConfig:
