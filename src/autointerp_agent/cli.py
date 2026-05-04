@@ -69,7 +69,7 @@ def _auto_launch_pipeline(spec_path: str, console: Console) -> int:
     return investigation_main(pipeline_argv)
 
 
-async def async_main(argv: list[str] | None = None) -> int:
+async def async_main(argv: list[str] | None = None) -> int | str:
     args = build_parser().parse_args(argv)
     config = _load_cli_config(args)
     registry = SkillRegistry.from_dir(config.skills_dir)
@@ -140,8 +140,12 @@ async def async_main(argv: list[str] | None = None) -> int:
                         f"[dim]({turn}/{cap} turns used)[/dim]"
                     )
 
+    # Returning a string signals main() to invoke the pipeline. We must NOT
+    # call investigation_main here: it does its own asyncio.run, and nesting
+    # event loops raises "asyncio.run() cannot be called from a running
+    # event loop". Hand off to sync code after asyncio.run completes.
     if finalized_spec is not None:
-        return _auto_launch_pipeline(finalized_spec, console)
+        return finalized_spec
     return 0
 
 
@@ -163,7 +167,10 @@ def _load_cli_config(args: argparse.Namespace) -> AgentConfig:
 
 
 def main(argv: list[str] | None = None) -> int:
-    return asyncio.run(async_main(argv))
+    result = asyncio.run(async_main(argv))
+    if isinstance(result, str):
+        return _auto_launch_pipeline(result, Console())
+    return result
 
 
 if __name__ == "__main__":
