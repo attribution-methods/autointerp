@@ -44,6 +44,10 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Refuse to resume; require a fresh run dir")
     parser.add_argument("--quiet", action="store_true",
                         help="Disable live console streaming of agent turns and tool calls")
+    parser.add_argument("--verbose", action="store_true",
+                        help="Show the older verbose console format (iteration headers, "
+                             "tool ids, full assistant blocks). Default is the compact one-"
+                             "line-per-event view; jsonl artifacts are unchanged either way.")
     return parser
 
 
@@ -79,7 +83,11 @@ async def async_main(argv: list[str] | None = None) -> int:
         model_name=config.model_name,
     )
 
-    observer = RunObserver(handle, console=None if args.quiet else console)
+    observer = RunObserver(
+        handle,
+        console=None if args.quiet else console,
+        verbose=args.verbose,
+    )
 
     async with ToolRouter(
         skill_registry=registry,
