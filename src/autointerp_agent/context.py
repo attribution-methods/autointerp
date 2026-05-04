@@ -88,8 +88,29 @@ class ContextManager:
         # Anthropic prompt caching uses block-level cache_control markers; other
         # providers either ignore the field or reject the message shape. Keep it
         # conditional so swapping to a non-Anthropic model still works.
+        # OpenRouter passes cache_control through to Anthropic for Claude models,
+        # so model names like "openrouter/anthropic/claude-sonnet-4.5" qualify.
         name = (self.model_name or "").lower()
-        return name.startswith("anthropic/") or name.startswith("claude")
+        if name.startswith("anthropic/") or name.startswith("claude"):
+            return True
+        if name.startswith("openrouter/") and (
+            "anthropic/" in name or "/claude" in name
+        ):
+            return True
+        return False
+
+    def tools_with_caching(
+        self, tools: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Attach cache_control to the last tool so the whole tools block is
+        cacheable. Returns tools unchanged if caching is disabled or the list
+        is empty. Works through litellm for both direct-Anthropic and
+        OpenRouter-Anthropic routes."""
+        if not tools or not self._caching_enabled():
+            return tools
+        cached = [dict(t) for t in tools]
+        cached[-1] = {**cached[-1], "cache_control": {"type": "ephemeral"}}
+        return cached
 
     def llm_messages(self) -> list[dict[str, Any]]:
         msgs = [self.build_system_message()] + self.messages

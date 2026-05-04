@@ -86,7 +86,7 @@ async def run_agent_turn(
         response = await acompletion(
             model=config.model_name,
             messages=context.llm_messages(),
-            tools=tool_router.get_tool_specs_for_llm(),
+            tools=context.tools_with_caching(tool_router.get_tool_specs_for_llm()),
             tool_choice="auto",
             stream=False,
         )
