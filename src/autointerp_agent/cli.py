@@ -33,6 +33,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Auto-approve local write/edit/risky tools",
     )
     parser.add_argument("--list-skills", action="store_true", help="List available skills and exit")
+    parser.add_argument(
+        "--max-turns",
+        type=int,
+        default=30,
+        help="Cap on user/agent turns in interactive mode (default: 30; 0 = unlimited)",
+    )
     return parser
 
 
@@ -65,7 +71,12 @@ async def async_main(argv: list[str] | None = None) -> int:
             console.print(answer)
             return 0
         session = PromptSession()
-        console.print("[bold]Autointerp[/bold] interactive mode. Ctrl-D to exit.")
+        cap = args.max_turns if args.max_turns and args.max_turns > 0 else None
+        cap_msg = f"max {cap} turns" if cap else "no turn cap"
+        console.print(
+            f"[bold]Autointerp[/bold] interactive mode ({cap_msg}). Ctrl-D to exit."
+        )
+        turn = 0
         while True:
             try:
                 prompt = await session.prompt_async("autointerp> ")
@@ -75,8 +86,19 @@ async def async_main(argv: list[str] | None = None) -> int:
             prompt = prompt.strip()
             if not prompt:
                 continue
+            turn += 1
             answer = await run_agent_turn(prompt, config, context, router)
             console.print(answer)
+            if cap and turn >= cap:
+                console.print(
+                    f"[yellow]Turn cap reached ({turn}/{cap}). "
+                    f"Run `autointerp --max-turns N` to extend, or Ctrl-D to exit.[/yellow]"
+                )
+                return 0
+            if cap and turn == max(1, int(cap * 0.8)):
+                console.print(
+                    f"[dim]({turn}/{cap} turns used)[/dim]"
+                )
 
 
 def _load_cli_config(args: argparse.Namespace) -> AgentConfig:

@@ -56,6 +56,8 @@ def _add_investigate_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--model", help="Override model name")
     parser.add_argument("--max-iterations", type=int, default=500,
                         help="Investigation iteration cap (default: 500)")
+    parser.add_argument("--max-turns", type=int, default=30,
+                        help="Stage 0 conversation turn cap (default: 30; 0 = unlimited)")
     parser.add_argument("--auto-approve", dest="auto_approve",
                         action=argparse.BooleanOptionalAction, default=True,
                         help="Auto-approve risky tools (default: on for non-interactive runs)")
@@ -118,8 +120,10 @@ def _stage0_to_spec(args: argparse.Namespace) -> Optional[str]:
     )
 
     console = Console()
+    cap = args.max_turns if args.max_turns and args.max_turns > 0 else None
+    cap_msg = f"max {cap} turns" if cap else "no turn cap"
     console.print(
-        "[bold]Stage 0[/bold] — design the investigation spec. "
+        f"[bold]Stage 0[/bold] — design the investigation spec ({cap_msg}). "
         "Approve via [bold]finalize_spec[/bold]; this CLI then auto-launches "
         "the investigation on the approved spec."
     )
@@ -132,6 +136,7 @@ def _stage0_to_spec(args: argparse.Namespace) -> Optional[str]:
                 router.register_tool(tool)
             session = PromptSession()
             initial = args.question.strip() if args.question else None
+            turn = 0
             while True:
                 if initial:
                     prompt = initial
@@ -145,11 +150,21 @@ def _stage0_to_spec(args: argparse.Namespace) -> Optional[str]:
                     prompt = prompt.strip()
                     if not prompt:
                         continue
+                turn += 1
                 answer = await run_agent_turn(prompt, config, context, router)
                 console.print(answer)
                 new_specs = _snapshot_specs(spec_dir) - before
                 if new_specs:
                     return str(sorted(new_specs)[-1])
+                if cap and turn >= cap:
+                    console.print(
+                        f"[yellow]Stage 0 turn cap reached ({turn}/{cap}) "
+                        f"without an approved spec. Re-run with "
+                        f"`--max-turns N` to extend.[/yellow]"
+                    )
+                    return None
+                if cap and turn == max(1, int(cap * 0.8)):
+                    console.print(f"[dim]({turn}/{cap} turns used)[/dim]")
 
     return asyncio.run(_loop())
 
