@@ -336,6 +336,74 @@ class Budget(StrictBaseModel):
     max_wallclock_seconds: float | None = None
 
 
+_FORBIDDEN_TOKENS = (
+    "import os", "import sys", "import subprocess", "import socket",
+    "import shutil", "import requests", "import urllib", "import http",
+    "open(", "__import__", "eval(", "exec(", "compile(", "globals(",
+    "getattr(", "setattr(", "delattr(", "breakpoint(",
+)
+
+
+class CustomMetricDef(StrictBaseModel):
+    """Inline metric definition, frozen at spec finalize.
+
+    The agent cannot edit a custom metric after the spec is approved — the
+    runtime checks that ``source_hash`` matches what was finalized. The
+    integrity story relies on the human reviewing ``source_code`` at
+    ``finalize_spec``; the runtime restriction is defense in depth, not a
+    sandbox.
+    """
+
+    name: str = Field(min_length=2, pattern=r"^[a-z][a-z0-9_]*$")
+    description: str = Field(min_length=4)
+    family: MetricFamily
+    value_range: tuple[float | None, float | None]
+    direction: Literal["higher", "lower", "either"]
+    requires_inputs: list[str] = Field(min_length=1)
+    function_name: str = Field(default="compute", pattern=r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+    source_code: str = Field(min_length=10)
+    source_hash: str = ""
+
+    @model_validator(mode="after")
+    def _hash_and_compile_check(self) -> "CustomMetricDef":
+        import ast
+        import hashlib
+
+        if not self.source_hash:
+            self.source_hash = hashlib.sha256(self.source_code.encode("utf-8")).hexdigest()
+        else:
+            actual = hashlib.sha256(self.source_code.encode("utf-8")).hexdigest()
+            if actual != self.source_hash:
+                raise ValueError(
+                    f"custom metric {self.name!r}: source_hash mismatch "
+                    f"(expected {self.source_hash[:12]}, got {actual[:12]})"
+                )
+
+        try:
+            tree = ast.parse(self.source_code)
+        except SyntaxError as e:
+            raise ValueError(f"custom metric {self.name!r} source does not parse: {e}")
+        defs = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+        if self.function_name not in defs:
+            raise ValueError(
+                f"custom metric {self.name!r} must define def "
+                f"{self.function_name}(inputs: dict) -> float"
+            )
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                raise ValueError(
+                    f"custom metric {self.name!r}: import statements are not "
+                    f"allowed. The runtime pre-injects `math`; use it directly."
+                )
+        for forbidden in _FORBIDDEN_TOKENS:
+            if forbidden in self.source_code:
+                raise ValueError(
+                    f"custom metric {self.name!r} contains forbidden token "
+                    f"{forbidden!r}; pure-Python math only"
+                )
+        return self
+
+
 class Criterion(StrictBaseModel):
     """A pre-registered, falsifiable success criterion.
 
@@ -350,16 +418,33 @@ class Criterion(StrictBaseModel):
     n_min: int | None = None
     on_split: Literal["dev", "test", "heldout"] = "heldout"
     metric_params: dict[str, Any] = Field(default_factory=dict)
-    custom_metric_def: str | None = None
+    custom_metric_def: CustomMetricDef | None = None
 
     @model_validator(mode="after")
     def _custom_metric_has_def(self) -> "Criterion":
-        if self.metric == MetricName.CUSTOM and not self.custom_metric_def:
-            raise ValueError("metric=CUSTOM requires `custom_metric_def`.")
+        if self.metric == MetricName.CUSTOM and self.custom_metric_def is None:
+            raise ValueError("metric=CUSTOM requires custom_metric_def")
+        if self.metric != MetricName.CUSTOM and self.custom_metric_def is not None:
+            raise ValueError("custom_metric_def only allowed when metric=CUSTOM")
         return self
 
     @model_validator(mode="after")
     def _threshold_in_metric_range(self) -> "Criterion":
+        if self.metric == MetricName.CUSTOM and self.custom_metric_def is not None:
+            lo, hi = self.custom_metric_def.value_range
+            if lo is not None and self.threshold < lo:
+                raise ValueError(
+                    f"threshold {self.threshold} below custom metric "
+                    f"{self.custom_metric_def.name!r} range "
+                    f"[{lo}, {hi if hi is not None else 'inf'}]"
+                )
+            if hi is not None and self.threshold > hi:
+                raise ValueError(
+                    f"threshold {self.threshold} above custom metric "
+                    f"{self.custom_metric_def.name!r} range "
+                    f"[{lo if lo is not None else '-inf'}, {hi}]"
+                )
+            return self
         meta = METRIC_META.get(self.metric)
         if meta is None:
             return self
@@ -378,8 +463,16 @@ class Criterion(StrictBaseModel):
 
     @model_validator(mode="after")
     def _comparator_matches_metric_direction(self) -> "Criterion":
-        meta = METRIC_META.get(self.metric)
-        if meta is None or meta.direction == "either":
+        if self.metric == MetricName.CUSTOM and self.custom_metric_def is not None:
+            direction = self.custom_metric_def.direction
+            display = self.custom_metric_def.name
+        else:
+            meta = METRIC_META.get(self.metric)
+            if meta is None:
+                return self
+            direction = meta.direction
+            display = self.metric.value
+        if direction == "either":
             return self
         higher = {">=", ">"}
         lower = {"<=", "<"}
@@ -388,10 +481,10 @@ class Criterion(StrictBaseModel):
             else "lower" if self.comparator in lower
             else None
         )
-        if comp_dir is not None and comp_dir != meta.direction:
+        if comp_dir is not None and comp_dir != direction:
             raise ValueError(
                 f"comparator {self.comparator!r} suggests {comp_dir}-is-better "
-                f"but {self.metric.value} is {meta.direction}-is-better"
+                f"but {display} is {direction}-is-better"
             )
         return self
 

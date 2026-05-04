@@ -16,6 +16,7 @@ import yaml
 from autointerp.spec import (
     METRIC_META,
     TOOL_META,
+    CustomMetricDef,
     InvestigationSpec,
     MetricFamily,
     MetricName,
@@ -29,6 +30,39 @@ from autointerp.spec_partial import (
 )
 
 from .tools import ToolSpec
+
+def _render_custom_metrics_section(data: dict[str, Any]) -> str:
+    """Pretty-print every CustomMetricDef referenced in success_criteria.
+
+    The full source code is shown so the human reviewer can read it before
+    approving. Once approved, source_hash is fixed and the runtime rejects
+    any later change.
+    """
+    crits = data.get("success_criteria") or []
+    if not isinstance(crits, list):
+        return ""
+    seen: dict[str, dict[str, Any]] = {}
+    for c in crits:
+        defn = c.get("custom_metric_def") if isinstance(c, dict) else None
+        if isinstance(defn, dict) and defn.get("name"):
+            seen.setdefault(defn["name"], defn)
+    if not seen:
+        return ""
+    out = ["\n\n## Custom metrics — review the source code\n"]
+    for name, defn in seen.items():
+        out.append(f"### {name}")
+        out.append(f"- description: {defn.get('description','')}")
+        out.append(f"- family: {defn.get('family','?')}")
+        out.append(f"- value_range: {defn.get('value_range','?')}")
+        out.append(f"- direction: {defn.get('direction','?')}")
+        out.append(f"- requires_inputs: {defn.get('requires_inputs','?')}")
+        if defn.get("source_hash"):
+            out.append(f"- source_hash: {defn['source_hash'][:16]}…")
+        out.append("\n```python")
+        out.append(defn.get("source_code", "<missing>"))
+        out.append("```\n")
+    return "\n".join(out)
+
 
 PRIORS_DIR = Path(__file__).resolve().parents[2] / "priors"
 METRICS_DIR = Path(__file__).resolve().parents[2] / "metrics"
@@ -170,7 +204,7 @@ async def _finalize_spec(args: dict[str, Any]) -> tuple[str, bool]:
     if kind not in {"human", "agent"}:
         return "approver_kind must be 'human' or 'agent'.", False
 
-    rendered = _partial.as_markdown()
+    rendered = _partial.as_markdown() + _render_custom_metrics_section(_partial.data)
 
     if not user_confirmation:
         _pending_finalize.update({"approver": approver, "kind": kind, "notes": notes})
@@ -300,10 +334,96 @@ def create_stage0_tools(include_priors: bool = False) -> list[ToolSpec]:
         _finalize_spec_tool(),
         _list_metrics_tool(),
         _read_metric_tool(),
+        _propose_custom_metric_tool(),
     ]
     if include_priors:
         tools.insert(0, _retrieve_prior_tool())
     return tools
+
+
+async def _propose_custom_metric(args: dict[str, Any]) -> tuple[str, bool]:
+    """Validate a candidate CustomMetricDef and echo it back for the planner
+    to embed in a CUSTOM criterion via update_spec."""
+    payload = dict(args)
+    payload.pop("source_hash", None)  # always recomputed by the validator
+    try:
+        defn = CustomMetricDef.model_validate(payload)
+    except Exception as exc:
+        return f"Rejected — {exc}", False
+    rendered = (
+        f"Validated custom metric '{defn.name}' (sha256={defn.source_hash[:12]}…).\n"
+        f"  family:           {defn.family.value}\n"
+        f"  value_range:      {list(defn.value_range)}\n"
+        f"  direction:        {defn.direction}\n"
+        f"  requires_inputs:  {defn.requires_inputs}\n"
+        f"\nTo use it, set `metric: \"custom\"` on a criterion in success_criteria "
+        f"and put this whole block under that criterion's `custom_metric_def` "
+        f"(via update_spec). Source code is frozen at finalize_spec.\n"
+    )
+    return rendered, True
+
+
+def _propose_custom_metric_tool() -> ToolSpec:
+    return ToolSpec(
+        name="propose_custom_metric",
+        description=(
+            "Validate an inline metric definition. Use ONLY when no metric in "
+            "list_metrics fits the question. The planner is not allowed to add "
+            "metrics at run time; this tool only checks that a candidate "
+            "definition compiles, hashes its source, and returns the validated "
+            "block to embed in a Criterion's custom_metric_def field. The "
+            "human reviews source_code at finalize_spec — keep the function "
+            "small, deterministic, and pure-Python (math + builtins only)."
+        ),
+        parameters={
+            "type": "object",
+            "required": [
+                "name", "description", "family", "value_range",
+                "direction", "requires_inputs", "source_code",
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "snake_case identifier; must match ^[a-z][a-z0-9_]*$",
+                },
+                "description": {"type": "string"},
+                "family": {
+                    "type": "string",
+                    "enum": [f.value for f in MetricFamily],
+                },
+                "value_range": {
+                    "type": "array",
+                    "items": {"type": ["number", "null"]},
+                    "minItems": 2, "maxItems": 2,
+                    "description": "[lo, hi]; use null for an unbounded side",
+                },
+                "direction": {
+                    "type": "string",
+                    "enum": ["higher", "lower", "either"],
+                },
+                "requires_inputs": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 1,
+                },
+                "function_name": {
+                    "type": "string",
+                    "default": "compute",
+                    "description": "Name of the entry function in source_code; default 'compute'",
+                },
+                "source_code": {
+                    "type": "string",
+                    "description": (
+                        "Full Python source. Must define a function "
+                        "`def {function_name}(inputs: dict) -> float`. "
+                        "No `import` statements (the runtime pre-injects "
+                        "`math`); pure-Python math/builtins only; no I/O."
+                    ),
+                },
+            },
+        },
+        handler=_propose_custom_metric,
+    )
 
 
 async def _list_metrics(args: dict[str, Any]) -> tuple[str, bool]:

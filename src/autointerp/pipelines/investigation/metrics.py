@@ -25,7 +25,7 @@ import secrets
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable
 
-from autointerp.spec import METRIC_META, MetricName
+from autointerp.spec import METRIC_META, CustomMetricDef, InvestigationSpec, MetricName
 
 from .run_dir import RunHandle
 from .state import ProvenanceToken, now_iso, read_state, write_state
@@ -293,18 +293,108 @@ REGISTRY: dict[MetricName, MetricImpl] = {
 # ---- range handling -------------------------------------------------------
 
 
-def _clip_to_range(metric: MetricName, value: float) -> tuple[float, bool]:
-    """Clip to METRIC_META range; return (clipped_value, was_clipped)."""
-    meta = METRIC_META.get(metric)
-    if meta is None:
-        return value, False
-    lo, hi = meta.value_range
+def _clip_to_range(
+    metric: MetricName,
+    value: float,
+    *,
+    custom_def: CustomMetricDef | None = None,
+) -> tuple[float, bool]:
+    """Clip to METRIC_META range (or custom def range); return (value, clipped)."""
+    if custom_def is not None:
+        lo, hi = custom_def.value_range
+    else:
+        meta = METRIC_META.get(metric)
+        if meta is None:
+            return value, False
+        lo, hi = meta.value_range
     clipped = value
     if lo is not None and clipped < lo:
         clipped = lo
     if hi is not None and clipped > hi:
         clipped = hi
     return clipped, clipped != value
+
+
+# ---- custom-metric dispatch -----------------------------------------------
+
+
+_SAFE_BUILTINS = {
+    "len": len, "min": min, "max": max, "sum": sum, "abs": abs,
+    "range": range, "sorted": sorted, "enumerate": enumerate, "zip": zip,
+    "any": any, "all": all, "round": round, "float": float, "int": int,
+    "bool": bool, "str": str, "list": list, "tuple": tuple, "dict": dict,
+    "isinstance": isinstance, "map": map, "filter": filter,
+}
+
+
+def _load_run_spec(handle: RunHandle) -> InvestigationSpec:
+    return InvestigationSpec.model_validate_json(handle.spec_path.read_text())
+
+
+def _resolve_custom_def(handle: RunHandle, inputs: dict[str, Any]) -> CustomMetricDef:
+    name = inputs.get("__custom_name__")
+    if not isinstance(name, str) or not name:
+        raise MetricRegistryError(
+            "metric=custom requires `inputs['__custom_name__']` (the name of "
+            "the custom metric defined in the spec)"
+        )
+    spec = _load_run_spec(handle)
+    for crit in spec.success_criteria:
+        if (
+            crit.metric == MetricName.CUSTOM
+            and crit.custom_metric_def is not None
+            and crit.custom_metric_def.name == name
+        ):
+            return crit.custom_metric_def
+    available = [
+        c.custom_metric_def.name
+        for c in spec.success_criteria
+        if c.custom_metric_def is not None
+    ]
+    raise MetricRegistryError(
+        f"unknown custom metric {name!r}; spec defines: {available}"
+    )
+
+
+def _custom_impl(defn: CustomMetricDef) -> "MetricImpl":
+    """Compile the custom metric source and wrap as a MetricImpl."""
+    namespace: dict[str, Any] = {}
+    safe_globals = {"__builtins__": _SAFE_BUILTINS, "math": math}
+    try:
+        exec(compile(defn.source_code, f"<custom:{defn.name}>", "exec"),
+             safe_globals, namespace)
+    except Exception as exc:
+        raise MetricRegistryError(
+            f"custom metric {defn.name!r} failed to compile: {exc}"
+        ) from exc
+    fn = namespace.get(defn.function_name)
+    if fn is None or not callable(fn):
+        raise MetricRegistryError(
+            f"custom metric {defn.name!r}: source did not define callable "
+            f"{defn.function_name!r}"
+        )
+
+    def _wrapped(inputs: dict[str, Any]) -> float:
+        missing = [k for k in defn.requires_inputs if k not in inputs]
+        if missing:
+            raise MetricRegistryError(
+                f"custom metric {defn.name!r}: missing required inputs {missing}"
+            )
+        try:
+            return float(fn(inputs))
+        except MetricRegistryError:
+            raise
+        except Exception as exc:
+            raise MetricRegistryError(
+                f"custom metric {defn.name!r} raised at runtime: {exc}"
+            ) from exc
+
+    return MetricImpl(
+        name=MetricName.CUSTOM,
+        required_inputs=tuple(defn.requires_inputs),
+        compute=_wrapped,
+        one_line=defn.description,
+    )
 
 
 # ---- hashing & token issuance ---------------------------------------------
@@ -382,12 +472,19 @@ def compute_metric(
     if not metric_id or not isinstance(metric_id, str):
         raise MetricRegistryError("metric_id must be a non-empty string")
 
-    impl = REGISTRY.get(metric)
-    if impl is None:
-        raise MetricRegistryError(
-            f"no canonical implementation for {metric.value!r}; "
-            f"registered: {[m.value for m in REGISTRY]}"
-        )
+    custom_def = None
+    if metric == MetricName.CUSTOM:
+        custom_def = _resolve_custom_def(handle, inputs)
+        impl = _custom_impl(custom_def)
+        # Drop the lookup-only key so it isn't part of the inputs hash.
+        inputs = {k: v for k, v in inputs.items() if k != "__custom_name__"}
+    else:
+        impl = REGISTRY.get(metric)
+        if impl is None:
+            raise MetricRegistryError(
+                f"no canonical implementation for {metric.value!r}; "
+                f"registered: {[m.value for m in REGISTRY]}"
+            )
 
     from .guards import GuardError, enforce_budget
 
@@ -406,21 +503,33 @@ def compute_metric(
 
     # Validate + compute.
     raw_value = float(impl.compute(inputs))
-    clipped_value, was_clipped = _clip_to_range(metric, raw_value)
+    clipped_value, was_clipped = _clip_to_range(metric, raw_value, custom_def=custom_def)
     inputs_hash = _hash_inputs(inputs)
 
     md: dict[str, Any] = dict(metadata or {})
-    md.update(
-        {
-            "metric_name": metric.value,
-            "metric_family": METRIC_META[metric].family.value,
-            "inputs_hash": inputs_hash,
-            "registry_version": 1,
-        }
-    )
+    if custom_def is not None:
+        md.update(
+            {
+                "metric_name": custom_def.name,
+                "metric_family": custom_def.family.value,
+                "inputs_hash": inputs_hash,
+                "registry_version": 1,
+                "custom": True,
+                "source_hash": custom_def.source_hash,
+            }
+        )
+    else:
+        md.update(
+            {
+                "metric_name": metric.value,
+                "metric_family": METRIC_META[metric].family.value,
+                "inputs_hash": inputs_hash,
+                "registry_version": 1,
+            }
+        )
     if was_clipped:
         md["unclipped_value"] = raw_value
-        md["clipped_to_range"] = list(METRIC_META[metric].value_range)
+        md["clipped_to_range"] = list(METRIC_META[metric].value_range) if custom_def is None else list(custom_def.value_range)
 
     passed = _evaluate_threshold(clipped_value, threshold, comparator)
 

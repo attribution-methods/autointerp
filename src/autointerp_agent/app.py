@@ -411,14 +411,27 @@ def cmd_validate(argv: list[str]) -> int:
     console.print(f"  criteria: {len(spec.success_criteria)} pre-registered")
 
     from autointerp.pipelines.investigation.metrics import REGISTRY
+    from autointerp.spec import MetricName
     missing = []
+    custom_names = []
     for crit in spec.success_criteria:
-        if crit.metric not in REGISTRY:
+        if crit.metric == MetricName.CUSTOM:
+            if crit.custom_metric_def is None:
+                missing.append("custom (no definition)")
+            else:
+                custom_names.append(crit.custom_metric_def.name)
+        elif crit.metric not in REGISTRY:
             missing.append(str(crit.metric))
     if missing:
         console.print(f"[red]✗[/red] unknown metrics referenced: {missing}")
         return 1
-    console.print(f"[green]✓[/green] all criterion metrics are registered")
+    if custom_names:
+        console.print(
+            f"[green]✓[/green] all criterion metrics are registered "
+            f"(custom: {custom_names})"
+        )
+    else:
+        console.print(f"[green]✓[/green] all criterion metrics are registered")
 
     if args.load_model:
         from autointerp.tools.model import load_model
