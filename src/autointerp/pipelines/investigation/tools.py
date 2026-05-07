@@ -259,6 +259,10 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
                 "iterations_run": result.iterations_run,
                 "terminated_by": result.terminated_by,
                 "cost_usd": result.cost_usd,
+                # Surface the per-iteration log so error messages aren't
+                # swallowed when terminated_by="error". The agent sees the
+                # exception type + str so it can act on it (retry vs revise).
+                "log": result.log,
                 "next_step": (
                     "Inspect best_summary.top_features. To record them as "
                     "evidence, build a CandidateSite or FeatureFinding payload "

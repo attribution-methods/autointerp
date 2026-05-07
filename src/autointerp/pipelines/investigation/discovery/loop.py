@@ -374,7 +374,14 @@ async def _run_iteration_live(
     permission_mode: str,
     verbose: bool,
 ) -> IterationResult:
+    import os
     sdk = _load_sdk()
+    # Forward auth-relevant env vars to the inner ``claude`` CLI subprocess.
+    # The SDK doesn't auto-inherit ANTHROPIC_API_KEY, so a process running
+    # under subscription auth sees no API key and falls back to
+    # ~/.claude/.credentials.json. Pass explicit env so the caller can pin
+    # which auth mode the sub-agent uses (and which account is billed).
+    env = dict(os.environ)
     options = sdk["ClaudeCodeOptions"](
         system_prompt=system_prompt,
         model=model,
@@ -382,6 +389,7 @@ async def _run_iteration_live(
         permission_mode=permission_mode,
         cwd=str(session_dir),
         allowed_tools=["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+        env=env,
     )
     text = ""
     turns = 0
@@ -517,6 +525,50 @@ def run_discovery_subagent(
     verbose:
         Print per-turn text blocks live to stdout.
     """
+    return _run_loop(
+        session_dir=session_dir,
+        task=task,
+        reward_metric=reward_metric,
+        reward_description=reward_description,
+        substrate=substrate,
+        component_kinds=component_kinds,
+        decomposition=decomposition,
+        benchmark_id=benchmark_id,
+        model_id=model_id,
+        n_pairs=n_pairs,
+        k_grid=k_grid,
+        seed=seed,
+        split=split,
+        objective=objective,
+        max_iterations=max_iterations,
+        max_turns_per_iteration=max_turns_per_iteration,
+        iteration_timeout_s=iteration_timeout_s,
+        model=model,
+        permission_mode=permission_mode,
+        dry_run=dry_run,
+        verbose=verbose,
+    )
+
+
+def _setup_session_and_prompt(
+    *,
+    session_dir: Path,
+    task: str,
+    reward_metric: str,
+    reward_description: str,
+    substrate: str | None,
+    component_kinds: list[str] | None,
+    decomposition: str | None,
+    benchmark_id: str | None,
+    model_id: str | None,
+    n_pairs: int,
+    k_grid: list[int] | None,
+    seed: int,
+    split: str,
+    objective: str | None,
+    dry_run: bool,
+) -> tuple[Path, str, str]:
+    """Common setup: scaffold session, build system prompt, build eval-extra."""
     session_dir = Path(session_dir).expanduser().resolve()
     init_session(
         session_dir,
@@ -532,9 +584,6 @@ def run_discovery_subagent(
         component_kinds=component_kinds,
         decomposition=decomposition,
     )
-
-    # Build the per-iteration `evaluate.py` extra-args fragment so the
-    # sub-agent's prompt includes the right substrate / benchmark wiring.
     eval_extra_parts: list[str] = []
     if not dry_run:
         if substrate is not None:
@@ -556,7 +605,96 @@ def run_discovery_subagent(
         eval_extra_parts.append(f"--split {split}")
         if objective:
             eval_extra_parts.append(f"--objective {objective}")
-    eval_extra = " ".join(eval_extra_parts)
+    return session_dir, system_prompt, " ".join(eval_extra_parts)
+
+
+def _run_loop(
+    *,
+    session_dir: Path,
+    task: str,
+    reward_metric: str,
+    reward_description: str,
+    substrate: str | None,
+    component_kinds: list[str] | None,
+    decomposition: str | None,
+    benchmark_id: str | None,
+    model_id: str | None,
+    n_pairs: int,
+    k_grid: list[int] | None,
+    seed: int,
+    split: str,
+    objective: str | None,
+    max_iterations: int,
+    max_turns_per_iteration: int,
+    iteration_timeout_s: float,
+    model: str,
+    permission_mode: str,
+    dry_run: bool,
+    verbose: bool,
+) -> DiscoveryResult:
+    """Sync entry point. Detects a running event loop and routes around the
+    nested-asyncio bug:
+
+    - When called from sync code (no running loop): uses ``asyncio.run`` for
+      each live iteration.
+    - When called from inside a running loop (e.g. the master agent's async
+      handler): runs each live iteration in a *separate thread* so the
+      thread can have its own event loop without interfering with the
+      caller's. ``asyncio.run`` cannot be invoked from a running loop, and
+      naive ``loop.run_until_complete`` would block the caller's loop.
+    """
+    session_dir, system_prompt, eval_extra = _setup_session_and_prompt(
+        session_dir=session_dir, task=task, reward_metric=reward_metric,
+        reward_description=reward_description, substrate=substrate,
+        component_kinds=component_kinds, decomposition=decomposition,
+        benchmark_id=benchmark_id, model_id=model_id, n_pairs=n_pairs,
+        k_grid=k_grid, seed=seed, split=split, objective=objective,
+        dry_run=dry_run,
+    )
+
+    # Pick an iteration runner that's safe to call from this context.
+    try:
+        asyncio.get_running_loop()
+        nested = True
+    except RuntimeError:
+        nested = False
+
+    if nested:
+        # Run each live iteration in a worker thread so the new event loop
+        # is fully isolated from the caller's. This is the fix for
+        # ``RuntimeError: asyncio.run() cannot be called from a running
+        # event loop`` when the master agent's async handler invokes us.
+        import concurrent.futures as _cf
+
+        def _run_one_live(prompt: str) -> IterationResult:
+            return asyncio.run(
+                asyncio.wait_for(
+                    _run_iteration_live(
+                        prompt=prompt, session_dir=session_dir,
+                        system_prompt=system_prompt, model=model,
+                        max_turns=max_turns_per_iteration,
+                        permission_mode=permission_mode, verbose=verbose,
+                    ),
+                    timeout=iteration_timeout_s,
+                )
+            )
+
+        def _run_iteration(prompt: str) -> IterationResult:
+            with _cf.ThreadPoolExecutor(max_workers=1) as ex:
+                return ex.submit(_run_one_live, prompt).result()
+    else:
+        def _run_iteration(prompt: str) -> IterationResult:
+            return asyncio.run(
+                asyncio.wait_for(
+                    _run_iteration_live(
+                        prompt=prompt, session_dir=session_dir,
+                        system_prompt=system_prompt, model=model,
+                        max_turns=max_turns_per_iteration,
+                        permission_mode=permission_mode, verbose=verbose,
+                    ),
+                    timeout=iteration_timeout_s,
+                )
+            )
 
     log: list[dict[str, Any]] = []
     iterations_run = 0
@@ -584,26 +722,20 @@ def run_discovery_subagent(
             if dry_run:
                 result = _dry_run_iteration(session_dir, iteration)
             else:
-                result = asyncio.run(
-                    asyncio.wait_for(
-                        _run_iteration_live(
-                            prompt=prompt,
-                            session_dir=session_dir,
-                            system_prompt=system_prompt,
-                            model=model,
-                            max_turns=max_turns_per_iteration,
-                            permission_mode=permission_mode,
-                            verbose=verbose,
-                        ),
-                        timeout=iteration_timeout_s,
-                    )
-                )
+                result = _run_iteration(prompt)
         except asyncio.TimeoutError:
             log.append({"iteration": iteration, "status": "timeout"})
             terminated_by = "timeout"
             break
         except Exception as exc:
-            log.append({"iteration": iteration, "status": "error", "error": str(exc)})
+            log.append(
+                {
+                    "iteration": iteration,
+                    "status": "error",
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                }
+            )
             terminated_by = "error"
             break
 
