@@ -73,6 +73,29 @@ def test_ioi_corruption_keeps_length_implicitly_via_template():
         )
 
 
+def test_io_s_labels_consistent_with_template():
+    """The IO must be the *non-repeated* name in clean_prompt and absent
+    from corrupted_prompt; the S must be the *repeated* name in clean
+    and unchanged in corrupted. Catches the original ABBA-label bug
+    without needing a GPU."""
+    ioi = get_benchmark("ioi_template_generator")
+    pairs = ioi.generate_pairs(
+        spec=None, n_pairs=12, seed=3, tokenizer=None, split="dev"
+    )
+    for p in pairs:
+        io = p.metadata["io_name"]
+        s = p.metadata["s_name"]
+        c = p.metadata["c_name"]
+        assert p.clean_prompt.count(io) == 1, (p.clean_prompt, io)
+        assert p.clean_prompt.count(s) == 2, (p.clean_prompt, s)
+        # Corruption replaces the IO's single occurrence with C; the S
+        # is untouched and C does not appear in the clean prompt.
+        assert p.corrupted_prompt.count(io) == 0, (p.corrupted_prompt, io)
+        assert p.corrupted_prompt.count(s) == 2, (p.corrupted_prompt, s)
+        assert p.corrupted_prompt.count(c) == 1, (p.corrupted_prompt, c)
+        assert c not in p.clean_prompt, (p.clean_prompt, c)
+
+
 def test_behavioral_metric_signs_target_above_foil():
     ioi = get_benchmark("ioi_template_generator")
     pair = StimulusPair(

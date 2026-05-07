@@ -51,8 +51,19 @@ _NAMES_C: tuple[str, ...] = (
 )
 
 
-_TEMPLATES_BABA = "When{A} and{B} went to the{place},{B} gave a{object} to"
-_TEMPLATES_ABBA = "When{A} and{B} went to the{place},{A} gave a{object} to"
+# Templates parameterized by ROLE (IO / S) rather than by name slot, so the
+# IO / S identity is unambiguous regardless of order. ``order`` records the
+# *positional* pattern for analysis:
+#
+# - ABBA: "When IO and S went..., S gave..." (IO at pos 1, S at pos 2 and 3)
+# - BABA: "When S and IO went..., S gave..." (S at pos 1, IO at pos 2, S at pos 3)
+#
+# In both, the model is asked to continue with "to ___" → IO. The ABC
+# corruption replaces the IO's single occurrence with a fresh name C.
+_TEMPLATE_BY_ORDER: dict[str, str] = {
+    "ABBA": "When{IO} and{S} went to the{place},{S} gave a{object} to",
+    "BABA": "When{S} and{IO} went to the{place},{S} gave a{object} to",
+}
 
 
 def _verify_single_token(tokenizer, text: str) -> bool:
@@ -130,37 +141,26 @@ def generate_pairs(
     # Balance ABBA / BABA 50:50 across the requested pairs.
     pairs: list[StimulusPair] = []
     for i in range(n_pairs):
-        is_abba = (i % 2 == 0)
-        # Draw a distinct (A, B) and a third C disjoint from both.
-        a_b = rng.sample(names, 2)
-        a_name, b_name = a_b
-        candidate_cs = [c for c in c_names if c not in (a_name, b_name)]
+        order = "ABBA" if i % 2 == 0 else "BABA"
+        # Draw a distinct (IO, S) pair and a fresh C disjoint from both.
+        io_name, s_name = rng.sample(names, 2)
+        candidate_cs = [c for c in c_names if c not in (io_name, s_name)]
         if not candidate_cs:
-            # Fall back: use a name from the pool that isn't A or B.
-            candidate_cs = [n for n in names if n not in (a_name, b_name)]
+            candidate_cs = [n for n in names if n not in (io_name, s_name)]
         c_name = rng.choice(candidate_cs)
         place = rng.choice(places)
         obj = rng.choice(objects)
 
-        tmpl = _TEMPLATES_ABBA if is_abba else _TEMPLATES_BABA
-        clean_prompt = tmpl.format(A=a_name, B=b_name, place=place, object=obj)
-        # ABC corruption: replace ONE of the repeated-name occurrences with
-        # C. By Wang-et-al's convention this is the *non-prediction*
-        # occurrence: the first instance for ABBA (A appears at pos 1 in
-        # clean; corruption swaps pos 1 to C). For BABA the same logic.
-        if is_abba:
-            corrupted_prompt = (
-                f"When{c_name} and{b_name} went to the{place},{a_name} gave a{obj} to"
-            )
-        else:
-            corrupted_prompt = (
-                f"When{c_name} and{b_name} went to the{place},{b_name} gave a{obj} to"
-            )
+        tmpl = _TEMPLATE_BY_ORDER[order]
+        clean_prompt = tmpl.format(IO=io_name, S=s_name, place=place, object=obj)
+        # ABC corruption: replace the IO's single occurrence with C. The
+        # S's two occurrences are untouched, so the prediction position
+        # context ("..., S gave a obj to") is identical between clean and
+        # corrupted. The model's logit_diff(IO, S) on the corrupted run
+        # should drop toward zero (or below) because the IO no longer
+        # appears in the prefix.
+        corrupted_prompt = tmpl.format(IO=c_name, S=s_name, place=place, object=obj)
 
-        # IO target = the non-repeated name (always A in our templates).
-        # Foil = the repeated name (always B).
-        io_name = a_name
-        s_name = b_name
         if tokenizer is not None:
             io_id = _tokenize_one(tokenizer, io_name)
             s_id = _tokenize_one(tokenizer, s_name)
@@ -176,7 +176,7 @@ def generate_pairs(
                 foil_token_id=s_id,
                 prediction_position=-1,
                 metadata={
-                    "order": "ABBA" if is_abba else "BABA",
+                    "order": order,
                     "io_name": io_name.strip(),
                     "s_name": s_name.strip(),
                     "c_name": c_name.strip(),
