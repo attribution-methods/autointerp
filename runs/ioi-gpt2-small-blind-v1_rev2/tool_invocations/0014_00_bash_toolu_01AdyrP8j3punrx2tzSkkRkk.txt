@@ -1,0 +1,6 @@
+Accuracy: 0.998
+Mean logit_diff: 2.9985
+Predictions shape: 500
+First 5 predictions: [1, 1, 1, 1, 1]
+First 5 target_logits: [-76.0, -70.5, -84.5, -81.0, -80.5]
+First 5 foil_logits: [-79.0, -76.0, -85.5, -82.5, -82.5]

@@ -1,0 +1,3 @@
+acc_inputs and ld_inputs dicts are loaded and ready
+acc_inputs: ['predictions', 'labels']
+ld_inputs: ['target_logits', 'foil_logits']

@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "metric_id": "stage1_dev_kl_corrupt_to_clean",
+    "value": 0.850728515625,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "kl_to_clean",
+      "metric_family": "localization",
+      "inputs_hash": "sha256:e9970057687819a21790d1d5f51ad933ec750531957988c010f80b2c6a342350",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_151dc33eb4abc2371bddee68ff67f34c"
+}

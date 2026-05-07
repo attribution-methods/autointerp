@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/home/li/autointerp-fadi/runs/ioi-gpt2-small-blind-v1_rev3/scripts/stage0_blackbox.py", line 8, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'

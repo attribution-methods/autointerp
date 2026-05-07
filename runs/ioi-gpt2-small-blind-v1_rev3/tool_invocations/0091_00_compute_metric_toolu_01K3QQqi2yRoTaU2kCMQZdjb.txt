@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "metric_id": "ioi-dev-stage3-recovery",
+    "value": 0.9299516908212561,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "patch_effect_recovery",
+      "metric_family": "causal",
+      "inputs_hash": "sha256:49c15cd9abb020842eadc5bf4a78949cf9f486151aaa0dd7814a559a81f40d6d",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_1d2cfafa271116714a72bf2e0f33cb04"
+}

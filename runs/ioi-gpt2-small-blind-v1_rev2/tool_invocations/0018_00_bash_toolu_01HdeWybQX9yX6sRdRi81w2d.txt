@@ -1,0 +1,3 @@
+Saved metric inputs
+Accuracy inputs: predictions=500, labels=500
+Logit_diff inputs: target_logits=500, foil_logits=500

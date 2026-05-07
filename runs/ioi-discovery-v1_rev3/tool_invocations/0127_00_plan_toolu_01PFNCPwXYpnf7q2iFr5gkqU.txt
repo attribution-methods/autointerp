@@ -1,0 +1,5 @@
+- [completed] Stage 0: Black-box evaluation - COMPLETED (accuracy=0.98, logit_diff=2.67)
+- [completed] Stage 1: Feature discovery - COMPLETED (found L9H9, L9H6, L10H0 with 99% recovery)
+- [in_progress] Stage 2: Exhaustive head_patch_sweep localization on all 144 heads
+- [pending] Stage 2: Joint top-K patch validation and criterion evaluation
+- [pending] Stage 3-5: Remaining stages (activation_analysis, intervention, validation)

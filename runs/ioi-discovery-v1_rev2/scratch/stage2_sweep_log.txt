@@ -1,0 +1,56 @@
+Loading GPT-2-small model...
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2283.21it/s]
+Generating IOI pairs...
+Generated 500 pairs
+
+=== Caching clean head z for all layers ===
+Cached 12 layers
+  Layer 0: torch.Size([500, 14, 12, 64])
+  Layer 1: torch.Size([500, 14, 12, 64])
+  Layer 2: torch.Size([500, 14, 12, 64])
+  ...
+
+=== Running head_patch_sweep across all 144 (layer, head) pairs ===
+This will take several minutes...
+
+Sweep complete. Recovery matrix shape: torch.Size([12, 12])
+  Mean recovery: 0.0081
+  Max recovery: 0.4988
+  Min recovery: -0.2391
+
+=== Top 20 heads by recovery ===
+ 1. L 9H 9: 0.4988
+ 2. L 9H 6: 0.2222
+ 3. L10H 0: 0.1812
+ 4. L10H10: 0.0797
+ 5. L10H 2: 0.0773
+ 6. L11H 2: 0.0700
+ 7. L10H 6: 0.0628
+ 8. L 9H 8: 0.0556
+ 9. L11H 1: 0.0459
+10. L11H 3: 0.0459
+11. L10H 1: 0.0314
+12. L11H 6: 0.0290
+13. L11H11: 0.0217
+14. L10H 3: 0.0193
+15. L 8H11: 0.0169
+16. L 9H 0: 0.0145
+17. L 8H 3: 0.0145
+18. L 9H11: 0.0072
+19. L10H 9: 0.0072
+20. L 9H 2: 0.0072
+
+Sweep results saved to /home/li/autointerp-fadi/runs/ioi-discovery-v1_rev2/scratch/stage2_head_sweep_results.json
+
+=== Comparison with discovery top-5 ===
+Discovery top-5 heads and their localization recovery:
+  1. L9H9: recovery=0.4988, localization_rank=1
+  2. L10H7: recovery=-0.2391, localization_rank=144
+  3. L9H6: recovery=0.2222, localization_rank=2
+  4. L11H10: recovery=-0.1135, localization_rank=143
+  5. L10H0: recovery=0.1812, localization_rank=3
+
+Overlap: 3/5 discovery heads are in localization top-10
+  In common: [(9, 6), (9, 9), (10, 0)]
+  Discovery only: [(10, 7), (11, 10)]
+  Localization only: [(9, 8), (10, 2), (10, 6), (10, 10), (11, 1), (11, 2), (11, 3)]

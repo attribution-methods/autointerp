@@ -1,0 +1,10 @@
+{
+  "criterion_id": "discovery-recovery",
+  "passed": true,
+  "value": 0.4559178743961353,
+  "metric": "patch_effect_recovery",
+  "comparator": ">=",
+  "threshold": 0.4,
+  "metric_result_ref": "findings/stage_1_feature_discovery/metric_stage1-dev-joint-patch-recovery.json",
+  "evaluated_at": "2026-05-07T18:12:30.688363Z"
+}

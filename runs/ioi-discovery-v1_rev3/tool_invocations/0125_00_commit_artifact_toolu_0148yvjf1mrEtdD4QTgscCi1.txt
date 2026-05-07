@@ -1,0 +1,7 @@
+{
+  "kind": "MetricResult",
+  "artifact_id": "stage1-patch_effect_recovery-dev",
+  "relpath": "findings/stage_1_feature_discovery/metric_stage1-patch_effect_recovery-dev.json",
+  "stage_idx": 1,
+  "split": "dev"
+}

@@ -1,0 +1,4 @@
+examples/specs/ioi-discovery-v1_rev1.json
+examples/specs/ioi-discovery-v1_rev2.json
+examples/specs/ioi-gpt2-small-blind-v1_rev1.json
+examples/specs/ioi-gpt2-small-blind-v1_rev2.json

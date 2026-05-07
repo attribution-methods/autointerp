@@ -1,0 +1,19 @@
+{
+  "metric_id": "stage2_dev_baseline_logit_diff",
+  "value": 2.9985,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "metric_name": "logit_diff",
+    "metric_family": "behavioral",
+    "inputs_hash": "sha256:f8b75c0c9c3ad47bd7937063bc78c30936a1d432ea3c84ce317e7e850ee7dd99",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 2,
+      "split": "dev",
+      "committed_at": "2026-05-07T18:00:37.521924Z"
+    }
+  }
+}

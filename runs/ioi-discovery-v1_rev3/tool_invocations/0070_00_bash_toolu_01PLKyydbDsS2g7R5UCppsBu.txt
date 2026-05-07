@@ -1,0 +1,8 @@
+Accuracy inputs:
+  Keys: ['predictions', 'labels']
+  predictions length: 500
+  labels length: 500
+  First 3 predictions: [1.0, 1.0, 1.0]
+  First 3 labels: [1.0, 1.0, 1.0]
+
+Data verified and ready for compute_metric tool

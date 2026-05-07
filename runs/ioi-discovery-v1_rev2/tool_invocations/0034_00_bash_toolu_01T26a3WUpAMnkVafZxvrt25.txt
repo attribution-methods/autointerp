@@ -1,0 +1,5 @@
+Total predictions: 500
+Sum of predictions: 490
+Accuracy: 0.9800
+Number of 0s in predictions: 10
+Number of 1s in predictions: 490

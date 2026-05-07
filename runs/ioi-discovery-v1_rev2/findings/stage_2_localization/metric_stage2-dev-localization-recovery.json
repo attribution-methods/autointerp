@@ -1,0 +1,19 @@
+{
+  "metric_id": "stage2-dev-localization-recovery",
+  "value": 0.9903381642512077,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "metric_name": "patch_effect_recovery",
+    "metric_family": "causal",
+    "inputs_hash": "sha256:59e8fc0adf54ba5284d184a9b93c415504508a166ebad48c7a6584afb7cc4253",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 2,
+      "split": "dev",
+      "committed_at": "2026-05-07T18:17:43.295268Z"
+    }
+  }
+}

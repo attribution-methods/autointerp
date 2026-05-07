@@ -1,0 +1,2 @@
+All metric inputs saved to scratch/all_metric_inputs.json
+File size: 12106 bytes

@@ -1,0 +1,7 @@
+Accuracy inputs ready:
+  - predictions: list of 500 floats
+  - labels: list of 500 floats
+
+Logit_diff inputs ready:
+  - target_logits: list of 500 floats
+  - foil_logits: list of 500 floats

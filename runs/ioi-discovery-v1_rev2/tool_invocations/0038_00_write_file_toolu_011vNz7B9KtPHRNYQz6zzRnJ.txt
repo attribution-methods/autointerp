@@ -1,0 +1,1 @@
+Wrote 3029 bytes to runs/ioi-discovery-v1_rev2/scratch/accuracy_inputs_for_api.json

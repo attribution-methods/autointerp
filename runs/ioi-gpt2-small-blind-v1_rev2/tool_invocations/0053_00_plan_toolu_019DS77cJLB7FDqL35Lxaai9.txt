@@ -1,0 +1,5 @@
+- [completed] Stage 0 (black_box): Measure accuracy and logit_diff on 500 dev samples to confirm GPT-2-small has strong IOI signal
+- [completed] Stage 1 (localization): Run head patching sweep to identify top-K heads, then compute joint recovery
+- [in_progress] Stage 2 (activation_analysis): Extract contrastive directions and measure ablation_drop for candidate heads
+- [pending] Stage 3 (intervention): Path patching and circuit faithfulness on dev split
+- [pending] Stage 4 (validation): Evaluate circuit on heldout split (faithfulness + minimality)

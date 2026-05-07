@@ -1,0 +1,77 @@
+[
+  {
+    "site_id": "ioi-head-L9H9",
+    "component_type": "attn_head",
+    "layer": 9,
+    "head": 9,
+    "position": -1,
+    "description": "IOI attention head at layer 9, head 9. Identified by discovery sub-agent (algorithm_v4) with score rank 1/5. Part of joint top-5 circuit that recovers 0.456 of clean-corrupt logit_diff gap.",
+    "score": null,
+    "metadata": {
+      "discovery_rank": 1,
+      "discovery_method": "discover_features/algorithm_v4",
+      "joint_K": 5,
+      "joint_recovery": 0.4559178743961353
+    }
+  },
+  {
+    "site_id": "ioi-head-L10H7",
+    "component_type": "attn_head",
+    "layer": 10,
+    "head": 7,
+    "position": -1,
+    "description": "IOI attention head at layer 10, head 7. Identified by discovery sub-agent (algorithm_v4) with score rank 2/5. Part of joint top-5 circuit that recovers 0.456 of clean-corrupt logit_diff gap.",
+    "score": null,
+    "metadata": {
+      "discovery_rank": 2,
+      "discovery_method": "discover_features/algorithm_v4",
+      "joint_K": 5,
+      "joint_recovery": 0.4559178743961353
+    }
+  },
+  {
+    "site_id": "ioi-head-L9H6",
+    "component_type": "attn_head",
+    "layer": 9,
+    "head": 6,
+    "position": -1,
+    "description": "IOI attention head at layer 9, head 6. Identified by discovery sub-agent (algorithm_v4) with score rank 3/5. Part of joint top-5 circuit that recovers 0.456 of clean-corrupt logit_diff gap.",
+    "score": null,
+    "metadata": {
+      "discovery_rank": 3,
+      "discovery_method": "discover_features/algorithm_v4",
+      "joint_K": 5,
+      "joint_recovery": 0.4559178743961353
+    }
+  },
+  {
+    "site_id": "ioi-head-L11H10",
+    "component_type": "attn_head",
+    "layer": 11,
+    "head": 10,
+    "position": -1,
+    "description": "IOI attention head at layer 11, head 10. Identified by discovery sub-agent (algorithm_v4) with score rank 4/5. Part of joint top-5 circuit that recovers 0.456 of clean-corrupt logit_diff gap.",
+    "score": null,
+    "metadata": {
+      "discovery_rank": 4,
+      "discovery_method": "discover_features/algorithm_v4",
+      "joint_K": 5,
+      "joint_recovery": 0.4559178743961353
+    }
+  },
+  {
+    "site_id": "ioi-head-L10H0",
+    "component_type": "attn_head",
+    "layer": 10,
+    "head": 0,
+    "position": -1,
+    "description": "IOI attention head at layer 10, head 0. Identified by discovery sub-agent (algorithm_v4) with score rank 5/5. Part of joint top-5 circuit that recovers 0.456 of clean-corrupt logit_diff gap.",
+    "score": null,
+    "metadata": {
+      "discovery_rank": 5,
+      "discovery_method": "discover_features/algorithm_v4",
+      "joint_K": 5,
+      "joint_recovery": 0.4559178743961353
+    }
+  }
+]

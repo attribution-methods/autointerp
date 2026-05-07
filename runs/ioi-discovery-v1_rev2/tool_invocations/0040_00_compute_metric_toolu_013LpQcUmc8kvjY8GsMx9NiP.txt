@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "metric_id": "stage0-dev-accuracy",
+    "value": 0.98,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "accuracy",
+      "metric_family": "behavioral",
+      "inputs_hash": "sha256:0365caca5c07fc4e3867de1943dc1a3a53b55af055e0f3fc4f178cae848293bf",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_7c18ee467973de8ab2f519ff0b97c9a8"
+}

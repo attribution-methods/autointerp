@@ -1,0 +1,19 @@
+{
+  "metric_id": "stage1_dev_kl_corrupt_to_clean",
+  "value": 0.850728515625,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "metric_name": "kl_to_clean",
+    "metric_family": "localization",
+    "inputs_hash": "sha256:e9970057687819a21790d1d5f51ad933ec750531957988c010f80b2c6a342350",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 1,
+      "split": "dev",
+      "committed_at": "2026-05-07T17:57:09.742431Z"
+    }
+  }
+}

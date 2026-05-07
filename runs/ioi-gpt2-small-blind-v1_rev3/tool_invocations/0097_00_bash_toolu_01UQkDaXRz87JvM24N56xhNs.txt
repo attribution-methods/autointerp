@@ -1,0 +1,46 @@
+Loading model gpt2...
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2351.05it/s]
+
+Generating 100 IOI HELDOUT pairs...
+Generated 100 heldout pairs
+Example clean: 'When Sophia and George went to the hospital, George gave a pen to'
+
+Circuit C = [(9, 9), (9, 6), (10, 0)]
+
+=== Computing baselines on heldout ===
+Clean logit_diff: 3.2188
+Corrupt logit_diff: -4.7188
+Gap: 7.9375
+
+=== Computing circuit faithfulness (END-ONLY ablation) ===
+Ablating 141 heads (complement of C) at END only...
+Circuit-only logit_diff: -0.6289
+Faithfulness (full circuit): 0.5153
+
+=== Computing minimality (removing each component) ===
+
+1. Removing (9, 9) from circuit...
+   Faithfulness (minus this component): 0.5566
+   Drop: -0.0413
+
+2. Removing (9, 6) from circuit...
+   Faithfulness (minus this component): 0.5256
+   Drop: -0.0103
+
+3. Removing (10, 0) from circuit...
+   Faithfulness (minus this component): 0.5359
+   Drop: -0.0207
+
+=== Summary ===
+Circuit: [(9, 9), (9, 6), (10, 0)]
+Faithfulness: 0.5153
+Minimality: -0.0413
+Weakest component: (9, 9) (drop=-0.0413)
+
+Results saved to scratch/stage4_results.json
+
+=== Criterion Checks ===
+circuit-faithfulness: 0.5153 >= 0.85? False
+circuit-minimality: -0.0413 >= 0.05? False

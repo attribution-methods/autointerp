@@ -1,0 +1,7 @@
+{
+  "kind": "MetricResult",
+  "artifact_id": "stage0-logit_diff-dev",
+  "relpath": "findings/stage_0_black_box/metric_stage0-logit_diff-dev.json",
+  "stage_idx": 0,
+  "split": "dev"
+}

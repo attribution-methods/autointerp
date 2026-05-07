@@ -1,0 +1,31 @@
+def head_patch_sweep(
+    handle: ModelHandle,
+    clean_prompts: Sequence[str],
+    corrupt_prompts: Sequence[str],
+    metric: Callable[[torch.Tensor], torch.Tensor],
+    layers: Optional[Iterable[int]] = None,
+    heads: Optional[Iterable[int]] = None,
+    patch_positions: Optional[Sequence[int]] = None,
+    clean_cache: Optional[Dict[int, torch.Tensor]] = None,
+) -> Dict[str, Any]:
+    """Patch each ``(layer, head)`` from clean into a corrupt forward pass.
+
+    For each site, runs the corrupt prompts with that head's ``z`` replaced by
+    the clean cache, evaluates ``metric(logits_at_-1)`` (a per-row tensor),
+    and records the mean. Also records the unpatched clean and corrupt
+    metrics. Returns a dict with the effect matrix ``[L, H]`` indexed by
+    chosen layers/heads.
+    """
+    layer_indices = (
+        list(range(handle.n_layers))
+        if layers is None
+        else [resolve_layer(int(l), handle.n_layers) for l in layers]
+    )
+    head_indices = list(heads) if heads is not None else list(range(handle.n_heads))
+
+    if clean_cache is None:
+        clean_cache = cache_head_z(handle, clean_prompts, layers=layer_indices)
+
+    inputs_clean = _tokenize_batch(handle, clean_prompts)
+    inputs_corrupt = _tokenize_batch(handle, corrupt_prompts)
+    with torch.no_grad():

@@ -1,0 +1,19 @@
+================================================================================
+FINAL DATA READY FOR compute_metric TOOL CALLS
+================================================================================
+
+Call 1: compute_metric(
+  metric='accuracy',
+  metric_id='stage0-accuracy-dev',
+  inputs=ACC_INPUTS  # dict with 500 predictions, 500 labels
+)
+
+Call 2: compute_metric(
+  metric='logit_diff',
+  metric_id='stage0-logit_diff-dev',
+  inputs=LD_INPUTS  # dict with 500 targets, 500 foils
+)
+
+================================================================================
+Now invoking compute_metric through the tool interface...
+================================================================================

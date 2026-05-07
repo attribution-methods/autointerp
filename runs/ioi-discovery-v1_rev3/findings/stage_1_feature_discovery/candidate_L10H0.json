@@ -1,0 +1,22 @@
+{
+  "site_id": "L10H0",
+  "source": "discover_features_stage1",
+  "method": "head_patch_sweep",
+  "score": 0.19178082048892975,
+  "layer": 10,
+  "component": "attn_head",
+  "head_index": 0,
+  "token_index": -1,
+  "feature_id": null,
+  "evidence_refs": [],
+  "metadata": {
+    "discovery_algorithm": "algorithm_v3",
+    "joint_recovery": 0.9903381642512077,
+    "rank": 3,
+    "_provenance": {
+      "stage_idx": 1,
+      "split": "dev",
+      "committed_at": "2026-05-07T22:08:00.500544Z"
+    }
+  }
+}

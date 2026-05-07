@@ -1,0 +1,3 @@
+Data loaded. Ready to call compute_metric.
+acc_inputs type: <class 'dict'>, keys: ['predictions', 'labels']
+ld_inputs type: <class 'dict'>, keys: ['target_logits', 'foil_logits']

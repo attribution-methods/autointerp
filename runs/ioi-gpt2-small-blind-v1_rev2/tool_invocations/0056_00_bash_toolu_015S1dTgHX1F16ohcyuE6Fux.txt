@@ -1,0 +1,29 @@
+Loading GPT-2-small...
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2313.01it/s]
+Loading IOI dev dataset...
+\nTop-3 heads from localization: [[9, 9], [8, 6], [8, 10]]
+\nComputing baseline logit_diff on clean...
+Baseline logit_diff: 2.9985
+\nCaching head activations for ablation...
+\nAblating L9H9...
+  Ablated logit_diff: 2.5938
+  Drop: 0.4047 (13.5%)
+\nAblating L8H6...
+  Ablated logit_diff: 2.2500
+  Drop: 0.7485 (25.0%)
+\nAblating L8H10...
+  Ablated logit_diff: 2.2031
+  Drop: 0.7954 (26.5%)
+\n============================================================
+SUMMARY:
+============================================================
+Baseline logit_diff: 2.9985
+\nIndividual head ablation drops:
+  L9H9: 0.4047 (13.5%)
+  L8H6: 0.7485 (25.0%)
+  L8H10: 0.7954 (26.5%)
+\nHead with maximum drop: L8H10
+  Drop: 0.7954
+\nSaved results to scratch/stage2_ablation_results.json

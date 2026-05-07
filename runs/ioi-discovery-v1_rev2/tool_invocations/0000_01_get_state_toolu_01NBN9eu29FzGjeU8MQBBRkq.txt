@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "spec_id": "ioi-discovery-v1",
+  "spec_revision": 2,
+  "run_id": "ioi-discovery-v1_rev2",
+  "run_started_at": "2026-05-07T17:47:06.676636Z",
+  "run_ended_at": null,
+  "current_stage_idx": 0,
+  "stage_status": {
+    "0": {
+      "stage": "black_box",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "1": {
+      "stage": "feature_discovery",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "2": {
+      "stage": "localization",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "3": {
+      "stage": "activation_analysis",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "4": {
+      "stage": "intervention",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "5": {
+      "stage": "validation",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    }
+  },
+  "criteria_evaluated": {},
+  "abort_triggered": null,
+  "budget_consumed": {
+    "tool_calls": 0,
+    "bash_calls": 0,
+    "gpu_seconds": 0.0,
+    "wallclock_seconds": 0.0,
+    "samples": 0
+  },
+  "spec_revision_requested": null,
+  "terminal_state": null,
+  "pending_provenance_tokens": {},
+  "provenance_tokens_consumed": 0
+}

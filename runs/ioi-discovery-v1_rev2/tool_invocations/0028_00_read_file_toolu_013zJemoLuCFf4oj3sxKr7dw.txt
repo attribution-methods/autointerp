@@ -1,0 +1,100 @@
+     1	"""Canonical metric registry — the only legitimate path to a MetricResult.
+     2	
+     3	The investigation pipeline forbids agents from writing ``MetricResult``
+     4	artifacts directly. They must call ``compute_metric``, which:
+     5	
+     6	1. dispatches to the canonical implementation for the named ``MetricName``;
+     7	2. validates the input shape that implementation declares;
+     8	3. computes the value, range-checked against ``METRIC_META`` for that metric;
+     9	4. builds a ``MetricResult`` payload (id, value, threshold, pass/fail,
+    10	   metadata including unclipped value and inputs_hash);
+    11	5. registers a one-time provenance token in ``state.pending_provenance_tokens``
+    12	   so ``commit_artifact("MetricResult", ...)`` can verify the agent did not
+    13	   tamper with the value before committing.
+    14	
+    15	If an agent wants a metric that isn't here, the right path is a spec revision
+    16	(extending ``MetricName`` is a PR-time change, not a runtime one).
+    17	"""
+    18	
+    19	from __future__ import annotations
+    20	
+    21	import hashlib
+    22	import json
+    23	import math
+    24	import secrets
+    25	from dataclasses import dataclass
+    26	from typing import Any, Callable, Iterable
+    27	
+    28	from autointerp.spec import METRIC_META, CustomMetricDef, InvestigationSpec, MetricName
+    29	
+    30	from .run_dir import RunHandle
+    31	from .state import ProvenanceToken, now_iso, read_state, write_state
+    32	
+    33	
+    34	# ---- error types -----------------------------------------------------------
+    35	
+    36	
+    37	class MetricRegistryError(Exception):
+    38	    """Raised when a compute_metric call violates the registry contract."""
+    39	
+    40	
+    41	# ---- canonical implementations --------------------------------------------
+    42	
+    43	
+    44	@dataclass(frozen=True)
+    45	class MetricImpl:
+    46	    name: MetricName
+    47	    required_inputs: tuple[str, ...]
+    48	    compute: Callable[[dict[str, Any]], float]
+    49	    one_line: str
+    50	
+    51	
+    52	def _require_keys(name: MetricName, inputs: dict[str, Any], keys: Iterable[str]) -> None:
+    53	    missing = [k for k in keys if k not in inputs]
+    54	    if missing:
+    55	        raise MetricRegistryError(
+    56	            f"{name.value}: missing required input keys: {sorted(missing)}; "
+    57	            f"got {sorted(inputs)}"
+    58	        )
+    59	
+    60	
+    61	def _as_float_list(name: MetricName, key: str, raw: Any) -> list[float]:
+    62	    if not isinstance(raw, list) or not raw:
+    63	        raise MetricRegistryError(f"{name.value}.{key} must be a non-empty list")
+    64	    out: list[float] = []
+    65	    for i, v in enumerate(raw):
+    66	        try:
+    67	            out.append(float(v))
+    68	        except (TypeError, ValueError) as exc:
+    69	            raise MetricRegistryError(
+    70	                f"{name.value}.{key}[{i}] is not a number: {v!r}"
+    71	            ) from exc
+    72	    return out
+    73	
+    74	
+    75	def _accuracy(inputs: dict[str, Any]) -> float:
+    76	    """Mean(predictions[i] == labels[i]).
+    77	
+    78	    Required inputs:
+    79	      - predictions: list[Any] of model outputs
+    80	      - labels: list[Any] of gold labels (equal length to predictions)
+    81	    """
+    82	    _require_keys(MetricName.ACCURACY, inputs, ("predictions", "labels"))
+    83	    preds = inputs["predictions"]
+    84	    labels = inputs["labels"]
+    85	    if not isinstance(preds, list) or not isinstance(labels, list):
+    86	        raise MetricRegistryError("accuracy: predictions and labels must be lists")
+    87	    if len(preds) != len(labels):
+    88	        raise MetricRegistryError(
+    89	            f"accuracy: predictions ({len(preds)}) and labels ({len(labels)}) "
+    90	            "have different lengths"
+    91	        )
+    92	    if not preds:
+    93	        raise MetricRegistryError("accuracy: predictions list is empty")
+    94	    correct = sum(1 for p, l in zip(preds, labels) if p == l)
+    95	    return correct / len(preds)
+    96	
+    97	
+    98	def _logit_diff(inputs: dict[str, Any]) -> float:
+    99	    """Mean(target_logits[i] - foil_logits[i]).
+   100	

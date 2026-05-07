@@ -1,0 +1,1 @@
+Wrote 4559 bytes to runs/ioi-discovery-v1_rev3/scripts/stage0_blackbox.py

@@ -1,0 +1,6 @@
+acc dict structure:
+  predictions: list[float] of length 500
+  labels: list[float] of length 500
+  Sample: pred[0]=1.0, label[0]=1.0
+
+Dict verified and ready for compute_metric tool call

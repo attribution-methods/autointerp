@@ -1,0 +1,2 @@
+IOI-style accuracy (logit_diff > 0): 0.9800
+490/500 samples have logit(IO) > logit(S)

@@ -1,0 +1,30 @@
+Clean logit_diff: 2.6719
+
+[5/8] Computing corrupt baseline logits...
+Corrupt logit_diff: -3.7969
+Clean-corrupt gap: 6.4688
+
+[6/8] Caching clean head z activations...
+Cached layers: [9, 10]
+
+[7/8] Running joint top-K patch...
+Patched logit_diff: 2.6094
+Patch effect recovery: 0.9903
+
+[8/8] Computing KL divergence...
+KL(clean || patched): 0.4160
+
+================================================================================
+STAGE 2 METRICS
+================================================================================
+Top-3 heads: [(9, 9), (9, 6), (10, 0)]
+Clean logit_diff:   2.6719
+Corrupt logit_diff: -3.7969
+Patched logit_diff: 2.6094
+Patch effect recovery: 0.9903
+KL(clean || patched): 0.4160
+================================================================================
+
+Results saved to runs/ioi-discovery-v1_rev3/scratch/stage2_metrics.json
+
+Next: Commit kl_to_clean and patch_effect_recovery MetricResults

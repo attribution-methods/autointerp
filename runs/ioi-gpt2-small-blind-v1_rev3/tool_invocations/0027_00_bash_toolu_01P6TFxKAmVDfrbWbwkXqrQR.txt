@@ -1,0 +1,11 @@
+Accuracy metric inputs:
+  predictions: 500 values (sum=490.0)
+  labels: 500 values (sum=500.0)
+
+Logit_diff metric inputs:
+  target_logits: 500 values
+  foil_logits: 500 values
+
+Expected metric values:
+  accuracy = 0.9800
+  mean logit_diff = 2.6725

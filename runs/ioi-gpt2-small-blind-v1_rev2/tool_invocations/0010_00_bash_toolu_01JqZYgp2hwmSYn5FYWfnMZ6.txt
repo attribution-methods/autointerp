@@ -1,0 +1,40 @@
+Loading GPT-2-small model...
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2369.78it/s]
+Loading IOI dev dataset (500 samples)...
+First 3 examples:
+  0: When John and Mary went to the beach, Mary gave a pen to
+      IO= John, S= Mary, template=BABA
+  1: When Mark and Emma went to the store, Mark gave a bag to
+      IO= Emma, S= Mark, template=ABBA
+  2: When Emily and Mary went to the school, Mary gave a book to
+      IO= Emily, S= Mary, template=BABA
+
+Tokenizing prompts...
+Input shape: torch.Size([500, 14])
+Sample token length: 34360
+
+Running forward pass...
+Logits shape: torch.Size([500, 14, 50257])
+
+============================================================
+RESULTS:
+============================================================
+Accuracy (IO logit > S logit): 0.9980 (499/500)
+Mean logit_diff (IO - S): 2.9985
+Logit diff std: 1.2050
+Logit diff range: [0.0000, 6.5000]
+
+============================================================
+ABORT CONDITION CHECKS:
+============================================================
+✓ Accuracy 0.9980 >= 0.9
+✓ Logit diff 2.9985 >= 2.0 nats
+Traceback (most recent call last):
+  File "/home/li/autointerp-fadi/runs/ioi-gpt2-small-blind-v1_rev2/scripts/stage0_black_box.py", line 168, in <module>
+    main()
+  File "/home/li/autointerp-fadi/runs/ioi-gpt2-small-blind-v1_rev2/scripts/stage0_black_box.py", line 160, in main
+    with open("runs/ioi-gpt2-small-blind-v1_rev2/scratch/stage0_results.json", "w") as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'runs/ioi-gpt2-small-blind-v1_rev2/scratch/stage0_results.json'

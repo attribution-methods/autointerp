@@ -1,0 +1,1 @@
+Wrote 5575 bytes to runs/ioi-gpt2-small-blind-v1_rev2/scripts/stage2_activation_analysis.py

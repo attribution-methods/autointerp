@@ -1,0 +1,10 @@
+{
+  "criterion_id": "circuit-faithfulness",
+  "passed": false,
+  "value": 0.515255905511811,
+  "metric": "faithfulness",
+  "comparator": ">=",
+  "threshold": 0.85,
+  "metric_result_ref": "findings/stage_4_validation/metric_ioi-heldout-faithfulness.json",
+  "evaluated_at": "2026-05-07T21:52:46.478387Z"
+}

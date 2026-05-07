@@ -1,0 +1,23 @@
+Loading GPT-2-small model...
+Generating 500 IOI pairs for dev split...
+Generated 500 pairs
+Running forward passes on clean prompts...
+  Processed 160/500 prompts
+  Processed 320/500 prompts
+  Processed 480/500 prompts
+
+============================================================
+RESULTS
+============================================================
+Accuracy (IO > S):  0.9800
+Mean logit_diff:    2.6725
+Std logit_diff:     1.2107
+Min logit_diff:     -1.0000
+Max logit_diff:     6.5000
+============================================================
+
+Detailed results saved to /home/li/autointerp-fadi/runs/ioi-discovery-v1_rev2/scratch/stage0_blackbox_results.json
+IOI pairs saved to /home/li/autointerp-fadi/runs/ioi-discovery-v1_rev2/scratch/ioi_dev_pairs.json
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2193.77it/s]

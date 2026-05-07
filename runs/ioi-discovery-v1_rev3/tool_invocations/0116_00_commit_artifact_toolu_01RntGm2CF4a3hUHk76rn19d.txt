@@ -1,0 +1,26 @@
+ArtifactGateError: CandidateSite payload failed validation:
+8 validation errors for CandidateSite
+site_id
+  Field required [type=missing, input_value={'layer': 9, 'head': 9, '...L9H6 and L10H0: 0.9903'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+source
+  Field required [type=missing, input_value={'layer': 9, 'head': 9, '...L9H6 and L10H0: 0.9903'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+method
+  Field required [type=missing, input_value={'layer': 9, 'head': 9, '...L9H6 and L10H0: 0.9903'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+head
+  Extra inputs are not permitted [type=extra_forbidden, input_value=9, input_type=int]
+    For further information visit https://errors.pydantic.dev/2.12/v/extra_forbidden
+component_kind
+  Extra inputs are not permitted [type=extra_forbidden, input_value='attn_head', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.12/v/extra_forbidden
+token_pos
+  Extra inputs are not permitted [type=extra_forbidden, input_value=-1, input_type=int]
+    For further information visit https://errors.pydantic.dev/2.12/v/extra_forbidden
+discovery_method
+  Extra inputs are not permitted [type=extra_forbidden, input_value='discover_features_algorithm_v3', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.12/v/extra_forbidden
+notes
+  Extra inputs are not permitted [type=extra_forbidden, input_value='Top head from discovery ... L9H6 and L10H0: 0.9903', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.12/v/extra_forbidden

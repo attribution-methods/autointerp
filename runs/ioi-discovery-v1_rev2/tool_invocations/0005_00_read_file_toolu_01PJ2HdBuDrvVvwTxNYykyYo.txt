@@ -1,0 +1,100 @@
+     1	{
+     2	  "spec_id": "ioi-discovery-v1",
+     3	  "revision": 2,
+     4	  "parent_spec_id": "ioi-discovery-v1",
+     5	  "prior_results_ref": "runs/ioi-discovery-v1_rev1/findings/stage_1_feature_discovery/",
+     6	  "revision_reason": "Rev1's discovery-recovery criterion text said 'Top-K sites surfaced by the discovery sub-agent recover >= 0.4'. The master agent committed the sub-agent's per-algorithm patch_effect_recovery (a single-head value from the inner loop's algorithm_v1 baseline, ~0.17) instead of running a fresh joint patch on the sub-agent's top-K. Rev2 makes the post-discovery joint-patching step explicit in the criterion description AND in the feature_discovery stage notes. The localization-recovery criterion gets the same disambiguation as rev2 of the parent IOI spec.",
+     7	  "question": "How does GPT-2-small mechanistically implement indirect object identification (IOI)?",
+     8	  "hypothesis": "GPT-2-small implements IOI through an attention-head circuit that, at the END position, attends from the prediction site to the indirect-object name token and copies its embedding into the residual stream, raising its logit above competing name candidates. The circuit likely involves earlier-layer components that identify the duplicated subject name and write a signal that biases later attention toward the non-duplicated (indirect-object) name. Specific layer and head identities, and the number of components involved, are unknown a priori and should be discovered empirically by the feature_discovery sub-agent and confirmed by activation patching from corrupted runs.",
+     9	  "phenomenon_id": "indirect_object_identification",
+    10	  "behavior": {
+    11	    "behavior_id": "ioi-io-over-s-logit",
+    12	    "description": "Given an IOI prompt of the form 'When [A] and [B] went to the [place], [B] gave a [object] to', the model assigns higher logit to the indirect-object name (A) than to the subject name (B) at the final-token prediction position. Holds across both ABBA and BABA template orderings.",
+    13	    "risk_area": null,
+    14	    "positive_examples": [],
+    15	    "negative_examples": [],
+    16	    "success_criteria": [],
+    17	    "tags": [
+    18	      "demo",
+    19	      "discovery"
+    20	    ],
+    21	    "metadata": {}
+    22	  },
+    23	  "model": {
+    24	    "model_id": "gpt2",
+    25	    "provider": "openai-community",
+    26	    "revision": null,
+    27	    "dtype": null,
+    28	    "device": null,
+    29	    "metadata": {}
+    30	  },
+    31	  "dataset": {
+    32	    "dataset_id": "ioi-wang2022-style-gpt2-v1",
+    33	    "source": "generated",
+    34	    "n_samples": 500,
+    35	    "split": "dev",
+    36	    "seed": 42,
+    37	    "generator_id": "ioi_template_generator",
+    38	    "notes": "Same as rev1 / Fadi's IOI smoke spec. 500 dev + 100 heldout, ABBA/BABA balanced, single-token names, length-aligned for clean/corrupt pairs. Heldout uses disjoint name pairs from dev.",
+    39	    "metadata": {
+    40	      "heldout_n_samples": 100,
+    41	      "templates": [
+    42	        "When {A} and {B} went to the {place}, {B} gave a {object} to",
+    43	        "When {A} and {B} went to the {place}, {A} gave a {object} to"
+    44	      ]
+    45	    }
+    46	  },
+    47	  "contrast": {
+    48	    "contrast_id": "ioi-name-swap-abc",
+    49	    "positive_template": "When {A} and {B} went to the {place}, {B} gave a {object} to  -> {A}",
+    50	    "negative_template": "When {A} and {C} went to the {place}, {B} gave a {object} to  -> {A}",
+    51	    "pairing": "matched",
+    52	    "metadata": {
+    53	      "corruption_scheme": "ABC name swap (Wang-et-al style).",
+    54	      "tokenization_constraint": "single-token names with leading space",
+    55	      "length_constraint": "clean and corrupted prompts must tokenize to identical length"
+    56	    }
+    57	  },
+    58	  "stages": [
+    59	    {
+    60	      "stage": "black_box",
+    61	      "pattern": "blackbox_then_patching",
+    62	      "tools": [
+    63	        "blackbox_probe"
+    64	      ],
+    65	      "metrics": [
+    66	        "accuracy",
+    67	        "logit_diff"
+    68	      ],
+    69	      "budget": {
+    70	        "max_tokens": null,
+    71	        "max_gpu_seconds": null,
+    72	        "max_samples": null,
+    73	        "max_tool_calls": null,
+    74	        "max_wallclock_seconds": null
+    75	      },
+    76	      "notes": "Confirm GPT-2-small has a strong IOI signal on the dev split before paying for the discovery loop. logit_diff requires SCALAR target_logits / foil_logits per example — extract logits[last_position, IO_token_id] / logits[last_position, S_token_id] only; do NOT pass full vocab arrays. Abort if accuracy < 0.9.",
+    77	      "discovery": null
+    78	    },
+    79	    {
+    80	      "stage": "feature_discovery",
+    81	      "pattern": "blackbox_then_patching",
+    82	      "tools": [
+    83	        "sae_inspect",
+    84	        "activation_patching",
+    85	        "discover_features"
+    86	      ],
+    87	      "metrics": [
+    88	        "patch_effect_recovery"
+    89	      ],
+    90	      "budget": {
+    91	        "max_tokens": null,
+    92	        "max_gpu_seconds": 600.0,
+    93	        "max_samples": null,
+    94	        "max_tool_calls": 25,
+    95	        "max_wallclock_seconds": 900.0
+    96	      },
+    97	      "notes": "Two-step pattern:\n\n(A) Discovery sub-agent — call discover_features() once. The sub-agent iterates algorithm_v{N}.py candidates that score attention heads against IOI pairs, and returns a list of top-K candidate (layer, head) sites. Cap inner iterations to ~4. The sub-agent's harness emits per-algorithm patch_effect_recovery numbers in its leaderboard — DO NOT commit those as the criterion's metric. They are PER-ALGORITHM single-head numbers (~0.15 typical), not joint top-K.\n\n(B) Joint top-K patch on dev — after step (A) returns, the master agent extracts the top-K (layer, head) sites from best_summary['top_features'] and runs a JOINT simultaneous patch:\n\n```python\nfrom autointerp.tools.head_patching import HeadPatch, cache_head_z, run_with_head_patches, logit_diff\ntop_K = [(f['layer'], f['idx']) for f in result['best_summary']['top_features'][:K]]  # K=3 typical\nclean_z = cache_head_z(handle, clean_prompts, layers=sorted({L for (L,H) in top_K}))\npatches = [HeadPatch(layer=L, head=H, source=clean_z[L][:,:,H,:]) for (L,H) in top_K]\npatched_logits = run_with_head_patches(handle, corrupt_prompts, patches, return_logits_at=-1)\njoint_lD = logit_diff(patched_logits, IO_token_ids, S_token_ids).mean().item()\nrecovery = (joint_lD - corrupt_lD) / (clean_lD - corrupt_lD)\n```\n\nCommit `recovery` (the JOINT scalar from step B) as patch_effect_recovery's `patched_metric`. The discovery-recovery criterion threshold (0.4) is calibrated for this joint number, not for per-algorithm sub-agent output. Also commit the K (layer, head) sites as CandidateSite artifacts for downstream stages.\n\nIf discover_features fails (sub-agent error / SDK issue), fall back to running head_patch_sweep directly (other tools listed: activation_patching) and identify top-K from the per-head matrix, then do the same joint patch in step B. Either path satisfies this stage.",
+    98	      "discovery": {
+    99	        "substrate": "components",
+   100	        "component_kinds": [

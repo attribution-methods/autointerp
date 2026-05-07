@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "metric_id": "ioi-dev-ablation-drop",
+    "value": 0.296875,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "ablation_drop",
+      "metric_family": "localization",
+      "inputs_hash": "sha256:68038b4289fa7e95239975b2a405b791ef3f56771336699dada58cab95bf0fe4",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_bd9e480487a7ab0128cd2459f8af14c5"
+}

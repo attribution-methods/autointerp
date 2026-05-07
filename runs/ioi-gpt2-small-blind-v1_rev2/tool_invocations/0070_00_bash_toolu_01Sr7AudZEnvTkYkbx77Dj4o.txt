@@ -1,0 +1,24 @@
+Loading GPT-2-small...
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights:  79%|███████▉  | 117/148 [00:00<00:00, 1159.85it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 1026.54it/s]
+Loading IOI dev dataset...
+\nCircuit heads: [(9, 9), (8, 6), (8, 10)]
+\nComplement heads: 141 heads (ablating these)
+\nComputing clean logit_diff...
+Clean logit_diff: 2.9985
+\nComputing corrupt logit_diff...
+Corrupt logit_diff: 1.5930
+\nCaching head activations...
+\nAblating 141 heads (complement of circuit)...
+Circuit-only logit_diff: 0.4785
+\n============================================================
+FAITHFULNESS RESULTS:
+============================================================
+Clean logit_diff: 2.9985
+Corrupt logit_diff: 1.5930
+Circuit-only logit_diff: 0.4785
+Faithfulness: -0.7929
+\nFormula: (0.4785 - 1.5930) / (2.9985 - 1.5930)
+\nSaved results to scratch/stage3_faithfulness_results.json

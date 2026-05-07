@@ -1,0 +1,7 @@
+{
+  "kind": "MetricResult",
+  "artifact_id": "ioi-dev-faithfulness",
+  "relpath": "findings/stage_3_intervention/metric_ioi-dev-faithfulness.json",
+  "stage_idx": 3,
+  "split": "dev"
+}

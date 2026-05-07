@@ -1,0 +1,1 @@
+Wrote 3578 bytes to runs/ioi-discovery-v1_rev2/scripts/prepare_metric_inputs.py

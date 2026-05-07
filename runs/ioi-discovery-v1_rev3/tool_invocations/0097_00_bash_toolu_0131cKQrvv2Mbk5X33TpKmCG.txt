@@ -1,0 +1,21 @@
+================================================================================
+FINAL VERIFICATION BEFORE TOOL INVOCATION
+================================================================================
+
+1. accuracy inputs:
+   Type: <class 'dict'>
+   Keys: ['predictions', 'labels']
+   predictions: 500 items, first=1.0
+   labels: 500 items, first=1.0
+
+2. logit_diff inputs:
+   Type: <class 'dict'>
+   Keys: ['target_logits', 'foil_logits']
+   target_logits: 500 items, first=-85.0
+   foil_logits: 500 items, first=-86.5
+
+================================================================================
+DATA VERIFIED - READY TO CALL compute_metric
+================================================================================
+
+Both dicts are valid Python dict objects ready to pass to compute_metric

@@ -1,0 +1,189 @@
+{
+  "session_dir": "/home/li/autointerp-fadi/runs/ioi-discovery-v1_rev3/discovery/stage01_call5",
+  "best_candidate": "algorithm_v3",
+  "best_summary": {
+    "candidate_name": "algorithm_v3",
+    "candidate_path": "/home/li/autointerp-fadi/runs/ioi-discovery-v1_rev3/discovery/stage01_call5/algorithm_v3.py",
+    "result_path": "/home/li/autointerp-fadi/runs/ioi-discovery-v1_rev3/discovery/stage01_call5/results/algorithm_v3/harness_result.json",
+    "objective": "patch_effect_recovery",
+    "objective_metric": "patch_effect_recovery",
+    "objective_value": 0.24786324786324784,
+    "subscores": {
+      "mean_ablation_auc_k": 0.10586546293733412,
+      "mean_steering_auc_k": 0.0,
+      "combined_auc_k": 0.05293273146866706
+    },
+    "top_features": [
+      {
+        "layer": 9,
+        "idx": 9,
+        "kind": "attn_head",
+        "score": 0.5136986374855042,
+        "token_pos": -1
+      },
+      {
+        "layer": 9,
+        "idx": 6,
+        "kind": "attn_head",
+        "score": 0.2442922443151474,
+        "token_pos": -1
+      },
+      {
+        "layer": 10,
+        "idx": 7,
+        "kind": "attn_head",
+        "score": -0.23744292557239532,
+        "token_pos": -1
+      },
+      {
+        "layer": 10,
+        "idx": 0,
+        "kind": "attn_head",
+        "score": 0.19178082048892975,
+        "token_pos": -1
+      },
+      {
+        "layer": 11,
+        "idx": 10,
+        "kind": "attn_head",
+        "score": -0.1278538852930069,
+        "token_pos": -1
+      },
+      {
+        "layer": 10,
+        "idx": 10,
+        "kind": "attn_head",
+        "score": 0.10273972898721695,
+        "token_pos": -1
+      },
+      {
+        "layer": 10,
+        "idx": 6,
+        "kind": "attn_head",
+        "score": 0.06849315017461777,
+        "token_pos": -1
+      },
+      {
+        "layer": 11,
+        "idx": 1,
+        "kind": "attn_head",
+        "score": 0.06621004641056061,
+        "token_pos": -1
+      },
+      {
+        "layer": 11,
+        "idx": 2,
+        "kind": "attn_head",
+        "score": 0.06621004641056061,
+        "token_pos": -1
+      },
+      {
+        "layer": 10,
+        "idx": 2,
+        "kind": "attn_head",
+        "score": 0.06392694264650345,
+        "token_pos": -1
+      },
+      {
+        "layer": 9,
+        "idx": 8,
+        "kind": "attn_head",
+        "score": 0.054794520139694214,
+        "token_pos": -1
+      },
+      {
+        "layer": 10,
+        "idx": 1,
+        "kind": "attn_head",
+        "score": 0.04794520512223244,
+        "token_pos": -1
+      },
+      {
+        "layer": 11,
+        "idx": 3,
+        "kind": "attn_head",
+        "score": 0.04794520512223244,
+        "token_pos": -1
+      },
+      {
+        "layer": 10,
+        "idx": 3,
+        "kind": "attn_head",
+        "score": 0.031963471323251724,
+        "token_pos": -1
+      },
+      {
+        "layer": 11,
+        "idx": 6,
+        "kind": "attn_head",
+        "score": 0.029680365696549416,
+        "token_pos": -1
+      },
+      {
+        "layer": 11,
+        "idx": 8,
+        "kind": "attn_head",
+        "score": 0.027397260069847107,
+        "token_pos": -1
+      },
+      {
+        "layer": 8,
+        "idx": 11,
+        "kind": "attn_head",
+        "score": 0.0251141544431448,
+        "token_pos": -1
+      },
+      {
+        "layer": 7,
+        "idx": 3,
+        "kind": "attn_head",
+        "score": 0.01826483942568302,
+        "token_pos": -1
+      },
+      {
+        "layer": 9,
+        "idx": 0,
+        "kind": "attn_head",
+        "score": 0.01826483942568302,
+        "token_pos": -1
+      },
+      {
+        "layer": 11,
+        "idx": 11,
+        "kind": "attn_head",
+        "score": 0.01826483942568302,
+        "token_pos": -1
+      }
+    ]
+  },
+  "iterations_run": 4,
+  "terminated_by": "max_iters",
+  "cost_usd": 1.3265410499999999,
+  "log": [
+    {
+      "iteration": 1,
+      "duration_s": 123.0,
+      "turns": 32,
+      "cost_usd": 0.20914385000000002
+    },
+    {
+      "iteration": 2,
+      "duration_s": 196.5,
+      "turns": 62,
+      "cost_usd": 0.3805707
+    },
+    {
+      "iteration": 3,
+      "duration_s": 247.0,
+      "turns": 49,
+      "cost_usd": 0.3624665999999999
+    },
+    {
+      "iteration": 4,
+      "duration_s": 192.9,
+      "turns": 57,
+      "cost_usd": 0.37435989999999997
+    }
+  ],
+  "next_step": "Inspect best_summary.top_features. To record them as evidence, build a CandidateSite or FeatureFinding payload and call commit_artifact. To register the reward as an evaluable metric, call compute_metric with the same reward_metric on a heldout split, then commit_artifact."
+}

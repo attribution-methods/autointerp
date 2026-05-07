@@ -1,0 +1,1 @@
+You must read runs/ioi-discovery-v1_rev2/INVESTIGATION_LOG.md before overwriting it.

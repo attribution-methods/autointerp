@@ -1,0 +1,14 @@
+{
+  "accuracy": 0.98,
+  "mean_logit_diff": 2.6725,
+  "std_logit_diff": 1.2107306678200564,
+  "min_logit_diff": -1.0,
+  "max_logit_diff": 6.5,
+  "n_samples": 500,
+  "io_logits_shape": [
+    500
+  ],
+  "s_logits_shape": [
+    500
+  ]
+}

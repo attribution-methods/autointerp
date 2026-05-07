@@ -1,0 +1,5 @@
+Accuracy inputs loaded
+  predictions: 500 values
+  labels: 500 values
+  Sample predictions[:5]: [1.0, 1.0, 1.0, 1.0, 1.0]
+  Sample labels[:5]: [1.0, 1.0, 1.0, 1.0, 1.0]

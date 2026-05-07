@@ -1,0 +1,19 @@
+{
+  "metric_id": "stage0-dev-accuracy",
+  "value": 0.98,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "metric_name": "accuracy",
+    "metric_family": "behavioral",
+    "inputs_hash": "sha256:0365caca5c07fc4e3867de1943dc1a3a53b55af055e0f3fc4f178cae848293bf",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 0,
+      "split": "dev",
+      "committed_at": "2026-05-07T17:54:40.276479Z"
+    }
+  }
+}

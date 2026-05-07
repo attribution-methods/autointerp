@@ -1,0 +1,47 @@
+================================================================================
+STAGE 2: EXHAUSTIVE HEAD_PATCH_SWEEP
+================================================================================
+
+[1/5] Loading GPT-2-small...
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 1968.17it/s]
+Model loaded: gpt2, n_layers=12, n_heads=12
+Total (layer, head) pairs: 144
+
+[2/5] Loading IOI dev dataset (n=500, seed=42)...
+Loaded 500 clean/corrupt pairs
+
+[3/5] Caching clean head z activations (all layers)...
+Cached layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+
+[4/5] Running head_patch_sweep (this may take a few minutes)...
+Sweeping 12 layers × 12 heads = 144 sites
+Recovery matrix shape: (12, 12)
+
+[5/5] Analyzing results...
+
+Top-10 heads by recovery:
+  1. L9H9: 0.4988
+  2. L9H6: 0.2222
+  3. L10H0: 0.1812
+  4. L10H10: 0.0797
+  5. L10H2: 0.0773
+  6. L11H2: 0.0700
+  7. L10H6: 0.0628
+  8. L9H8: 0.0556
+  9. L11H1: 0.0459
+  10. L11H3: 0.0459
+
+Top-3 heads from sweep: [(9, 9), (9, 6), (10, 0)]
+Top-3 heads from discovery: [(9, 9), (9, 6), (10, 0)]
+Discovery-Localization agreement: True
+
+================================================================================
+HEAD_PATCH_SWEEP COMPLETE
+================================================================================
+Results saved to:
+  - runs/ioi-discovery-v1_rev3/scratch/stage2_head_sweep_results.json
+  - runs/ioi-discovery-v1_rev3/scratch/stage2_recovery_matrix.npy
+
+Next: Run joint top-K patch on sweep results and compute metrics

@@ -1,0 +1,6 @@
+Accuracy inputs dict ready for compute_metric
+  Keys: ['predictions', 'labels']
+  predictions: 500 items
+  labels: 500 items
+
+Dict is ready to pass to compute_metric

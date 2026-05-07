@@ -1,0 +1,100 @@
+    50	    " Henry", " Linda", " Mark", " Jenny", " Paul", " Susan",
+    51	)
+    52	
+    53	
+    54	# Templates parameterized by ROLE (IO / S) rather than by name slot, so the
+    55	# IO / S identity is unambiguous regardless of order. ``order`` records the
+    56	# *positional* pattern for analysis:
+    57	#
+    58	# - ABBA: "When IO and S went..., S gave..." (IO at pos 1, S at pos 2 and 3)
+    59	# - BABA: "When S and IO went..., S gave..." (S at pos 1, IO at pos 2, S at pos 3)
+    60	#
+    61	# In both, the model is asked to continue with "to ___" → IO. The ABC
+    62	# corruption replaces the IO's single occurrence with a fresh name C.
+    63	_TEMPLATE_BY_ORDER: dict[str, str] = {
+    64	    "ABBA": "When{IO} and{S} went to the{place},{S} gave a{object} to",
+    65	    "BABA": "When{S} and{IO} went to the{place},{S} gave a{object} to",
+    66	}
+    67	
+    68	
+    69	def _verify_single_token(tokenizer, text: str) -> bool:
+    70	    """True iff ``tokenizer(text)`` produces exactly one token."""
+    71	    try:
+    72	        ids = tokenizer(text, add_special_tokens=False)["input_ids"]
+    73	    except Exception:
+    74	        return False
+    75	    return isinstance(ids, list) and len(ids) == 1
+    76	
+    77	
+    78	def _filter_single_token(tokenizer, items: tuple[str, ...]) -> list[str]:
+    79	    return [it for it in items if _verify_single_token(tokenizer, it)]
+    80	
+    81	
+    82	def _tokenize_one(tokenizer, text: str) -> int:
+    83	    return int(tokenizer(text, add_special_tokens=False)["input_ids"][0])
+    84	
+    85	
+    86	def generate_pairs(
+    87	    spec: Any,
+    88	    *,
+    89	    n_pairs: int,
+    90	    seed: int,
+    91	    tokenizer: Any = None,
+    92	    split: str = "dev",
+    93	) -> list[StimulusPair]:
+    94	    """Build ``n_pairs`` IOI clean/corrupted contrast pairs.
+    95	
+    96	    Parameters
+    97	    ----------
+    98	    spec:
+    99	        The :class:`autointerp.spec.InvestigationSpec` (or any dataset-
+   100	        carrying object). Currently used only to read ``dataset.seed`` as
+   101	        a tiebreaker when ``seed`` is not explicitly passed; reserved for
+   102	        future template overrides.
+   103	    n_pairs:
+   104	        Target number of pairs. The function returns up to this many; if
+   105	        the closed vocab cannot produce that many distinct trials, it
+   106	        returns however many it could.
+   107	    seed:
+   108	        Per-call seed. Determines ABBA/BABA balance, name draws, and
+   109	        place/object draws. Should be set per-stage (e.g. dataset.seed
+   110	        for dev; a separate seed for heldout to keep splits disjoint).
+   111	    tokenizer:
+   112	        Optional model tokenizer. When provided, names are filtered to
+   113	        ones that tokenize to a single BPE token *with that tokenizer* —
+   114	        so the same benchmark adapts cleanly across GPT-2 / Llama / Qwen.
+   115	        When ``None``, returns text-only pairs with placeholder ids
+   116	        (``-1``); useful for CI smoke tests that don't need the model.
+   117	    split:
+   118	        ``"dev"`` or ``"heldout"`` — selects the disjoint name pool.
+   119	    """
+   120	    rng = random.Random(seed)
+   121	
+   122	    name_pool_raw = _NAMES_DEV if split == "dev" else _NAMES_HELDOUT
+   123	    if tokenizer is None:
+   124	        names = list(name_pool_raw)
+   125	        c_names = list(_NAMES_C)
+   126	        places = list(_PLACES)
+   127	        objects = list(_OBJECTS)
+   128	    else:
+   129	        names = _filter_single_token(tokenizer, name_pool_raw)
+   130	        c_names = _filter_single_token(tokenizer, _NAMES_C)
+   131	        places = _filter_single_token(tokenizer, _PLACES)
+   132	        objects = _filter_single_token(tokenizer, _OBJECTS)
+   133	        if len(names) < 2 or not c_names or not places or not objects:
+   134	            raise RuntimeError(
+   135	                "IOI benchmark: tokenizer pruned the closed vocab below the "
+   136	                "minimum needed (>= 2 names, >= 1 of each other type). "
+   137	                f"Have names={names!r}, c={c_names!r}, places={places!r}, "
+   138	                f"objects={objects!r}"
+   139	            )
+   140	
+   141	    # Balance ABBA / BABA 50:50 across the requested pairs.
+   142	    pairs: list[StimulusPair] = []
+   143	    for i in range(n_pairs):
+   144	        order = "ABBA" if i % 2 == 0 else "BABA"
+   145	        # Draw a distinct (IO, S) pair and a fresh C disjoint from both.
+   146	        io_name, s_name = rng.sample(names, 2)
+   147	        candidate_cs = [c for c in c_names if c not in (io_name, s_name)]
+   148	        if not candidate_cs:
+   149	            candidate_cs = [n for n in names if n not in (io_name, s_name)]

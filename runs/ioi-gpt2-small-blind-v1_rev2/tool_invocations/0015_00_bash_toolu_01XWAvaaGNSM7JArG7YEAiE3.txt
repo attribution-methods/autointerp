@@ -1,0 +1,3 @@
+Number of samples: 500
+Sample target_logit: -76.0
+Sample foil_logit: -79.0

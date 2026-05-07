@@ -1,0 +1,6 @@
+Loaded accuracy inputs:
+  predictions: <class 'list'>, len=500
+  labels: <class 'list'>, len=500
+  Sample: preds[0]=1.0, labels[0]=1.0
+
+Manual accuracy: 0.980000 (490/500)

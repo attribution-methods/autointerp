@@ -1,0 +1,13 @@
+Loading model...
+Expanded circuit (7 heads): [(8, 6), (9, 9), (8, 10), (7, 9), (10, 0), (7, 3), (9, 7)]
+Computing clean logit_diff...
+Clean: 2.9985
+Corrupt: 1.5930
+Caching activations...
+Ablating 137 heads...
+Circuit-only: 1.4141
+Faithfulness (7-head): -0.1273
+Saved to scratch/stage3_faithfulness_7heads.json
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2175.63it/s]

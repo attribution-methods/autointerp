@@ -1,0 +1,4 @@
+predictions: list of 500 floats
+labels: list of 500 floats
+First 5 predictions: [1.0, 1.0, 1.0, 1.0, 1.0]
+First 5 labels: [1.0, 1.0, 1.0, 1.0, 1.0]

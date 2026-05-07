@@ -1,0 +1,12 @@
+Total samples: 500
+Predictions sum: 490.0
+Accuracy: 0.9800
+Mean logit_diff: 2.6725
+
+Metric inputs shapes:
+  predictions: 500 values
+  labels: 500 values
+  target_logits: 500 values
+  foil_logits: 500 values
+
+Metric input files saved.

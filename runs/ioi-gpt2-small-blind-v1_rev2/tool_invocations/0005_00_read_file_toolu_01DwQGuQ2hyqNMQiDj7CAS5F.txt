@@ -1,0 +1,237 @@
+     1	{
+     2	  "spec_id": "ioi-gpt2-small-blind-v1",
+     3	  "revision": 2,
+     4	  "parent_spec_id": "ioi-gpt2-small-blind-v1",
+     5	  "prior_results_ref": "runs/ioi-gpt2-small-blind-v1_rev1/findings/stage_1_localization/",
+     6	  "revision_reason": "Disambiguate the localization-recovery and circuit-faithfulness criteria. Rev1 said 'Top-K heads recover >= 0.85'; Sonnet repeatedly read this as 'best per-head recovery >= 0.85' and committed top-1 single-head numbers (~0.45 single-head vs ~0.9 joint top-3 expected). Rev2 makes joint simultaneous patching explicit in the criterion description AND embeds the worked code recipe in the stage notes so the methodology is unambiguous before any analysis runs.",
+     7	  "question": "How does GPT-2-small mechanistically implement indirect object identification (IOI)?",
+     8	  "hypothesis": "GPT-2-small implements IOI through an attention-head circuit that, at the END position, attends from the prediction site to the indirect-object name token and copies its embedding into the residual stream, raising its logit above competing name candidates. The circuit likely involves earlier-layer components that identify the duplicated subject name and write a signal that biases later attention toward the non-duplicated (indirect-object) name. Specific layer and head identities, and the number of components involved, are unknown a priori and should be discovered by activation patching from corrupted runs.",
+     9	  "phenomenon_id": "indirect_object_identification",
+    10	  "behavior": {
+    11	    "behavior_id": "ioi-io-over-s-logit",
+    12	    "description": "Given an IOI prompt of the form 'When [A] and [B] went to the [place], [B] gave a [object] to', the model assigns higher logit to the indirect-object name (A) than to the subject name (B) at the final-token prediction position. Holds across both ABBA and BABA template orderings.",
+    13	    "risk_area": null,
+    14	    "positive_examples": [],
+    15	    "negative_examples": [],
+    16	    "success_criteria": [],
+    17	    "tags": [],
+    18	    "metadata": {}
+    19	  },
+    20	  "model": {
+    21	    "model_id": "gpt2",
+    22	    "provider": "openai-community",
+    23	    "revision": null,
+    24	    "dtype": null,
+    25	    "device": null,
+    26	    "metadata": {}
+    27	  },
+    28	  "dataset": {
+    29	    "dataset_id": "ioi-wang2022-style-gpt2-v1",
+    30	    "source": "generated",
+    31	    "n_samples": 500,
+    32	    "split": "dev",
+    33	    "seed": 42,
+    34	    "generator_id": "ioi_template_generator",
+    35	    "notes": "IOI prompts in the Wang-et-al-2022 style. Each sample is generated from a sentence template such as 'When {A} and {B} went to the {place}, {B} gave a {object} to' (BABA order) or 'When {A} and {B} went to the {place}, {A} gave a {object} to' (ABBA order). Names are drawn from a closed list of common single-token first names that tokenize to a single GPT-2 BPE token with a leading space (e.g. ' John', ' Mary', ' Tom', ' Sarah', ' James', ' Kate', ' Robert', ' Lisa'). Places and objects are drawn from a closed single-token list. Both A and B must tokenize to a single token. The dataset is balanced 50/50 across ABBA and BABA orderings. A 100-sample heldout split is reserved for validation; dev/heldout splits use disjoint name pairs. The 'IO' token is the non-repeated name; the 'S' token is the repeated name. Length is held constant within an order group so positions align across clean and corrupted runs.",
+    36	    "metadata": {
+    37	      "heldout_n_samples": 100,
+    38	      "templates": [
+    39	        "When {A} and {B} went to the {place}, {B} gave a {object} to",
+    40	        "When {A} and {B} went to the {place}, {A} gave a {object} to"
+    41	      ]
+    42	    }
+    43	  },
+    44	  "contrast": {
+    45	    "contrast_id": "ioi-name-swap-abc",
+    46	    "positive_template": "When {A} and {B} went to the {place}, {B} gave a {object} to  -> {A}",
+    47	    "negative_template": "When {A} and {C} went to the {place}, {B} gave a {object} to  -> {A}",
+    48	    "pairing": "matched",
+    49	    "metadata": {
+    50	      "corruption_scheme": "ABC: replace one of the two repeated names in the clean prompt with a third novel name C, leaving the END-position context unchanged but breaking the duplicate-name structure. This is the standard IOI activation-patching corruption from Wang et al. 2022.",
+    51	      "tokenization_constraint": "A, B, and C must all tokenize to a single GPT-2 BPE token with a leading space",
+    52	      "length_constraint": "clean and corrupted prompts must tokenize to identical length so that position indices align",
+    53	      "balance_constraint": "ABBA and BABA orderings split 50/50 in both clean and corrupted batches"
+    54	    }
+    55	  },
+    56	  "stages": [
+    57	    {
+    58	      "stage": "black_box",
+    59	      "pattern": "blackbox_then_patching",
+    60	      "tools": [
+    61	        "blackbox_probe"
+    62	      ],
+    63	      "metrics": [
+    64	        "accuracy",
+    65	        "logit_diff"
+    66	      ],
+    67	      "budget": {
+    68	        "max_tokens": null,
+    69	        "max_gpu_seconds": null,
+    70	        "max_samples": null,
+    71	        "max_tool_calls": null,
+    72	        "max_wallclock_seconds": null
+    73	      },
+    74	      "notes": "Confirm GPT-2-small has a strong IOI behavioral signal. Measure accuracy (logit(IO) > logit(S) at the final position) and mean logit_diff = logit(IO) - logit(S) across all 500 dev samples. Abort if accuracy < 0.9. logit_diff requires SCALAR target_logits / foil_logits (one float per example), NOT full vocab arrays — extract logits[last_position, IO_token_id] and logits[last_position, S_token_id] only.",
+    75	      "discovery": null
+    76	    },
+    77	    {
+    78	      "stage": "localization",
+    79	      "pattern": "blackbox_then_patching",
+    80	      "tools": [
+    81	        "logit_lens",
+    82	        "activation_patching"
+    83	      ],
+    84	      "metrics": [
+    85	        "kl_to_clean",
+    86	        "patch_effect_recovery"
+    87	      ],
+    88	      "budget": {
+    89	        "max_tokens": null,
+    90	        "max_gpu_seconds": null,
+    91	        "max_samples": null,
+    92	        "max_tool_calls": null,
+    93	        "max_wallclock_seconds": null
+    94	      },
+    95	      "notes": "Two passes:\n\n(1) Per-head sweep to RANK heads. Run autointerp.tools.head_patching.head_patch_sweep across all 144 (layer, head) pairs at the END position; this returns a [n_layers, n_heads] recovery matrix where each entry is the recovery from patching THAT HEAD ALONE. Use this matrix to identify the top-K heads (typically K=3 for IOI on GPT-2-small).\n\n(2) JOINT recovery to FEED the criterion. After identifying the top-K via (1), compute the JOINT recovery — patching ALL K heads simultaneously in ONE forward pass:\n\n```python\nfrom autointerp.tools.head_patching import HeadPatch, cache_head_z, run_with_head_patches, logit_diff\nclean_z = cache_head_z(handle, clean_prompts, layers=[L for (L,H) in top_K])\npatches = [HeadPatch(layer=L, head=H, source=clean_z[L][:,:,H,:]) for (L,H) in top_K]\npatched_logits = run_with_head_patches(handle, corrupt_prompts, patches, return_logits_at=-1)\njoint_lD = logit_diff(patched_logits, IO_token_ids, S_token_ids).mean().item()\nrecovery = (joint_lD - corrupt_lD) / (clean_lD - corrupt_lD)  # SCALAR\n```\n\nCommit `recovery` (the JOINT scalar) as patch_effect_recovery's `patched_metric`. The criterion's `localization-recovery` threshold (0.85) is calibrated for the joint top-K, NOT per-head max from the sweep matrix. Do NOT commit head_patch_sweep['recovery'].max() — that is the per-head reading and will fail the criterion even when the circuit is correct.",
+    96	      "discovery": null
+    97	    },
+    98	    {
+    99	      "stage": "activation_analysis",
+   100	      "pattern": "blackbox_then_patching",
+   101	      "tools": [
+   102	        "logit_lens",
+   103	        "contrastive_directions"
+   104	      ],
+   105	      "metrics": [
+   106	        "logit_diff",
+   107	        "ablation_drop"
+   108	      ],
+   109	      "budget": {
+   110	        "max_tokens": null,
+   111	        "max_gpu_seconds": null,
+   112	        "max_samples": null,
+   113	        "max_tool_calls": null,
+   114	        "max_wallclock_seconds": null
+   115	      },
+   116	      "notes": "Extract contrastive directions (IO vs S) from the residual stream at candidate layers identified in localization. Mean-ablate the top candidate heads from localization individually and measure ablation_drop on logit_diff. Confirm which heads cause large drops on the heldout-style patterns from your own measurements, not from priors. ablation_drop expects (baseline_metric, ablated_metric) scalars.",
+   117	      "discovery": null
+   118	    },
+   119	    {
+   120	      "stage": "intervention",
+   121	      "pattern": "blackbox_then_patching",
+   122	      "tools": [
+   123	        "activation_patching",
+   124	        "path_patching"
+   125	      ],
+   126	      "metrics": [
+   127	        "patch_effect_recovery",
+   128	        "faithfulness"
+   129	      ],
+   130	      "budget": {
+   131	        "max_tokens": null,
+   132	        "max_gpu_seconds": null,
+   133	        "max_samples": null,
+   134	        "max_tool_calls": null,
+   135	        "max_wallclock_seconds": null
+   136	      },
+   137	      "notes": "Path patching from candidate sender heads to the unembed (logit output) to confirm direct information flow. Build a candidate IOI circuit C from the heads and edges that survived your measurements. Measure circuit faithfulness by mean-ablating the COMPLEMENT of C (every head not in C) and running circuit-only forward passes:\n\n```python\nfaithfulness = (circuit_only_logit_diff - corrupted_logit_diff) / (clean_logit_diff - corrupted_logit_diff)\n```\n\nfaithfulness's required inputs are SCALARS: (circuit_metric, full_model_metric, corrupted_metric).",
+   138	      "discovery": null
+   139	    },
+   140	    {
+   141	      "stage": "validation",
+   142	      "pattern": "blackbox_then_patching",
+   143	      "tools": [
+   144	        "activation_patching"
+   145	      ],
+   146	      "metrics": [
+   147	        "faithfulness",
+   148	        "minimality"
+   149	      ],
+   150	      "budget": {
+   151	        "max_tokens": null,
+   152	        "max_gpu_seconds": null,
+   153	        "max_samples": null,
+   154	        "max_tool_calls": null,
+   155	        "max_wallclock_seconds": null
+   156	      },
+   157	      "notes": "Evaluate the final candidate circuit on the 100-sample HELDOUT split (disjoint name pairs from dev). Report faithfulness (same formula as intervention stage, but on heldout). For minimality: sweep single-component removals from C, computing faithfulness with each component removed, and confirm each component contributes a non-trivial faithfulness drop:\n\n```python\nminimality = min(faithfulness_full - faithfulness_minus_one[i] for i in components)\n```\n\nminimality's required inputs are (full_circuit_faithfulness: float, removed_faithfulness: list[float] of length n_components). Use mean ablation as the ablation baseline.",
+   158	      "discovery": null
+   159	    }
+   160	  ],
+   161	  "success_criteria": [
+   162	    {
+   163	      "criterion_id": "behavioral-sanity",
+   164	      "description": "GPT-2-small correctly prefers IO over S (logit_diff > 0) on at least 95% of dev samples",
+   165	      "metric": "accuracy",
+   166	      "comparator": ">=",
+   167	      "threshold": 0.95,
+   168	      "n_min": null,
+   169	      "on_split": "dev",
+   170	      "metric_params": {},
+   171	      "custom_metric_def": null
+   172	    },
+   173	    {
+   174	      "criterion_id": "localization-recovery",
+   175	      "description": "Patching the top-K attention heads JOINTLY into the corrupted run (all K heads' z-activations replaced from clean simultaneously in ONE forward pass via run_with_head_patches) recovers at least 0.85 of the clean-corrupt logit_diff gap on dev. This is the JOINT recovery scalar, NOT per-head max from head_patch_sweep. K is typically 3 for IOI on GPT-2-small. See localization stage notes for the exact code recipe.",
+   176	      "metric": "patch_effect_recovery",
+   177	      "comparator": ">=",
+   178	      "threshold": 0.85,
+   179	      "n_min": null,
+   180	      "on_split": "dev",
+   181	      "metric_params": {},
+   182	      "custom_metric_def": null
+   183	    },
+   184	    {
+   185	      "criterion_id": "circuit-faithfulness",
+   186	      "description": "Candidate IOI circuit (the K heads from localization) achieves faithfulness >= 0.85 on the heldout split. Faithfulness is computed by mean-ablating the COMPLEMENT of the circuit (all heads NOT in C) and measuring (circuit_only - corrupt) / (clean - corrupt) on heldout pairs. Heldout uses disjoint names from dev.",
+   187	      "metric": "faithfulness",
+   188	      "comparator": ">=",
+   189	      "threshold": 0.85,
+   190	      "n_min": null,
+   191	      "on_split": "heldout",
+   192	      "metric_params": {},
+   193	      "custom_metric_def": null
+   194	    },
+   195	    {
+   196	      "criterion_id": "circuit-minimality",
+   197	      "description": "Every head in the final circuit causes a faithfulness drop >= 0.05 when removed (minimality). This is min(faithfulness_full - faithfulness_minus_one[i]) where component i is removed and the rest stay; the minimum across components must satisfy the threshold (i.e. the WEAKEST component is still load-bearing).",
+   198	      "metric": "minimality",
+   199	      "comparator": ">=",
+   200	      "threshold": 0.05,
+   201	      "n_min": null,
+   202	      "on_split": "heldout",
+   203	      "metric_params": {},
+   204	      "custom_metric_def": null
+   205	    }
+   206	  ],
+   207	  "abort_if": [
+   208	    "Stage 1 accuracy < 0.9 — GPT-2-small should be near-ceiling on IOI; below this indicates a dataset or tokenization bug, not a real behavioral failure",
+   209	    "Clean-corrupt logit_diff gap < 2.0 nats — contrastive signal too weak for meaningful patching"
+   210	  ],
+   211	  "max_revisions": 5,
+   212	  "budget": {
+   213	    "max_tokens": null,
+   214	    "max_gpu_seconds": 1800.0,
+   215	    "max_samples": null,
+   216	    "max_tool_calls": 60,
+   217	    "max_wallclock_seconds": 2700.0
+   218	  },
+   219	  "risks": [
+   220	    "Single-token name constraint shrinks the usable name pool; dev/heldout name disjointness must still hold or the heldout faithfulness number is contaminated",
+   221	    "ABC corruption can leak into positions other than the swapped name; verify length-matching and position alignment before patching",
+   222	    "Mean-ablation baseline can produce OOD activations at ablated heads; resampling ablation is a useful robustness check if faithfulness numbers look implausibly high or low",
+   223	    "Patch_effect_recovery is sensitive to the choice of metric (logit_diff vs probability vs KL); fix the metric (logit_diff(IO,S)) at the start of localization and keep it consistent through validation"
+   224	  ],
+   225	  "status": "approved",
+   226	  "critiques": [],
+   227	  "approval": {
+   228	    "approver": "user",
+   229	    "approver_kind": "human",
+   230	    "approved_at": "2026-05-07T16:50:00Z",
+   231	    "notes": "Rev2 of the blind IOI smoke spec. Methodology unchanged; criterion text disambiguated and stage notes embed the worked joint-patching code so the agent has unambiguous guidance for which scalar to commit. Same model, dataset, contrast, abort predicates, and thresholds as rev1."
+   232	  },
+   233	  "metadata": {
+   234	    "derived_from_spec_id": "ioi-gpt2-small-blind-v1",
+   235	    "derived_reason": "Methodological clarification only — rev1's criterion text was ambiguous (Sonnet read 'Top-K heads recover X' as per-head max instead of joint top-K). No content changes; revisions are textual."
+   236	  }
+   237	}

@@ -1,0 +1,21 @@
+================================================================================
+STAGE 0: BLACK-BOX IOI EVALUATION
+================================================================================
+
+[1/5] Loading GPT-2-small...
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2231.00it/s]
+Model loaded: gpt2, device=cuda, dtype=torch.bfloat16
+
+[2/5] Loading IOI dev dataset (n=500, seed=42)...
+Loaded 500 clean/corrupt pairs
+Example clean: When Sarah and John went to the school, John gave a book to
+Example corrupt: When Susan and John went to the school, John gave a book to
+Traceback (most recent call last):
+  File "/home/li/autointerp-fadi/runs/ioi-discovery-v1_rev3/scripts/stage0_blackbox.py", line 135, in <module>
+    main()
+  File "/home/li/autointerp-fadi/runs/ioi-discovery-v1_rev3/scripts/stage0_blackbox.py", line 46, in main
+    print(f"Example IO token: {pairs[0].metadata['IO_token']} (id={pairs[0].metadata['IO_token_id']})")
+                               ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+KeyError: 'IO_token'

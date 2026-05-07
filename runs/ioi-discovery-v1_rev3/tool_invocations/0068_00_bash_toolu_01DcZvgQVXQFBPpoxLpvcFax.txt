@@ -1,0 +1,5 @@
+Loaded dict with keys: ['predictions', 'labels']
+predictions: 500 items
+labels: 500 items
+
+Ready to call compute_metric

@@ -1,0 +1,5 @@
+Mean logit diff: 2.9985
+Std: 1.2050
+Min: 0.0000
+Max: 6.5000
+First 5 diffs: [3.  5.5 1.  1.5 2. ]

@@ -1,0 +1,4 @@
+Dicts are loaded and ready in memory
+They can be passed to compute_metric via the tool interface
+
+To proceed, I need to call compute_metric through the proper tool invocation mechanism

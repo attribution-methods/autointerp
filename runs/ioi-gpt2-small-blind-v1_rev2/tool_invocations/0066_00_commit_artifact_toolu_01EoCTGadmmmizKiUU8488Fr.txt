@@ -1,0 +1,7 @@
+{
+  "kind": "MetricResult",
+  "artifact_id": "stage2_dev_baseline_logit_diff",
+  "relpath": "findings/stage_2_activation_analysis/metric_stage2_dev_baseline_logit_diff.json",
+  "stage_idx": 2,
+  "split": "dev"
+}

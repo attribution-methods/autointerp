@@ -1,0 +1,4 @@
+Length of predictions: 500
+Length of labels: 500
+Length of target_logits: 500
+Length of foil_logits: 500

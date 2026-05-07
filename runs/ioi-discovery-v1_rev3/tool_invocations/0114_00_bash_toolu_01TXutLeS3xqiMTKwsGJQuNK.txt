@@ -1,0 +1,46 @@
+================================================================================
+STAGE 1: JOINT TOP-K PATCH ON DEV
+================================================================================
+
+[1/7] Loading GPT-2-small...
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2245.43it/s]
+Model loaded: gpt2, device=cuda
+
+[2/7] Loading IOI dev dataset (n=500, seed=42)...
+Loaded 500 clean/corrupt pairs
+
+[3/7] Extracting top-K heads from discovery...
+Top-3 heads (positive scores):
+  L9H9: score=0.5137
+  L9H6: score=0.2443
+  L10H0: score=0.1918
+
+[4/7] Computing clean baseline...
+Clean logit_diff: 2.6719
+
+[5/7] Computing corrupt baseline...
+Corrupt logit_diff: -3.7969
+Clean-corrupt gap: 6.4688
+
+[6/7] Caching clean head z activations...
+Layers needed: [9, 10]
+Cached layers: [9, 10]
+
+[7/7] Running joint top-K patch...
+Created 3 patches for joint application
+
+================================================================================
+JOINT TOP-3 PATCH RESULTS
+================================================================================
+Heads: [(9, 9), (9, 6), (10, 0)]
+Clean logit_diff:   2.6719
+Corrupt logit_diff: -3.7969
+Patched logit_diff: 2.6094
+Patch effect recovery: 0.9903
+================================================================================
+
+Results saved to runs/ioi-discovery-v1_rev3/scratch/stage1_joint_patch_results.json
+
+Next: Commit patch_effect_recovery MetricResult and evaluate discovery-recovery criterion

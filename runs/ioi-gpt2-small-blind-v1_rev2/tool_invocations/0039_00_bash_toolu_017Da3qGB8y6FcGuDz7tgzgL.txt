@@ -1,0 +1,15 @@
+Loading model...
+Loading datasets...
+Computing clean logits...
+Computing corrupt logits...
+
+KL divergence statistics:
+  Mean: 0.8507
+  Std: 0.4839
+  Min: 0.1592
+  Max: 2.8438
+
+Saved KL results to scratch/stage1_kl_results.json
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2472.94it/s]

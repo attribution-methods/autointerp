@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "spec_id": "ioi-gpt2-small-blind-v1",
+  "spec_revision": 3,
+  "run_id": "ioi-gpt2-small-blind-v1_rev3",
+  "run_started_at": "2026-05-07T21:35:54.655068Z",
+  "run_ended_at": "2026-05-07T21:53:04.024001Z",
+  "current_stage_idx": 4,
+  "stage_status": {
+    "0": {
+      "stage": "black_box",
+      "status": "completed",
+      "started_at": "2026-05-07T21:42:38.411466Z",
+      "ended_at": "2026-05-07T21:43:02.134042Z",
+      "abort_reason": null,
+      "artifact_refs": [
+        "findings/stage_0_black_box/metric_ioi-dev-accuracy.json",
+        "findings/stage_0_black_box/metric_ioi-dev-logit-diff.json"
+      ]
+    },
+    "1": {
+      "stage": "localization",
+      "status": "completed",
+      "started_at": "2026-05-07T21:45:32.072117Z",
+      "ended_at": "2026-05-07T21:47:38.417426Z",
+      "abort_reason": null,
+      "artifact_refs": [
+        "findings/stage_1_localization/metric_ioi-dev-joint-recovery.json",
+        "findings/stage_1_localization/metric_ioi-dev-kl-to-clean.json"
+      ]
+    },
+    "2": {
+      "stage": "activation_analysis",
+      "status": "completed",
+      "started_at": "2026-05-07T21:49:11.199604Z",
+      "ended_at": "2026-05-07T21:49:17.795824Z",
+      "abort_reason": null,
+      "artifact_refs": [
+        "findings/stage_2_activation_analysis/metric_ioi-dev-stage2-logit-diff.json",
+        "findings/stage_2_activation_analysis/metric_ioi-dev-ablation-drop.json"
+      ]
+    },
+    "3": {
+      "stage": "intervention",
+      "status": "completed",
+      "started_at": "2026-05-07T21:50:53.653765Z",
+      "ended_at": "2026-05-07T21:51:00.471679Z",
+      "abort_reason": null,
+      "artifact_refs": [
+        "findings/stage_3_intervention/metric_ioi-dev-faithfulness.json",
+        "findings/stage_3_intervention/metric_ioi-dev-stage3-recovery.json"
+      ]
+    },
+    "4": {
+      "stage": "validation",
+      "status": "in_progress",
+      "started_at": "2026-05-07T21:52:33.872495Z",
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": [
+        "findings/stage_4_validation/metric_ioi-heldout-faithfulness.json",
+        "findings/stage_4_validation/metric_ioi-heldout-minimality.json"
+      ]
+    }
+  },
+  "criteria_evaluated": {
+    "behavioral-sanity": {
+      "passed": true,
+      "value": 0.98,
+      "metric": "accuracy",
+      "comparator": ">=",
+      "threshold": 0.95,
+      "metric_result_ref": "findings/stage_0_black_box/metric_ioi-dev-accuracy.json",
+      "evaluated_at": "2026-05-07T21:42:51.904654Z"
+    },
+    "localization-recovery": {
+      "passed": true,
+      "value": 0.9299516908212561,
+      "metric": "patch_effect_recovery",
+      "comparator": ">=",
+      "threshold": 0.85,
+      "metric_result_ref": "findings/stage_1_localization/metric_ioi-dev-joint-recovery.json",
+      "evaluated_at": "2026-05-07T21:47:24.105115Z"
+    },
+    "circuit-faithfulness": {
+      "passed": false,
+      "value": 0.515255905511811,
+      "metric": "faithfulness",
+      "comparator": ">=",
+      "threshold": 0.85,
+      "metric_result_ref": "findings/stage_4_validation/metric_ioi-heldout-faithfulness.json",
+      "evaluated_at": "2026-05-07T21:52:46.478387Z"
+    }
+  },
+  "abort_triggered": null,
+  "budget_consumed": {
+    "tool_calls": 23,
+    "bash_calls": 0,
+    "gpu_seconds": 0.0,
+    "wallclock_seconds": 0.0,
+    "samples": 0
+  },
+  "spec_revision_requested": {
+    "reason": "Circuit faithfulness on heldout (0.52) falls far short of the 0.85 threshold and Wang et al. 2022's published 0.913 benchmark. The identified circuit [(9,9), (9,6), (10,0)] achieved strong localization-recovery (0.93 joint recovery on dev), confirming these heads causally transfer the IOI behavior from clean to corrupt runs. However, the inverse test—running clean prompts through the circuit alone with complement heads mean-ablated at END position—yields circuit-only logit_diff of -0.63 vs. clean 3.22 (heldout), faithfulness 0.52.\n\nThe negative minimality (-0.04, clipped to 0) indicates removing components from the circuit *improves* faithfulness, suggesting antagonistic head interactions or over-ablation effects not captured by the spec's END-only methodology. \n\nPossible causes: (1) The 3-head circuit is incomplete; Wang et al. may have used more heads. (2) END-only mean-ablation of 141 heads is still too severe, despite being less harsh than all-position ablation. (3) The head_patch_sweep ranking may have missed critical supporting heads below the top-3. (4) Implementation of HeadPatch positions=[-1] may differ from the paper's ablation.\n\nRecommendation: Expand circuit size (try top-5 or top-7 heads from the sweep matrix), validate HeadPatch implementation against the paper's code, or relax the faithfulness threshold to match empirical results (~0.5-0.6 range for 3-head circuits on this benchmark).",
+    "prior_results_ref": null,
+    "requested_at": "2026-05-07T21:53:04.024001Z"
+  },
+  "terminal_state": "revision_requested",
+  "pending_provenance_tokens": {},
+  "provenance_tokens_consumed": 10
+}

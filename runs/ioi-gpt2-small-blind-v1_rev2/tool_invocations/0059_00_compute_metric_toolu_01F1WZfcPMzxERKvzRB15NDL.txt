@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "metric_id": "stage2_dev_max_head_ablation_drop",
+    "value": 0.7953749999999999,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "ablation_drop",
+      "metric_family": "localization",
+      "inputs_hash": "sha256:aeadc3b6f2024c59c1c645774408c22bf0475451da5d2dda63d65ee717a9f67b",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_4fb3bc326df783155d900fe41f0d3cf4"
+}

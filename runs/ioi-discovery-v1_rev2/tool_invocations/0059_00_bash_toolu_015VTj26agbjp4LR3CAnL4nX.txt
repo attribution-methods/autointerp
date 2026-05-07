@@ -1,0 +1,13 @@
+Top 10 heads from discovery:
+  1. Layer 9, Head 9 (score=29.0)
+  2. Layer 10, Head 7 (score=23.0)
+  3. Layer 9, Head 6 (score=18.0)
+  4. Layer 11, Head 10 (score=17.25)
+  5. Layer 10, Head 0 (score=14.4375)
+  6. Layer 10, Head 10 (score=12.0625)
+  7. Layer 10, Head 6 (score=11.1875)
+  8. Layer 10, Head 2 (score=9.9375)
+  9. Layer 11, Head 3 (score=9.25)
+  10. Layer 10, Head 1 (score=8.6875)
+
+Let's try K=4 and K=5 to see if we can hit the 0.4 threshold

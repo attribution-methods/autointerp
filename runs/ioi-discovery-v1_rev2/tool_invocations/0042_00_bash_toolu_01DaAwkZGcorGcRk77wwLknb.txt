@@ -1,0 +1,2 @@
+Saved logit_diff inputs: 500 targets, 500 foils
+Mean logit_diff: 2.6725

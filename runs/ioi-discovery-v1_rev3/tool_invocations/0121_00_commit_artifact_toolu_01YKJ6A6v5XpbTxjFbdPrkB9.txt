@@ -1,0 +1,7 @@
+{
+  "kind": "CandidateSite",
+  "artifact_id": "L10H0",
+  "relpath": "findings/stage_1_feature_discovery/candidate_L10H0.json",
+  "stage_idx": 1,
+  "split": "dev"
+}

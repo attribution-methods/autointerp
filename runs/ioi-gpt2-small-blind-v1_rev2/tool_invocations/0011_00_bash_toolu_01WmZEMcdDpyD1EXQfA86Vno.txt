@@ -1,0 +1,6 @@
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2191.06it/s]
+Accuracy: 0.9980
+Mean logit_diff: 2.9985
+Saved to scratch/stage0_results.json

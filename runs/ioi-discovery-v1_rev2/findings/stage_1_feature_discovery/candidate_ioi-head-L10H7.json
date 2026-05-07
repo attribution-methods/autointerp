@@ -1,0 +1,23 @@
+{
+  "site_id": "ioi-head-L10H7",
+  "source": "discover_features/algorithm_v4",
+  "method": "head_patching",
+  "score": 0.4559178743961353,
+  "layer": 10,
+  "component": "attn",
+  "head_index": 7,
+  "token_index": -1,
+  "feature_id": null,
+  "evidence_refs": [],
+  "metadata": {
+    "discovery_rank": 2,
+    "joint_K": 5,
+    "joint_recovery": 0.4559178743961353,
+    "description": "IOI attention head rank 2/5 in joint circuit",
+    "_provenance": {
+      "stage_idx": 1,
+      "split": "dev",
+      "committed_at": "2026-05-07T18:12:23.462903Z"
+    }
+  }
+}

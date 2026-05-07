@@ -1,0 +1,7 @@
+{
+  "kind": "MetricResult",
+  "artifact_id": "ioi-dev-ablation-drop",
+  "relpath": "findings/stage_2_activation_analysis/metric_ioi-dev-ablation-drop.json",
+  "stage_idx": 2,
+  "split": "dev"
+}

@@ -1,0 +1,3 @@
+Metric input files ready for compute_metric
+Accuracy: 500 predictions
+Logit_diff: 500 target_logits

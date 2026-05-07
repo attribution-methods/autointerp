@@ -1,0 +1,20 @@
+ArtifactGateError: CandidateSite payload failed validation:
+6 validation errors for CandidateSite
+source
+  Field required [type=missing, input_value={'site_id': 'ioi-head-L10...y': 0.4559178743961353}}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+method
+  Field required [type=missing, input_value={'site_id': 'ioi-head-L10...y': 0.4559178743961353}}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+component_type
+  Extra inputs are not permitted [type=extra_forbidden, input_value='attn_head', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.12/v/extra_forbidden
+head
+  Extra inputs are not permitted [type=extra_forbidden, input_value=0, input_type=int]
+    For further information visit https://errors.pydantic.dev/2.12/v/extra_forbidden
+position
+  Extra inputs are not permitted [type=extra_forbidden, input_value=-1, input_type=int]
+    For further information visit https://errors.pydantic.dev/2.12/v/extra_forbidden
+description
+  Extra inputs are not permitted [type=extra_forbidden, input_value='IOI attention head at la...corrupt logit_diff gap.', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.12/v/extra_forbidden

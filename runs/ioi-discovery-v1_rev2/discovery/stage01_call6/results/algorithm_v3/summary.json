@@ -1,0 +1,155 @@
+{
+  "candidate_name": "algorithm_v3",
+  "candidate_path": "/home/li/autointerp-fadi/runs/ioi-discovery-v1_rev2/discovery/stage01_call6/algorithm_v3.py",
+  "result_path": "/home/li/autointerp-fadi/runs/ioi-discovery-v1_rev2/discovery/stage01_call6/results/algorithm_v3/harness_result.json",
+  "objective": "patch_effect_recovery",
+  "objective_metric": "patch_effect_recovery",
+  "objective_value": 0.08669108669108665,
+  "subscores": {
+    "mean_ablation_auc_k": 0.06100994477088887,
+    "mean_steering_auc_k": 0.0,
+    "combined_auc_k": 0.030504972385444435
+  },
+  "top_features": [
+    {
+      "layer": 11,
+      "idx": 10,
+      "kind": "attn_head",
+      "score": 3.03125,
+      "token_pos": -1
+    },
+    {
+      "layer": 9,
+      "idx": 9,
+      "kind": "attn_head",
+      "score": 2.65625,
+      "token_pos": -1
+    },
+    {
+      "layer": 1,
+      "idx": 7,
+      "kind": "attn_head",
+      "score": 2.578125,
+      "token_pos": -1
+    },
+    {
+      "layer": 10,
+      "idx": 7,
+      "kind": "attn_head",
+      "score": 2.5,
+      "token_pos": -1
+    },
+    {
+      "layer": 8,
+      "idx": 3,
+      "kind": "attn_head",
+      "score": 2.375,
+      "token_pos": -1
+    },
+    {
+      "layer": 4,
+      "idx": 3,
+      "kind": "attn_head",
+      "score": 2.125,
+      "token_pos": -1
+    },
+    {
+      "layer": 7,
+      "idx": 9,
+      "kind": "attn_head",
+      "score": 2.09375,
+      "token_pos": -1
+    },
+    {
+      "layer": 3,
+      "idx": 0,
+      "kind": "attn_head",
+      "score": -1.9375,
+      "token_pos": -1
+    },
+    {
+      "layer": 3,
+      "idx": 7,
+      "kind": "attn_head",
+      "score": 1.7578125,
+      "token_pos": -1
+    },
+    {
+      "layer": 6,
+      "idx": 9,
+      "kind": "attn_head",
+      "score": -1.75,
+      "token_pos": -1
+    },
+    {
+      "layer": 5,
+      "idx": 10,
+      "kind": "attn_head",
+      "score": 1.7109375,
+      "token_pos": -1
+    },
+    {
+      "layer": 4,
+      "idx": 10,
+      "kind": "attn_head",
+      "score": -1.6875,
+      "token_pos": -1
+    },
+    {
+      "layer": 7,
+      "idx": 3,
+      "kind": "attn_head",
+      "score": 1.6640625,
+      "token_pos": -1
+    },
+    {
+      "layer": 3,
+      "idx": 4,
+      "kind": "attn_head",
+      "score": -1.5859375,
+      "token_pos": -1
+    },
+    {
+      "layer": 0,
+      "idx": 6,
+      "kind": "attn_head",
+      "score": 1.53125,
+      "token_pos": -1
+    },
+    {
+      "layer": 2,
+      "idx": 11,
+      "kind": "attn_head",
+      "score": -1.4296875,
+      "token_pos": -1
+    },
+    {
+      "layer": 9,
+      "idx": 6,
+      "kind": "attn_head",
+      "score": 1.421875,
+      "token_pos": -1
+    },
+    {
+      "layer": 0,
+      "idx": 0,
+      "kind": "attn_head",
+      "score": 1.3359375,
+      "token_pos": -1
+    },
+    {
+      "layer": 6,
+      "idx": 10,
+      "kind": "attn_head",
+      "score": -1.3359375,
+      "token_pos": -1
+    },
+    {
+      "layer": 5,
+      "idx": 1,
+      "kind": "attn_head",
+      "score": -1.2734375,
+      "token_pos": -1
+    }
+  ]
+}

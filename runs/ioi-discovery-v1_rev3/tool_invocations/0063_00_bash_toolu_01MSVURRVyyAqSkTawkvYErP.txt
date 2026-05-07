@@ -1,0 +1,28 @@
+================================================================================
+STAGE 0 METRIC INPUTS READY
+================================================================================
+
+[1/2] Accuracy metric inputs:
+  predictions: 500 values
+  labels: 500 values
+  Sample predictions[0]: 1.0
+  Sample labels[0]: 1.0
+  Expected accuracy: 0.980000
+
+[2/2] Logit diff metric inputs:
+  target_logits: 500 values
+  foil_logits: 500 values
+  Sample target_logits[0]: -85.0
+  Sample foil_logits[0]: -86.5
+  Expected logit_diff: 2.672500
+
+================================================================================
+DATA READY FOR COMPUTE_METRIC CALLS
+================================================================================
+
+Next steps (via tool interface):
+1. Call compute_metric(metric='accuracy', metric_id='stage0-accuracy-dev', inputs=acc_inputs)
+2. Call compute_metric(metric='logit_diff', metric_id='stage0-logit_diff-dev', inputs=ld_inputs)
+3. Commit both MetricResult artifacts with split='dev'
+4. Evaluate behavioral-sanity criterion
+5. Advance to stage 1

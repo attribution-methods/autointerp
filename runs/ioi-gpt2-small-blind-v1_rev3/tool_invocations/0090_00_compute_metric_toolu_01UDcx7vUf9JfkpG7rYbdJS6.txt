@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "metric_id": "ioi-dev-faithfulness",
+    "value": 0.5123792270531401,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "faithfulness",
+      "metric_family": "causal",
+      "inputs_hash": "sha256:9c328d97f4ee603103a8c34e767adb0a6c2a4b419e300e0297ad4ef2a57178fd",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_13b1885a3a5e836b15fe0bda37148ce1"
+}

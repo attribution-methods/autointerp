@@ -1,0 +1,3 @@
+Keys: ['accuracy', 'logit_diff']
+accuracy keys: ['predictions', 'labels']
+logit_diff keys: ['target_logits', 'foil_logits']

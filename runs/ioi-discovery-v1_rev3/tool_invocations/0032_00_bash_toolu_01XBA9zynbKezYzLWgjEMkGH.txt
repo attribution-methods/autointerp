@@ -1,0 +1,2 @@
+Accuracy inputs: 500 predictions
+Logit_diff inputs: 500 target_logits

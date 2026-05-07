@@ -1,0 +1,23 @@
+=== Sweeping K values ===
+
+K=3: recovery=0.3877
+  Heads: [(9, 9), (10, 7), (9, 6)]
+
+K=4: recovery=0.2560
+  Heads: [(9, 9), (10, 7), (9, 6), (11, 10)]
+
+K=5: recovery=0.4559
+  Heads: [(9, 9), (10, 7), (9, 6), (11, 10), (10, 0)]
+
+K=6: recovery=0.5323
+  Heads: [(9, 9), (10, 7), (9, 6), (11, 10), (10, 0), (10, 10)]
+
+K=7: recovery=0.6014
+  Heads: [(9, 9), (10, 7), (9, 6), (11, 10), (10, 0), (10, 10), (10, 6)]
+
+K=8: recovery=0.6745
+  Heads: [(9, 9), (10, 7), (9, 6), (11, 10), (10, 0), (10, 10), (10, 6), (10, 2)]
+
+=== BEST ===
+K=8: recovery=0.6745
+Results saved to /home/li/autointerp-fadi/runs/ioi-discovery-v1_rev2/scratch/stage1_K_sweep.json

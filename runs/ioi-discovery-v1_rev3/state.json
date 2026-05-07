@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "spec_id": "ioi-discovery-v1",
+  "spec_revision": 3,
+  "run_id": "ioi-discovery-v1_rev3",
+  "run_started_at": "2026-05-07T21:35:59.379260Z",
+  "run_ended_at": null,
+  "current_stage_idx": 3,
+  "stage_status": {
+    "0": {
+      "stage": "black_box",
+      "status": "completed",
+      "started_at": "2026-05-07T21:52:59.413452Z",
+      "ended_at": "2026-05-07T21:53:27.460044Z",
+      "abort_reason": null,
+      "artifact_refs": [
+        "findings/stage_0_black_box/metric_stage0-accuracy-dev.json",
+        "findings/stage_0_black_box/metric_stage0-logit_diff-dev.json"
+      ]
+    },
+    "1": {
+      "stage": "feature_discovery",
+      "status": "completed",
+      "started_at": "2026-05-07T22:07:53.069438Z",
+      "ended_at": "2026-05-07T22:08:32.095591Z",
+      "abort_reason": null,
+      "artifact_refs": [
+        "findings/stage_1_feature_discovery/candidate_L9H9.json",
+        "findings/stage_1_feature_discovery/candidate_L9H6.json",
+        "findings/stage_1_feature_discovery/candidate_L10H0.json",
+        "findings/stage_1_feature_discovery/metric_stage1-patch_effect_recovery-dev.json"
+      ]
+    },
+    "2": {
+      "stage": "localization",
+      "status": "completed",
+      "started_at": "2026-05-07T22:13:43.967059Z",
+      "ended_at": "2026-05-07T22:14:09.410101Z",
+      "abort_reason": null,
+      "artifact_refs": [
+        "findings/stage_2_localization/metric_stage2-kl_to_clean-dev.json",
+        "findings/stage_2_localization/metric_stage2-patch_effect_recovery-dev.json"
+      ]
+    },
+    "3": {
+      "stage": "activation_analysis",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "4": {
+      "stage": "intervention",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "5": {
+      "stage": "validation",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    }
+  },
+  "criteria_evaluated": {
+    "behavioral-sanity": {
+      "passed": true,
+      "value": 0.98,
+      "metric": "accuracy",
+      "comparator": ">=",
+      "threshold": 0.95,
+      "metric_result_ref": "findings/stage_0_black_box/metric_stage0-accuracy-dev.json",
+      "evaluated_at": "2026-05-07T21:53:14.906251Z"
+    },
+    "discovery-recovery": {
+      "passed": true,
+      "value": 0.9903381642512077,
+      "metric": "patch_effect_recovery",
+      "comparator": ">=",
+      "threshold": 0.4,
+      "metric_result_ref": "findings/stage_1_feature_discovery/metric_stage1-patch_effect_recovery-dev.json",
+      "evaluated_at": "2026-05-07T22:08:20.764961Z"
+    },
+    "localization-recovery": {
+      "passed": true,
+      "value": 0.9903381642512077,
+      "metric": "patch_effect_recovery",
+      "comparator": ">=",
+      "threshold": 0.85,
+      "metric_result_ref": "findings/stage_2_localization/metric_stage2-patch_effect_recovery-dev.json",
+      "evaluated_at": "2026-05-07T22:13:52.858683Z"
+    }
+  },
+  "abort_triggered": null,
+  "budget_consumed": {
+    "tool_calls": 16,
+    "bash_calls": 0,
+    "gpu_seconds": 0.0,
+    "wallclock_seconds": 0.0,
+    "samples": 0
+  },
+  "spec_revision_requested": null,
+  "terminal_state": null,
+  "pending_provenance_tokens": {},
+  "provenance_tokens_consumed": 5
+}

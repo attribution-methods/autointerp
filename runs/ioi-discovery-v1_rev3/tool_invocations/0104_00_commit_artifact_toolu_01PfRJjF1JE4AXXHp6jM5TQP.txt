@@ -1,0 +1,7 @@
+{
+  "kind": "MetricResult",
+  "artifact_id": "stage0-accuracy-dev",
+  "relpath": "findings/stage_0_black_box/metric_stage0-accuracy-dev.json",
+  "stage_idx": 0,
+  "split": "dev"
+}
