@@ -83,6 +83,16 @@ class RunObserver:
         # the iteration number once per turn (on the first piece of content).
         self._printed_iter_label: int | None = None
         self._current_iter: int = 0
+        # Master-agent token + cost accumulators. Sub-agent cost is tracked
+        # separately under each discovery session's loop_log.jsonl; this is
+        # the master's LiteLLM spend only.
+        self.cost_summary_path = handle.root / "cost_summary.json"
+        self._n_turns: int = 0
+        self._cost_usd_total: float = 0.0
+        self._tokens_in_total: int = 0
+        self._tokens_out_total: int = 0
+        self._tokens_cache_read_total: int = 0
+        self._tokens_cache_create_total: int = 0
 
     # -- console helpers ----------------------------------------------------
 
@@ -123,15 +133,37 @@ class RunObserver:
             }
             for tc in tool_calls
         ]
-        _append_jsonl(
-            self.assistant_path,
-            {
-                "ts": ts,
-                "iteration": iteration,
-                "content": content,
-                "tool_calls": tc_summary,
-            },
-        )
+        usage = message.get("_usage") or {}
+        cost_usd = message.get("_cost_usd")
+
+        record: dict[str, Any] = {
+            "ts": ts,
+            "iteration": iteration,
+            "content": content,
+            "tool_calls": tc_summary,
+        }
+        if usage:
+            record["usage"] = usage
+        if cost_usd is not None:
+            record["cost_usd"] = float(cost_usd)
+        _append_jsonl(self.assistant_path, record)
+
+        # Update running totals + write cost_summary.json after every turn
+        # so a partial run still has cost data on disk if the master loop
+        # is killed mid-iteration.
+        self._n_turns += 1
+        if cost_usd is not None:
+            self._cost_usd_total += float(cost_usd)
+        if usage:
+            self._tokens_in_total += int(usage.get("prompt_tokens") or 0)
+            self._tokens_out_total += int(usage.get("completion_tokens") or 0)
+            self._tokens_cache_read_total += int(
+                usage.get("cache_read_input_tokens") or 0
+            )
+            self._tokens_cache_create_total += int(
+                usage.get("cache_creation_input_tokens") or 0
+            )
+        self._write_cost_summary()
         if self.verbose:
             if content:
                 self._print(
@@ -214,6 +246,43 @@ class RunObserver:
             f"[dim]{size:>6}[/dim]  [{preview_style}]{preview_text}[/{preview_style}]"
         )
 
+    def _write_cost_summary(self) -> None:
+        """Atomic-write cost_summary.json. Called after every assistant turn
+        so a killed run still leaves a usable cost record on disk."""
+        import json
+        import tempfile
+        payload = {
+            "ts": now_iso(),
+            "n_turns": self._n_turns,
+            "cost_usd": round(self._cost_usd_total, 6),
+            "usage": {
+                "prompt_tokens": self._tokens_in_total,
+                "completion_tokens": self._tokens_out_total,
+                "cache_read_input_tokens": self._tokens_cache_read_total,
+                "cache_creation_input_tokens": self._tokens_cache_create_total,
+            },
+            "scope": "master_agent_litellm",
+            "note": (
+                "Sub-agent (discover_features) costs are NOT included here; "
+                "see runs/<id>/discovery/<session>/loop_log.jsonl for those."
+            ),
+        }
+        try:
+            fd, tmp = tempfile.mkstemp(
+                dir=self.cost_summary_path.parent, suffix=".tmp"
+            )
+            try:
+                import os as _os
+                with _os.fdopen(fd, "w") as fh:
+                    json.dump(payload, fh, indent=2)
+                _os.replace(tmp, self.cost_summary_path)
+            finally:
+                if Path(tmp).exists():
+                    Path(tmp).unlink()
+        except Exception:
+            # Cost recording must never break the run.
+            pass
+
     def on_final(self, iteration: int, final_text: str) -> None:
         _append_jsonl(
             self.assistant_path,
@@ -224,6 +293,7 @@ class RunObserver:
                 "content": final_text,
             },
         )
+        self._write_cost_summary()
         if self.verbose:
             self._print(f"[bold green]final[/bold green]: {_preview(final_text)}")
             return

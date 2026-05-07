@@ -92,7 +92,27 @@ async def run_agent_turn(
         )
         message = response.choices[0].message
         assistant_message = _message_to_dict(message)
-        await _emit(observer, "on_assistant", iteration, assistant_message)
+        # Build a separate copy for the observer with usage + cost
+        # stashed under underscore-prefixed keys. Sending those back to
+        # LiteLLM/Anthropic on the next turn would fail strict-mode
+        # validation, so we keep them off the canonical message dict that
+        # `context.add_assistant` adds to the conversation history.
+        observed_message: dict[str, Any] = dict(assistant_message)
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            try:
+                observed_message["_usage"] = (
+                    usage.model_dump() if hasattr(usage, "model_dump") else dict(usage)
+                )
+            except Exception:
+                pass
+        hidden = getattr(response, "_hidden_params", None)
+        if isinstance(hidden, dict) and hidden.get("response_cost") is not None:
+            try:
+                observed_message["_cost_usd"] = float(hidden["response_cost"])
+            except (TypeError, ValueError):
+                pass
+        await _emit(observer, "on_assistant", iteration, observed_message)
 
         tool_calls = assistant_message.get("tool_calls") or []
         if not tool_calls:
