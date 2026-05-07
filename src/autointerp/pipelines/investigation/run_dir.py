@@ -88,6 +88,18 @@ class RunHandle:
         return self.root / "scratch"
 
     @property
+    def discovery_dir(self) -> Path:
+        """Per-run root for discovery sub-agent sessions.
+
+        Sub-agent sessions land at ``discovery/<stage_idx>_<call_id>/`` so
+        successive ``discover_features`` calls in different stages don't
+        collide. Lives under ``scratch_dir`` semantically (free space, no
+        gate-managed schema), but exposed as its own property because the
+        Tier-2 tool resolves it directly.
+        """
+        return self.root / "discovery"
+
+    @property
     def report_path(self) -> Path:
         return self.root / "report.json"
 
@@ -107,6 +119,7 @@ def _make_subdirs(handle: RunHandle) -> None:
         handle.findings_dir,
         handle.scripts_dir,
         handle.scratch_dir,
+        handle.discovery_dir,
     ):
         d.mkdir(parents=True, exist_ok=True)
 

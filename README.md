@@ -187,6 +187,7 @@ python -B -c "from autointerp_agent import load_config; from autointerp_agent.sk
 ```
 
 See [docs/schemas.md](docs/schemas.md) for the shared artifact contracts,
-[docs/stage0.md](docs/stage0.md) for the Stage 0 conversational planner, and
+[docs/stage0.md](docs/stage0.md) for the Stage 0 conversational planner,
 [docs/end_to_end_mvp.md](docs/end_to_end_mvp.md) for the initial investigation
-path.
+path, and [docs/discovery_subagent.md](docs/discovery_subagent.md) for the
+iterative `feature_discovery` sub-agent (Tier-2 `discover_features` tool).

@@ -36,6 +36,14 @@ the user. The user reviews methodology when you present the rendered spec.
 
 `finalize_spec` is two-phase: phase 1 renders the spec for the user, phase 2
 (`user_confirmed=true`) writes it.
+
+If a stage you're proposing is `feature_discovery`, the spec MUST declare a
+*reward metric* for that stage — the discovery sub-agent will hill-climb on
+it. Default to `combined_auc_k` (= 0.5 * ablation_auc_k + steering_auc_k);
+prefer `auroc` for binary classification / ranking tasks where you have
+per-example scores and labels; offer `propose_custom_metric` only when
+neither fits. Always ask the user which reward they want before finalizing
+a discovery stage.
 """
 
 

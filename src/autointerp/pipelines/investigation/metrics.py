@@ -303,6 +303,172 @@ def _minimality(inputs: dict[str, Any]) -> float:
     return min(drops)
 
 
+def _auroc(inputs: dict[str, Any]) -> float:
+    """ROC AUC for a binary readout.
+
+    Mann-Whitney U formulation, no scipy dependency. Treats every (score,
+    label) pair as a binary classification example and reports the
+    probability that a random positive ranks above a random negative.
+    Mid-rank tie handling means a constant-score input returns exactly 0.5.
+
+    Required inputs:
+      - scores: list[float] — model score per example (any monotone proxy
+        for P(target=1) — logit(target) - logit(foil), probe output, an
+        SAE feature activation, …)
+      - labels: list[int] — 1 for positive (target), 0 for foil
+
+    Both must have the same non-empty length and contain both classes.
+    """
+    _require_keys(MetricName.AUROC, inputs, ("scores", "labels"))
+    scores = _as_float_list(MetricName.AUROC, "scores", inputs["scores"])
+    raw_labels = inputs["labels"]
+    if not isinstance(raw_labels, list) or len(raw_labels) != len(scores):
+        raise MetricRegistryError(
+            f"auroc: labels must be a list of equal length to scores "
+            f"(got len={len(raw_labels) if isinstance(raw_labels, list) else 'NA'} "
+            f"vs scores={len(scores)})"
+        )
+    labels: list[int] = []
+    for i, v in enumerate(raw_labels):
+        try:
+            iv = int(v)
+        except (TypeError, ValueError) as exc:
+            raise MetricRegistryError(
+                f"auroc.labels[{i}]={v!r} is not int-coercible"
+            ) from exc
+        if iv not in (0, 1):
+            raise MetricRegistryError(
+                f"auroc.labels[{i}]={iv} is not in {{0, 1}}"
+            )
+        labels.append(iv)
+    n_pos = sum(labels)
+    n_neg = len(labels) - n_pos
+    if n_pos == 0 or n_neg == 0:
+        raise MetricRegistryError(
+            f"auroc: need both classes; got n_pos={n_pos}, n_neg={n_neg}"
+        )
+    # Mann-Whitney with mid-rank ties. Sort by score, assign average rank to ties.
+    order = sorted(range(len(scores)), key=lambda i: scores[i])
+    ranks = [0.0] * len(scores)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and scores[order[j + 1]] == scores[order[i]]:
+            j += 1
+        avg = (i + j) / 2.0 + 1.0  # ranks are 1-indexed
+        for k in range(i, j + 1):
+            ranks[order[k]] = avg
+        i = j + 1
+    sum_rank_pos = sum(r for r, lab in zip(ranks, labels) if lab == 1)
+    auc = (sum_rank_pos - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg)
+    return auc
+
+
+def _mean_auc_k(inputs: dict[str, Any], *, name: MetricName) -> float:
+    """Mean over a list of normalized delta curves of the area under each curve.
+
+    Used for ``mean_ablation_auc_k`` / ``mean_steering_auc_k``: each
+    ``delta_curve_per_pair[i]`` is the per-pair K-sweep curve; the harness
+    or the agent normalizes deltas to [0, 1] before passing them here.
+    Curves of unequal length are allowed — each is integrated independently
+    via the trapezoid rule on its own K grid.
+
+    Required inputs:
+      - delta_curve_per_pair: list[list[float]] — one normalized delta curve
+        per (clean, corrupt) pair, length >= 2 each, values in [0, 1]
+    Optional inputs:
+      - k_grid: list[float] | None — K values associated with each column.
+        Defaults to the natural index 0..len-1, which gives the simple
+        trapezoid mean. Pass an explicit grid for non-uniform sampling.
+    """
+    _require_keys(name, inputs, ("delta_curve_per_pair",))
+    raw = inputs["delta_curve_per_pair"]
+    if not isinstance(raw, list) or not raw:
+        raise MetricRegistryError(
+            f"{name.value}.delta_curve_per_pair must be a non-empty list of lists"
+        )
+    grid = inputs.get("k_grid")
+    aucs: list[float] = []
+    for p_idx, curve in enumerate(raw):
+        if not isinstance(curve, list) or len(curve) < 2:
+            raise MetricRegistryError(
+                f"{name.value}.delta_curve_per_pair[{p_idx}] must be a list of "
+                f"length >= 2"
+            )
+        ys = _as_float_list(name, f"delta_curve_per_pair[{p_idx}]", curve)
+        for j, y in enumerate(ys):
+            if y < 0.0 - 1e-9 or y > 1.0 + 1e-9:
+                raise MetricRegistryError(
+                    f"{name.value}.delta_curve_per_pair[{p_idx}][{j}]={y} not in [0, 1]; "
+                    "normalize deltas before calling this metric"
+                )
+        if grid is None:
+            xs = list(range(len(ys)))
+        else:
+            xs = _as_float_list(name, "k_grid", grid)
+            if len(xs) != len(ys):
+                raise MetricRegistryError(
+                    f"{name.value}: k_grid length {len(xs)} != curve length {len(ys)} "
+                    f"at pair {p_idx}"
+                )
+        # Trapezoid rule, normalized by x-range so the result lies in [0, 1].
+        area = sum(
+            (xs[i + 1] - xs[i]) * 0.5 * (ys[i + 1] + ys[i])
+            for i in range(len(xs) - 1)
+        )
+        x_span = xs[-1] - xs[0]
+        if x_span <= 0:
+            raise MetricRegistryError(
+                f"{name.value}: k_grid not strictly increasing at pair {p_idx}"
+            )
+        aucs.append(area / x_span)
+    return sum(aucs) / len(aucs)
+
+
+def _mean_ablation_auc_k(inputs: dict[str, Any]) -> float:
+    return _mean_auc_k(inputs, name=MetricName.MEAN_ABLATION_AUC_K)
+
+
+def _mean_steering_auc_k(inputs: dict[str, Any]) -> float:
+    return _mean_auc_k(inputs, name=MetricName.MEAN_STEERING_AUC_K)
+
+
+def _combined_auc_k(inputs: dict[str, Any]) -> float:
+    """0.5 * (mean_ablation_auc_k + mean_steering_auc_k).
+
+    Default discovery-stage reward. Either pre-computed scalars or raw
+    delta curves are accepted — when both ``mean_ablation_auc_k`` /
+    ``mean_steering_auc_k`` are present as floats, the combined value is
+    returned directly. Otherwise the per-pair curves under the keys
+    ``ablation_delta_curve_per_pair`` / ``steering_delta_curve_per_pair``
+    are reduced via the AUC-K trapezoid first.
+    """
+    name = MetricName.COMBINED_AUC_K
+    if "mean_ablation_auc_k" in inputs and "mean_steering_auc_k" in inputs:
+        try:
+            abl = float(inputs["mean_ablation_auc_k"])
+            steer = float(inputs["mean_steering_auc_k"])
+        except (TypeError, ValueError) as exc:
+            raise MetricRegistryError(
+                f"{name.value}: pre-computed scalar inputs must be numeric"
+            ) from exc
+        return 0.5 * (abl + steer)
+    _require_keys(
+        name, inputs, ("ablation_delta_curve_per_pair", "steering_delta_curve_per_pair")
+    )
+    abl = _mean_auc_k(
+        {"delta_curve_per_pair": inputs["ablation_delta_curve_per_pair"],
+         "k_grid": inputs.get("k_grid")},
+        name=MetricName.MEAN_ABLATION_AUC_K,
+    )
+    steer = _mean_auc_k(
+        {"delta_curve_per_pair": inputs["steering_delta_curve_per_pair"],
+         "k_grid": inputs.get("k_grid")},
+        name=MetricName.MEAN_STEERING_AUC_K,
+    )
+    return 0.5 * (abl + steer)
+
+
 REGISTRY: dict[MetricName, MetricImpl] = {
     MetricName.ACCURACY: MetricImpl(
         name=MetricName.ACCURACY,
@@ -351,6 +517,30 @@ REGISTRY: dict[MetricName, MetricImpl] = {
         required_inputs=("group_a", "group_b"),
         compute=_effect_size,
         one_line="Cohen's d (or paired d_z) between group_a and group_b.",
+    ),
+    MetricName.AUROC: MetricImpl(
+        name=MetricName.AUROC,
+        required_inputs=("scores", "labels"),
+        compute=_auroc,
+        one_line="ROC AUC for a binary readout (Mann-Whitney with mid-rank ties).",
+    ),
+    MetricName.MEAN_ABLATION_AUC_K: MetricImpl(
+        name=MetricName.MEAN_ABLATION_AUC_K,
+        required_inputs=("delta_curve_per_pair",),
+        compute=_mean_ablation_auc_k,
+        one_line="Trapezoid AUC of normalized ablation-delta curves, averaged across pairs.",
+    ),
+    MetricName.MEAN_STEERING_AUC_K: MetricImpl(
+        name=MetricName.MEAN_STEERING_AUC_K,
+        required_inputs=("delta_curve_per_pair",),
+        compute=_mean_steering_auc_k,
+        one_line="Trapezoid AUC of normalized steering-delta curves, averaged across pairs.",
+    ),
+    MetricName.COMBINED_AUC_K: MetricImpl(
+        name=MetricName.COMBINED_AUC_K,
+        required_inputs=("mean_ablation_auc_k", "mean_steering_auc_k"),
+        compute=_combined_auc_k,
+        one_line="0.5 * (mean_ablation_auc_k + mean_steering_auc_k); discovery default reward.",
     ),
 }
 
