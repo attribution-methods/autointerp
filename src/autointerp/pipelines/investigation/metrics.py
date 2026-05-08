@@ -79,6 +79,21 @@ def _accuracy(inputs: dict[str, Any]) -> float:
       - predictions: list[Any] of model outputs
       - labels: list[Any] of gold labels (equal length to predictions)
     """
+    if "n_correct" in inputs and "n_total" in inputs:
+        try:
+            n_correct = int(inputs["n_correct"])
+            n_total = int(inputs["n_total"])
+        except (TypeError, ValueError) as exc:
+            raise MetricRegistryError(
+                "accuracy.n_correct and accuracy.n_total must be integers"
+            ) from exc
+        if n_total <= 0:
+            raise MetricRegistryError("accuracy.n_total must be positive")
+        if n_correct < 0 or n_correct > n_total:
+            raise MetricRegistryError(
+                "accuracy.n_correct must be between 0 and n_total"
+            )
+        return n_correct / n_total
     _require_keys(MetricName.ACCURACY, inputs, ("predictions", "labels"))
     preds = inputs["predictions"]
     labels = inputs["labels"]
@@ -102,6 +117,22 @@ def _logit_diff(inputs: dict[str, Any]) -> float:
       - target_logits: list[float], one per example
       - foil_logits:   list[float], one per example (same length)
     """
+    if "mean_diff" in inputs:
+        try:
+            return float(inputs["mean_diff"])
+        except (TypeError, ValueError) as exc:
+            raise MetricRegistryError("logit_diff.mean_diff must be numeric") from exc
+    if "sum_diff" in inputs and "n_total" in inputs:
+        try:
+            n_total = int(inputs["n_total"])
+            sum_diff = float(inputs["sum_diff"])
+        except (TypeError, ValueError) as exc:
+            raise MetricRegistryError(
+                "logit_diff.sum_diff must be numeric and n_total must be an integer"
+            ) from exc
+        if n_total <= 0:
+            raise MetricRegistryError("logit_diff.n_total must be positive")
+        return sum_diff / n_total
     _require_keys(MetricName.LOGIT_DIFF, inputs, ("target_logits", "foil_logits"))
     t = _as_float_list(MetricName.LOGIT_DIFF, "target_logits", inputs["target_logits"])
     f = _as_float_list(MetricName.LOGIT_DIFF, "foil_logits", inputs["foil_logits"])

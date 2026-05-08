@@ -222,9 +222,14 @@ def load_model(
     dtype: torch.dtype = torch.bfloat16,
     quantization: Optional[str] = None,
     trust_remote_code: bool = True,
+    local_files_only: bool = False,
 ) -> ModelHandle:
     model_id = resolve_model_id(model_name)
-    tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_id,
+        trust_remote_code=trust_remote_code,
+        local_files_only=local_files_only,
+    )
     tokenizer.padding_side = "left"
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -235,6 +240,7 @@ def load_model(
         "trust_remote_code": trust_remote_code,
         "device_map": "auto" if device == "cuda" else None,
         "attn_implementation": "eager",
+        "local_files_only": local_files_only,
     }
     if quantization_config is not None:
         load_kwargs["quantization_config"] = quantization_config

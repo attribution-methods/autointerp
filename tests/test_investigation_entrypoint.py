@@ -217,6 +217,41 @@ def test_tool_compute_then_commit_roundtrip(tmp_path: Path) -> None:
     assert parsed2["relpath"].endswith("metric_a1.json")
 
 
+def test_tool_compute_then_commit_compact_accuracy(tmp_path: Path) -> None:
+    spec = InvestigationSpec.model_validate_json(_spec_path(tmp_path).read_text())
+    handle = init_run(spec, runs_root=tmp_path / "runs")
+    tools = {t.name: t for t in create_investigation_tools(handle)}
+
+    out, ok = asyncio.run(
+        tools["compute_metric"].handler(
+            {
+                "metric": "accuracy",
+                "metric_id": "compact-a1",
+                "inputs": {"n_correct": 498, "n_total": 500},
+                "threshold": 0.95,
+                "comparator": ">=",
+            }
+        )
+    )
+    assert ok is True
+    parsed = json.loads(out)
+    assert parsed["payload"]["value"] == 0.996
+    assert parsed["payload"]["passed"] is True
+
+    out2, ok2 = asyncio.run(
+        tools["commit_artifact"].handler(
+            {
+                "kind": "MetricResult",
+                "payload": parsed["payload"],
+                "split": "dev",
+                "provenance_token": parsed["provenance_token"],
+            }
+        )
+    )
+    assert ok2 is True
+    assert json.loads(out2)["relpath"].endswith("metric_compact-a1.json")
+
+
 def test_tool_compute_metric_unknown_returns_ok_false(tmp_path: Path) -> None:
     spec = InvestigationSpec.model_validate_json(_spec_path(tmp_path).read_text())
     handle = init_run(spec, runs_root=tmp_path / "runs")

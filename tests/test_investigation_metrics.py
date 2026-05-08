@@ -93,10 +93,35 @@ def test_accuracy_basic() -> None:
     assert impl.compute({"predictions": [1, 1, 0, 1], "labels": [1, 0, 0, 1]}) == 0.75
 
 
+def test_accuracy_compact_counts() -> None:
+    impl = METRIC_REGISTRY[MetricName.ACCURACY]
+    assert impl.compute({"n_correct": 498, "n_total": 500}) == 0.996
+
+
+def test_accuracy_compact_invalid_counts() -> None:
+    impl = METRIC_REGISTRY[MetricName.ACCURACY]
+    with pytest.raises(MetricRegistryError, match="n_total must be positive"):
+        impl.compute({"n_correct": 0, "n_total": 0})
+    with pytest.raises(MetricRegistryError, match="between 0 and n_total"):
+        impl.compute({"n_correct": 501, "n_total": 500})
+
+
 def test_logit_diff_basic() -> None:
     impl = METRIC_REGISTRY[MetricName.LOGIT_DIFF]
     v = impl.compute({"target_logits": [2.0, 3.0], "foil_logits": [1.0, 1.5]})
     assert math.isclose(v, ((2.0 - 1.0) + (3.0 - 1.5)) / 2)
+
+
+def test_logit_diff_compact_mean_and_sum() -> None:
+    impl = METRIC_REGISTRY[MetricName.LOGIT_DIFF]
+    assert math.isclose(impl.compute({"mean_diff": 3.0129, "n_total": 500}), 3.0129)
+    assert math.isclose(impl.compute({"sum_diff": 6.0, "n_total": 3}), 2.0)
+
+
+def test_logit_diff_compact_invalid_total() -> None:
+    impl = METRIC_REGISTRY[MetricName.LOGIT_DIFF]
+    with pytest.raises(MetricRegistryError, match="n_total must be positive"):
+        impl.compute({"sum_diff": 1.0, "n_total": 0})
 
 
 def test_faithfulness_basic() -> None:
