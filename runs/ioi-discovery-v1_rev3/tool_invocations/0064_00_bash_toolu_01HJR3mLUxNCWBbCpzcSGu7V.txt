@@ -1,0 +1,4 @@
+Accuracy JSON length: 5029
+Logit diff JSON length: 7047
+Ready to pass to compute_metric
+Saved final JSON files

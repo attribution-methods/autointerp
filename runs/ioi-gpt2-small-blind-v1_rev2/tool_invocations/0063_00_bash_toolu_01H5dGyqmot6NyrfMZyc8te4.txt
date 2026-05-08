@@ -1,0 +1,1 @@
+Copied logit_diff inputs for stage2

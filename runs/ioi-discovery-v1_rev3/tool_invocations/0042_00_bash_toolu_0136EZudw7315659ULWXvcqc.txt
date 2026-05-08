@@ -1,0 +1,7 @@
+Accuracy inputs structure:
+  predictions: list of 500 floats
+  labels: list of 500 floats
+  First 3 predictions: [1.0, 1.0, 1.0]
+  First 3 labels: [1.0, 1.0, 1.0]
+
+Inputs ready for compute_metric

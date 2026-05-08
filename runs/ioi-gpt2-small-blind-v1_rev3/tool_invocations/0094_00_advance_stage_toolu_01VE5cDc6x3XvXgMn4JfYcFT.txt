@@ -1,0 +1,5 @@
+{
+  "advanced_from": 3,
+  "current_stage_idx": 4,
+  "terminal_state": null
+}

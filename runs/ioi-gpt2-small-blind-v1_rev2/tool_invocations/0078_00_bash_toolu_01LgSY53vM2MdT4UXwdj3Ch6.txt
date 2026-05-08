@@ -1,0 +1,7 @@
+Ablating 124 heads...
+Clean: 2.9985, Corrupt: 1.5930, Circuit: 1.7500
+Faithfulness (20-head): 0.1117
+Saved
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2265.88it/s]

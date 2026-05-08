@@ -1,0 +1,19 @@
+{
+  "metric_id": "stage3_dev_patch_recovery",
+  "value": 0.9666666666666667,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "metric_name": "patch_effect_recovery",
+    "metric_family": "causal",
+    "inputs_hash": "sha256:2ba41e5bddf65e73c2dc57efb97d8b4379ce17a4838bfb429e541e7b98e476cb",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 3,
+      "split": "dev",
+      "committed_at": "2026-05-07T18:05:27.163539Z"
+    }
+  }
+}

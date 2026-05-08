@@ -1,0 +1,23 @@
+{
+  "top_K": [
+    [
+      9,
+      9
+    ],
+    [
+      10,
+      7
+    ],
+    [
+      9,
+      6
+    ]
+  ],
+  "K": 3,
+  "clean_logit_diff": 2.671875,
+  "corrupt_logit_diff": -3.796875,
+  "gap": 6.46875,
+  "joint_patched_logit_diff": -1.2890625,
+  "patch_effect_recovery": 0.38768115942028986,
+  "n_samples": 500
+}

@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "spec_id": "ioi-gpt2-small-blind-v1",
+  "spec_revision": 2,
+  "run_id": "ioi-gpt2-small-blind-v1_rev2",
+  "run_started_at": "2026-05-07T17:47:02.409236Z",
+  "run_ended_at": "2026-05-07T18:05:43.282376Z",
+  "current_stage_idx": 4,
+  "stage_status": {
+    "0": {
+      "stage": "black_box",
+      "status": "completed",
+      "started_at": "2026-05-07T17:51:05.050128Z",
+      "ended_at": "2026-05-07T17:52:49.462247Z",
+      "abort_reason": null,
+      "artifact_refs": [
+        "findings/stage_0_black_box/metric_stage0_dev_accuracy.json",
+        "findings/stage_0_black_box/metric_stage0_dev_logit_diff.json"
+      ]
+    },
+    "1": {
+      "stage": "localization",
+      "status": "completed",
+      "started_at": "2026-05-07T17:56:23.518447Z",
+      "ended_at": "2026-05-07T17:57:16.394006Z",
+      "abort_reason": null,
+      "artifact_refs": [
+        "findings/stage_1_localization/metric_stage1_dev_joint_recovery.json",
+        "findings/stage_1_localization/metric_stage1_dev_kl_corrupt_to_clean.json"
+      ]
+    },
+    "2": {
+      "stage": "activation_analysis",
+      "status": "completed",
+      "started_at": "2026-05-07T17:58:53.389594Z",
+      "ended_at": "2026-05-07T18:00:40.226596Z",
+      "abort_reason": null,
+      "artifact_refs": [
+        "findings/stage_2_activation_analysis/metric_stage2_dev_max_head_ablation_drop.json",
+        "findings/stage_2_activation_analysis/metric_stage2_dev_baseline_logit_diff.json"
+      ]
+    },
+    "3": {
+      "stage": "intervention",
+      "status": "completed",
+      "started_at": "2026-05-07T18:05:15.943419Z",
+      "ended_at": "2026-05-07T18:05:30.388994Z",
+      "abort_reason": null,
+      "artifact_refs": [
+        "findings/stage_3_intervention/metric_stage3_dev_circuit_faithfulness_20heads.json",
+        "findings/stage_3_intervention/metric_stage3_dev_patch_recovery.json"
+      ]
+    },
+    "4": {
+      "stage": "validation",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    }
+  },
+  "criteria_evaluated": {
+    "behavioral-sanity": {
+      "passed": true,
+      "value": 0.998,
+      "metric": "accuracy",
+      "comparator": ">=",
+      "threshold": 0.95,
+      "metric_result_ref": "findings/stage_0_black_box/metric_stage0_dev_accuracy.json",
+      "evaluated_at": "2026-05-07T17:52:46.792605Z"
+    },
+    "localization-recovery": {
+      "passed": true,
+      "value": 0.9666666666666667,
+      "metric": "patch_effect_recovery",
+      "comparator": ">=",
+      "threshold": 0.85,
+      "metric_result_ref": "findings/stage_1_localization/metric_stage1_dev_joint_recovery.json",
+      "evaluated_at": "2026-05-07T17:57:13.249987Z"
+    }
+  },
+  "abort_triggered": null,
+  "budget_consumed": {
+    "tool_calls": 19,
+    "bash_calls": 0,
+    "gpu_seconds": 0.0,
+    "wallclock_seconds": 0.0,
+    "samples": 0
+  },
+  "spec_revision_requested": {
+    "reason": "The faithfulness metric as specified (ablating the complement of the circuit) yields very low values even with expanded circuits. On dev split:\n- Top-3 heads: faithfulness = -0.79 (clipped to 0.0)\n- Top-7 heads: faithfulness = -0.13 (clipped to 0.0)  \n- Top-10 heads: faithfulness = 0.017\n- Top-20 heads (all with positive recovery): faithfulness = 0.11\n\nThe issue is that mean-ablating 124-141 heads destroys too much model capacity, causing circuit-only performance to drop below even the corrupted baseline. The joint patch recovery from top-3 heads is excellent (0.97), confirming the heads are causally important, but the faithfulness measure (circuit-only vs full model) doesn't reach the 0.85 threshold.\n\nThis suggests either: (1) the faithfulness formula/method needs revision (perhaps partial ablation or different baseline), (2) the circuit definition should include more supporting infrastructure, or (3) the 0.85 threshold is too strict for this ablation-based faithfulness measure on GPT-2-small's IOI task.\n\nRecommendation: Revise to use patch-recovery as the primary circuit validation metric (which we pass at 0.97) rather than complement-ablation faithfulness, or adjust the faithfulness computation method.",
+    "prior_results_ref": null,
+    "requested_at": "2026-05-07T18:05:43.282376Z"
+  },
+  "terminal_state": "revision_requested",
+  "pending_provenance_tokens": {
+    "tok_f5e520c8123b7eafa258e2dcc3ed1959": {
+      "metric": "faithfulness",
+      "metric_id": "stage3_dev_circuit_faithfulness",
+      "value": 0.0,
+      "inputs_hash": "sha256:95393d7a31aea69d8cbe929aff1859807877ab42b30a92e7524307792bdcd9f4",
+      "issued_at": "2026-05-07T18:02:30.551437Z",
+      "stage_idx": 3
+    }
+  },
+  "provenance_tokens_consumed": 8
+}

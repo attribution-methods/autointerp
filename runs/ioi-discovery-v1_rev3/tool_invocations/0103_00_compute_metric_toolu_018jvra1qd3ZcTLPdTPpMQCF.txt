@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "metric_id": "stage0-logit_diff-dev",
+    "value": 2.6725,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "logit_diff",
+      "metric_family": "behavioral",
+      "inputs_hash": "sha256:812cadf8a2bdeb8df589f8e79b18c31e44d4dc6f2903b870e97438db3a62377e",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_b6fcd493ffec79bbc3088e77af2bc9b3"
+}

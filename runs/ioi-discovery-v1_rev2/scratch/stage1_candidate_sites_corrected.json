@@ -1,0 +1,82 @@
+[
+  {
+    "site_id": "ioi-head-L9H9",
+    "source": "discover_features/algorithm_v4",
+    "method": "head_patching",
+    "layer": 9,
+    "component": "attn",
+    "head_index": 9,
+    "token_index": -1,
+    "score": 0.4559178743961353,
+    "metadata": {
+      "discovery_rank": 1,
+      "joint_K": 5,
+      "joint_recovery": 0.4559178743961353,
+      "description": "IOI attention head rank 1/5 in joint circuit"
+    }
+  },
+  {
+    "site_id": "ioi-head-L10H7",
+    "source": "discover_features/algorithm_v4",
+    "method": "head_patching",
+    "layer": 10,
+    "component": "attn",
+    "head_index": 7,
+    "token_index": -1,
+    "score": 0.4559178743961353,
+    "metadata": {
+      "discovery_rank": 2,
+      "joint_K": 5,
+      "joint_recovery": 0.4559178743961353,
+      "description": "IOI attention head rank 2/5 in joint circuit"
+    }
+  },
+  {
+    "site_id": "ioi-head-L9H6",
+    "source": "discover_features/algorithm_v4",
+    "method": "head_patching",
+    "layer": 9,
+    "component": "attn",
+    "head_index": 6,
+    "token_index": -1,
+    "score": 0.4559178743961353,
+    "metadata": {
+      "discovery_rank": 3,
+      "joint_K": 5,
+      "joint_recovery": 0.4559178743961353,
+      "description": "IOI attention head rank 3/5 in joint circuit"
+    }
+  },
+  {
+    "site_id": "ioi-head-L11H10",
+    "source": "discover_features/algorithm_v4",
+    "method": "head_patching",
+    "layer": 11,
+    "component": "attn",
+    "head_index": 10,
+    "token_index": -1,
+    "score": 0.4559178743961353,
+    "metadata": {
+      "discovery_rank": 4,
+      "joint_K": 5,
+      "joint_recovery": 0.4559178743961353,
+      "description": "IOI attention head rank 4/5 in joint circuit"
+    }
+  },
+  {
+    "site_id": "ioi-head-L10H0",
+    "source": "discover_features/algorithm_v4",
+    "method": "head_patching",
+    "layer": 10,
+    "component": "attn",
+    "head_index": 0,
+    "token_index": -1,
+    "score": 0.4559178743961353,
+    "metadata": {
+      "discovery_rank": 5,
+      "joint_K": 5,
+      "joint_recovery": 0.4559178743961353,
+      "description": "IOI attention head rank 5/5 in joint circuit"
+    }
+  }
+]

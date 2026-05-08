@@ -1,0 +1,5 @@
+Saved final inputs:
+  ACC_INPUTS.json - for accuracy metric
+  LD_INPUTS.json - for logit_diff metric
+
+These JSON objects are ready to pass to compute_metric's inputs parameter

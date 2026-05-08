@@ -34,6 +34,7 @@ class InvestigationStage(str, Enum):
     LOCALIZATION = "localization"
     ACTIVATION_ANALYSIS = "activation_analysis"
     FEATURE_ANALYSIS = "feature_analysis"
+    FEATURE_DISCOVERY = "feature_discovery"
     INTERVENTION = "intervention"
     VALIDATION = "validation"
     REPORTING = "reporting"

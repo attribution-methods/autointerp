@@ -1,0 +1,5 @@
+Metric inputs ready:
+1. Accuracy: predictions=500, labels=500
+2. Logit diff: target_logits=500, foil_logits=500
+
+Both dicts loaded and ready

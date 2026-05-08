@@ -1,0 +1,6 @@
+Accuracy inputs loaded:
+  Type: <class 'dict'>
+  predictions: 500 items
+  labels: 500 items
+
+Dict ready for compute_metric inputs parameter

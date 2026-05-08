@@ -1,0 +1,19 @@
+{
+  "metric_id": "ioi-dev-kl-to-clean",
+  "value": 0.356753173828125,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "metric_name": "kl_to_clean",
+    "metric_family": "localization",
+    "inputs_hash": "sha256:7d668fd3396f6d46b3fb1e9a31ac7a129fed49174321b0aa1464606e8cc996de",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 1,
+      "split": "dev",
+      "committed_at": "2026-05-07T21:47:20.397579Z"
+    }
+  }
+}

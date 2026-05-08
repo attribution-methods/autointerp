@@ -1,0 +1,10 @@
+{
+  "criterion_id": "localization-recovery",
+  "passed": true,
+  "value": 0.9903381642512077,
+  "metric": "patch_effect_recovery",
+  "comparator": ">=",
+  "threshold": 0.85,
+  "metric_result_ref": "findings/stage_2_localization/metric_stage2-dev-localization-recovery.json",
+  "evaluated_at": "2026-05-07T18:17:46.732956Z"
+}

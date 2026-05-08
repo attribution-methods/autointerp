@@ -1,0 +1,6 @@
+Loaded both input dicts
+acc: 500 predictions, 500 labels
+ld: 500 targets, 500 foils
+
+I will now call compute_metric via the tool interface
+The dicts are in memory and ready to pass

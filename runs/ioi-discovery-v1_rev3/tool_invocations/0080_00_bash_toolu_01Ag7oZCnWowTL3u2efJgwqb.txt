@@ -1,0 +1,21 @@
+================================================================================
+READY TO CALL COMPUTE_METRIC
+================================================================================
+
+1. Accuracy metric:
+   metric='accuracy'
+   metric_id='stage0-accuracy-dev'
+   inputs={'predictions': [1.0, ...], 'labels': [1.0, ...]}
+   (500 items each)
+
+2. Logit diff metric:
+   metric='logit_diff'
+   metric_id='stage0-logit_diff-dev'
+   inputs={'target_logits': [-85.0, ...], 'foil_logits': [-86.5, ...]}
+   (500 items each)
+
+Saved call parameter files:
+  - call_params_acc.json
+  - call_params_ld.json
+
+These files contain the complete parameter dicts for compute_metric calls

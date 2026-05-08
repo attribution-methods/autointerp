@@ -1,0 +1,19 @@
+{
+  "metric_id": "stage2-kl_to_clean-dev",
+  "value": 0.41547216796875,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "metric_name": "kl_to_clean",
+    "metric_family": "localization",
+    "inputs_hash": "sha256:68877989178988778a043a20d269030850ee5965faf0933bd20d8a636731b497",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 2,
+      "split": "dev",
+      "committed_at": "2026-05-07T22:13:43.967059Z"
+    }
+  }
+}

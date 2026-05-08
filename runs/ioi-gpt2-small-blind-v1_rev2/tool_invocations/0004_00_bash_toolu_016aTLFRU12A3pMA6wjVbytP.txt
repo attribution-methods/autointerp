@@ -1,0 +1,18 @@
+total 25
+drwxrwxr-x 1 li li     0 May  7 17:47 .
+drwxrwxr-x 1 li li     0 May  7 17:47 ..
+-rw-rw-r-- 1 li li    57 May  7 17:47 INVESTIGATION_LOG.md
+drwxrwxr-x 1 li li     0 May  7 17:47 activations
+-rw-rw-r-- 1 li li  4492 May  7 17:47 assistant_turns.jsonl
+-rw------- 1 li li   402 May  7 17:47 cost_summary.json
+drwxrwxr-x 1 li li     0 May  7 17:47 discovery
+drwxrwxr-x 1 li li     0 May  7 17:47 findings
+drwxrwxr-x 1 li li     0 May  7 17:47 generations
+-rw-rw-r-- 1 li li     0 May  7 17:47 log.jsonl
+drwxrwxr-x 1 li li     0 May  7 17:47 prompt_batches
+drwxrwxr-x 1 li li     0 May  7 17:47 scratch
+drwxrwxr-x 1 li li     0 May  7 17:47 scripts
+-r--r--r-- 1 li li 14330 May  7 17:47 spec.json
+-rw------- 1 li li  1486 May  7 17:47 state.json
+drwxrwxr-x 1 li li     0 May  7 17:47 tool_invocations
+-rw-rw-r-- 1 li li  3562 May  7 17:47 tool_invocations.jsonl

@@ -1,0 +1,7 @@
+{
+  "kind": "MetricResult",
+  "artifact_id": "stage2-dev-kl-to-clean",
+  "relpath": "findings/stage_2_localization/metric_stage2-dev-kl-to-clean.json",
+  "stage_idx": 2,
+  "split": "dev"
+}

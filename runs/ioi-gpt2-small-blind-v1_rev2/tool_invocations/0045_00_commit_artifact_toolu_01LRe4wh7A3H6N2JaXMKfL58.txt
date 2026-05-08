@@ -1,0 +1,7 @@
+{
+  "kind": "MetricResult",
+  "artifact_id": "stage1_dev_joint_recovery",
+  "relpath": "findings/stage_1_localization/metric_stage1_dev_joint_recovery.json",
+  "stage_idx": 1,
+  "split": "dev"
+}

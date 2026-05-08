@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "metric_id": "stage3_dev_circuit_faithfulness_20heads",
+    "value": 0.11170401992173606,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "faithfulness",
+      "metric_family": "causal",
+      "inputs_hash": "sha256:fa58b857fac60885046a163a235ee84fa06f29c887093f14d730e63bf2b7ca44",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_8abfe34403fafe75227a44a1e3cf99bf"
+}

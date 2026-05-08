@@ -1,0 +1,8 @@
+Accuracy inputs: 500 predictions, 500 labels
+  Sample predictions (first 10): [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  Sample labels (first 10): [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  All labels same? True
+
+Logit_diff inputs: 500 target_logits, 500 foil_logits
+  Sample target_logits (first 3): [-85.0, -67.0, -71.0]
+  Sample foil_logits (first 3): [-86.5, -72.5, -74.0]

@@ -1,0 +1,6 @@
+Accuracy: 500 predictions, 500 labels
+Logit_diff: 500 target_logits, 500 foil_logits
+
+Manual computation:
+  accuracy = 0.9800
+  mean logit_diff = 2.6725

@@ -1,0 +1,286 @@
+{
+  "spec_id": "ioi-discovery-v1",
+  "revision": 2,
+  "parent_spec_id": "ioi-discovery-v1",
+  "prior_results_ref": "runs/ioi-discovery-v1_rev1/findings/stage_1_feature_discovery/",
+  "revision_reason": "Rev1's discovery-recovery criterion text said 'Top-K sites surfaced by the discovery sub-agent recover >= 0.4'. The master agent committed the sub-agent's per-algorithm patch_effect_recovery (a single-head value from the inner loop's algorithm_v1 baseline, ~0.17) instead of running a fresh joint patch on the sub-agent's top-K. Rev2 makes the post-discovery joint-patching step explicit in the criterion description AND in the feature_discovery stage notes. The localization-recovery criterion gets the same disambiguation as rev2 of the parent IOI spec.",
+  "question": "How does GPT-2-small mechanistically implement indirect object identification (IOI)?",
+  "hypothesis": "GPT-2-small implements IOI through an attention-head circuit that, at the END position, attends from the prediction site to the indirect-object name token and copies its embedding into the residual stream, raising its logit above competing name candidates. The circuit likely involves earlier-layer components that identify the duplicated subject name and write a signal that biases later attention toward the non-duplicated (indirect-object) name. Specific layer and head identities, and the number of components involved, are unknown a priori and should be discovered empirically by the feature_discovery sub-agent and confirmed by activation patching from corrupted runs.",
+  "phenomenon_id": "indirect_object_identification",
+  "behavior": {
+    "behavior_id": "ioi-io-over-s-logit",
+    "description": "Given an IOI prompt of the form 'When [A] and [B] went to the [place], [B] gave a [object] to', the model assigns higher logit to the indirect-object name (A) than to the subject name (B) at the final-token prediction position. Holds across both ABBA and BABA template orderings.",
+    "risk_area": null,
+    "positive_examples": [],
+    "negative_examples": [],
+    "success_criteria": [],
+    "tags": [
+      "demo",
+      "discovery"
+    ],
+    "metadata": {}
+  },
+  "model": {
+    "model_id": "gpt2",
+    "provider": "openai-community",
+    "revision": null,
+    "dtype": null,
+    "device": null,
+    "metadata": {}
+  },
+  "dataset": {
+    "dataset_id": "ioi-wang2022-style-gpt2-v1",
+    "source": "generated",
+    "n_samples": 500,
+    "split": "dev",
+    "seed": 42,
+    "generator_id": "ioi_template_generator",
+    "notes": "Same as rev1 / Fadi's IOI smoke spec. 500 dev + 100 heldout, ABBA/BABA balanced, single-token names, length-aligned for clean/corrupt pairs. Heldout uses disjoint name pairs from dev.",
+    "metadata": {
+      "heldout_n_samples": 100,
+      "templates": [
+        "When {A} and {B} went to the {place}, {B} gave a {object} to",
+        "When {A} and {B} went to the {place}, {A} gave a {object} to"
+      ]
+    }
+  },
+  "contrast": {
+    "contrast_id": "ioi-name-swap-abc",
+    "positive_template": "When {A} and {B} went to the {place}, {B} gave a {object} to  -> {A}",
+    "negative_template": "When {A} and {C} went to the {place}, {B} gave a {object} to  -> {A}",
+    "pairing": "matched",
+    "metadata": {
+      "corruption_scheme": "ABC name swap (Wang-et-al style).",
+      "tokenization_constraint": "single-token names with leading space",
+      "length_constraint": "clean and corrupted prompts must tokenize to identical length"
+    }
+  },
+  "stages": [
+    {
+      "stage": "black_box",
+      "pattern": "blackbox_then_patching",
+      "tools": [
+        "blackbox_probe"
+      ],
+      "metrics": [
+        "accuracy",
+        "logit_diff"
+      ],
+      "budget": {
+        "max_tokens": null,
+        "max_gpu_seconds": null,
+        "max_samples": null,
+        "max_tool_calls": null,
+        "max_wallclock_seconds": null
+      },
+      "notes": "Confirm GPT-2-small has a strong IOI signal on the dev split before paying for the discovery loop. logit_diff requires SCALAR target_logits / foil_logits per example — extract logits[last_position, IO_token_id] / logits[last_position, S_token_id] only; do NOT pass full vocab arrays. Abort if accuracy < 0.9.",
+      "discovery": null
+    },
+    {
+      "stage": "feature_discovery",
+      "pattern": "blackbox_then_patching",
+      "tools": [
+        "sae_inspect",
+        "activation_patching",
+        "discover_features"
+      ],
+      "metrics": [
+        "patch_effect_recovery"
+      ],
+      "budget": {
+        "max_tokens": null,
+        "max_gpu_seconds": 600.0,
+        "max_samples": null,
+        "max_tool_calls": 25,
+        "max_wallclock_seconds": 900.0
+      },
+      "notes": "Two-step pattern:\n\n(A) Discovery sub-agent — call discover_features() once. The sub-agent iterates algorithm_v{N}.py candidates that score attention heads against IOI pairs, and returns a list of top-K candidate (layer, head) sites. Cap inner iterations to ~4. The sub-agent's harness emits per-algorithm patch_effect_recovery numbers in its leaderboard — DO NOT commit those as the criterion's metric. They are PER-ALGORITHM single-head numbers (~0.15 typical), not joint top-K.\n\n(B) Joint top-K patch on dev — after step (A) returns, the master agent extracts the top-K (layer, head) sites from best_summary['top_features'] and runs a JOINT simultaneous patch:\n\n```python\nfrom autointerp.tools.head_patching import HeadPatch, cache_head_z, run_with_head_patches, logit_diff\ntop_K = [(f['layer'], f['idx']) for f in result['best_summary']['top_features'][:K]]  # K=3 typical\nclean_z = cache_head_z(handle, clean_prompts, layers=sorted({L for (L,H) in top_K}))\npatches = [HeadPatch(layer=L, head=H, source=clean_z[L][:,:,H,:]) for (L,H) in top_K]\npatched_logits = run_with_head_patches(handle, corrupt_prompts, patches, return_logits_at=-1)\njoint_lD = logit_diff(patched_logits, IO_token_ids, S_token_ids).mean().item()\nrecovery = (joint_lD - corrupt_lD) / (clean_lD - corrupt_lD)\n```\n\nCommit `recovery` (the JOINT scalar from step B) as patch_effect_recovery's `patched_metric`. The discovery-recovery criterion threshold (0.4) is calibrated for this joint number, not for per-algorithm sub-agent output. Also commit the K (layer, head) sites as CandidateSite artifacts for downstream stages.\n\nIf discover_features fails (sub-agent error / SDK issue), fall back to running head_patch_sweep directly (other tools listed: activation_patching) and identify top-K from the per-head matrix, then do the same joint patch in step B. Either path satisfies this stage.",
+      "discovery": {
+        "substrate": "components",
+        "component_kinds": [
+          "attn_head"
+        ],
+        "decomposition": null,
+        "decomposition_layers": null,
+        "decomposition_release": null,
+        "n_pairs": 30,
+        "k_grid": [
+          1,
+          3,
+          5,
+          10
+        ],
+        "evaluator": null
+      }
+    },
+    {
+      "stage": "localization",
+      "pattern": "blackbox_then_patching",
+      "tools": [
+        "logit_lens",
+        "activation_patching"
+      ],
+      "metrics": [
+        "kl_to_clean",
+        "patch_effect_recovery"
+      ],
+      "budget": {
+        "max_tokens": null,
+        "max_gpu_seconds": null,
+        "max_samples": null,
+        "max_tool_calls": null,
+        "max_wallclock_seconds": null
+      },
+      "notes": "Validate the discovery output with an exhaustive head_patch_sweep across all 144 (layer, head) pairs, then JOINT top-K. Same recipe as rev2 of the parent IOI spec's localization stage: per-head sweep to RANK, joint patch on top-K to FEED the criterion. Compare the localization top-K with the discovery top-K; if they agree, the discovery sub-agent has surfaced the right circuit. Record agreement/divergence in INVESTIGATION_LOG.md.",
+      "discovery": null
+    },
+    {
+      "stage": "activation_analysis",
+      "pattern": "blackbox_then_patching",
+      "tools": [
+        "logit_lens",
+        "contrastive_directions"
+      ],
+      "metrics": [
+        "logit_diff",
+        "ablation_drop"
+      ],
+      "budget": {
+        "max_tokens": null,
+        "max_gpu_seconds": null,
+        "max_samples": null,
+        "max_tool_calls": null,
+        "max_wallclock_seconds": null
+      },
+      "notes": "Extract contrastive directions (IO vs S) from the residual stream at candidate layers identified in localization. Mean-ablate the top candidate heads from localization individually and measure ablation_drop on logit_diff. ablation_drop expects (baseline_metric, ablated_metric) scalars.",
+      "discovery": null
+    },
+    {
+      "stage": "intervention",
+      "pattern": "blackbox_then_patching",
+      "tools": [
+        "activation_patching",
+        "path_patching"
+      ],
+      "metrics": [
+        "patch_effect_recovery",
+        "faithfulness"
+      ],
+      "budget": {
+        "max_tokens": null,
+        "max_gpu_seconds": null,
+        "max_samples": null,
+        "max_tool_calls": null,
+        "max_wallclock_seconds": null
+      },
+      "notes": "Path patching from candidate sender heads to the unembed to confirm direct information flow. Build a candidate IOI circuit C from the heads and edges that survived your measurements. Measure circuit faithfulness: mean-ablate the COMPLEMENT of C and run circuit-only forward passes. faithfulness = (circuit_only - corrupt) / (clean - corrupt), required inputs are SCALARS (circuit_metric, full_model_metric, corrupted_metric).",
+      "discovery": null
+    },
+    {
+      "stage": "validation",
+      "pattern": "blackbox_then_patching",
+      "tools": [
+        "activation_patching"
+      ],
+      "metrics": [
+        "faithfulness",
+        "minimality"
+      ],
+      "budget": {
+        "max_tokens": null,
+        "max_gpu_seconds": null,
+        "max_samples": null,
+        "max_tool_calls": null,
+        "max_wallclock_seconds": null
+      },
+      "notes": "Evaluate the final circuit C on the HELDOUT split (disjoint names from dev). Same faithfulness formula as intervention. For minimality: sweep single-component removals from C, computing faithfulness with each component removed; report min(faithfulness_full - faithfulness_minus_one[i]). minimality's required inputs are (full_circuit_faithfulness: float, removed_faithfulness: list[float]).",
+      "discovery": null
+    }
+  ],
+  "success_criteria": [
+    {
+      "criterion_id": "behavioral-sanity",
+      "description": "GPT-2-small correctly prefers IO over S (logit_diff > 0) on at least 95% of dev samples.",
+      "metric": "accuracy",
+      "comparator": ">=",
+      "threshold": 0.95,
+      "n_min": null,
+      "on_split": "dev",
+      "metric_params": {},
+      "custom_metric_def": null
+    },
+    {
+      "criterion_id": "discovery-recovery",
+      "description": "Patching the top-K (typically K=3) attention heads surfaced by the discovery sub-agent JOINTLY into the corrupted run (all K patched simultaneously in ONE forward pass via run_with_head_patches) recovers at least 0.4 of the clean-corrupt logit_diff gap on dev. This is the JOINT recovery scalar from a fresh patch on dev pairs — NOT the sub-agent's per-algorithm patch_effect_recovery from its inner harness's leaderboard. The 0.4 threshold is intentionally lower than localization-recovery's 0.85: discovery is a search step over a small benchmark (n_pairs=30), localization is a full-dev validation. See feature_discovery stage notes for the exact code recipe.",
+      "metric": "patch_effect_recovery",
+      "comparator": ">=",
+      "threshold": 0.4,
+      "n_min": null,
+      "on_split": "dev",
+      "metric_params": {},
+      "custom_metric_def": null
+    },
+    {
+      "criterion_id": "localization-recovery",
+      "description": "Patching the top-K attention heads identified by exhaustive head_patch_sweep JOINTLY into the corrupted run recovers at least 0.85 of the clean-corrupt logit_diff gap on dev. JOINT recovery scalar (one forward pass with all K HeadPatch entries applied), NOT per-head max from head_patch_sweep['recovery'].max(). See localization stage notes (and rev2 of the parent IOI spec) for the recipe.",
+      "metric": "patch_effect_recovery",
+      "comparator": ">=",
+      "threshold": 0.85,
+      "n_min": null,
+      "on_split": "dev",
+      "metric_params": {},
+      "custom_metric_def": null
+    },
+    {
+      "criterion_id": "circuit-faithfulness",
+      "description": "Candidate IOI circuit (the K heads selected at localization) achieves faithfulness >= 0.85 on the heldout split. Faithfulness = (circuit_only - corrupt) / (clean - corrupt) computed by mean-ablating the COMPLEMENT of C on heldout pairs. Heldout uses disjoint names from dev.",
+      "metric": "faithfulness",
+      "comparator": ">=",
+      "threshold": 0.85,
+      "n_min": null,
+      "on_split": "heldout",
+      "metric_params": {},
+      "custom_metric_def": null
+    },
+    {
+      "criterion_id": "circuit-minimality",
+      "description": "Every head in the final circuit causes a faithfulness drop >= 0.05 when removed (minimality). min(faithfulness_full - faithfulness_minus_one[i]) across the K circuit components must meet the threshold.",
+      "metric": "minimality",
+      "comparator": ">=",
+      "threshold": 0.05,
+      "n_min": null,
+      "on_split": "heldout",
+      "metric_params": {},
+      "custom_metric_def": null
+    }
+  ],
+  "abort_if": [
+    "Stage 1 accuracy < 0.9 — GPT-2-small must be near-ceiling on IOI before discovery makes sense.",
+    "Clean-corrupt logit_diff gap < 2.0 nats — contrastive signal too weak for meaningful patching."
+  ],
+  "max_revisions": 3,
+  "budget": {
+    "max_tokens": null,
+    "max_gpu_seconds": 1800.0,
+    "max_samples": null,
+    "max_tool_calls": 60,
+    "max_wallclock_seconds": 2700.0
+  },
+  "risks": [
+    "Discovery sub-agent's harness may emit per-algorithm patch_effect_recovery scalars (~0.1-0.2) — do not confuse these with the joint top-K recovery the criterion wants.",
+    "Sub-agent reward is a moving target if the dev split is small — use the heldout split for the final faithfulness criterion (already enforced by on_split=heldout).",
+    "Sub-agent iteration cost can blow the run budget. Cap discover_features max_iterations and watch tool_calls in get_budget."
+  ],
+  "status": "approved",
+  "critiques": [],
+  "approval": {
+    "approver": "user",
+    "approver_kind": "human",
+    "approved_at": "2026-05-07T16:50:00Z",
+    "notes": "Rev2 of the IOI-discovery spec. Methodology unchanged; the discovery-recovery and localization-recovery criteria + their stage notes are disambiguated to demand JOINT top-K patching, with the worked code recipe in stage notes. Same model, dataset, contrast as rev1."
+  },
+  "metadata": {
+    "derived_from_spec_id": "ioi-gpt2-small-blind-v1",
+    "derived_reason": "IOI-discovery rev2: feature_discovery stage now explicitly distinguishes (A) the sub-agent's exploratory ranking from (B) the master's joint top-K patch that feeds the criterion; criterion 'discovery-recovery' clarified accordingly. Localization criterion gets the same fix as rev2 of the parent IOI spec."
+  }
+}

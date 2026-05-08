@@ -1,0 +1,2 @@
+Saved 500 KL values
+Mean KL: 0.8507

@@ -1,0 +1,7 @@
+- [completed] Stage 0: Measure accuracy and logit_diff on dev (500 samples)
+- [completed] Stage 0: Evaluate behavioral-sanity criterion
+- [pending] Stage 1: Run per-head activation patching sweep to rank all 144 (layer, head) pairs
+- [pending] Stage 1: Identify top-K heads from sweep (K=3 for IOI)
+- [pending] Stage 1: Compute JOINT recovery by patching all K heads simultaneously
+- [pending] Stage 1: Evaluate localization-recovery criterion (joint >= 0.85)
+- [pending] Complete remaining stages

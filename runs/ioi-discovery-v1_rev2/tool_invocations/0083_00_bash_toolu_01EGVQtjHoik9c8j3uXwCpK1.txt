@@ -1,0 +1,36 @@
+Computing metrics for K=3 joint patch:
+  1. L9H9
+  2. L9H6
+  3. L10H0
+
+Loading model and data...
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights:  87%|████████▋ | 129/148 [00:00<00:00, 1272.26it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 1111.26it/s]
+Computing clean logits...
+Computing corrupt logits...
+Computing patched logits with K=3 joint patch...
+
+Logit diffs:
+  Clean:   2.6719
+  Corrupt: -3.7969
+  Patched: 2.6094
+  Gap:     6.4688
+  Recovery: 0.9903
+
+Computing KL divergence per sample...
+  Mean KL(patched || clean): 0.4155
+  Min KL: 0.0277
+  Max KL: 2.3281
+
+Metrics saved to /home/li/autointerp-fadi/runs/ioi-discovery-v1_rev2/scratch/stage2_metrics.json
+
+=== For compute_metric calls ===
+patch_effect_recovery inputs:
+  clean_metric: 2.671875
+  corrupt_metric: -3.796875
+  patched_metric: 2.609375
+
+kl_to_clean inputs:
+  kl_per_sample: list of 500 values (mean=0.4155)

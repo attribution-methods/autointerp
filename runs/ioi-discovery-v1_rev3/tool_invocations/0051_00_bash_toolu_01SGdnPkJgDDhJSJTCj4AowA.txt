@@ -1,0 +1,3 @@
+Saved compact JSON files
+Accuracy: 500 items
+Logit diff: 500 items

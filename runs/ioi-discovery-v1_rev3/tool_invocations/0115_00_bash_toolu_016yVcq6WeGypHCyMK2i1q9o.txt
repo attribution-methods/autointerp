@@ -1,0 +1,44 @@
+{
+  "top_sites": [
+    [
+      9,
+      9
+    ],
+    [
+      9,
+      6
+    ],
+    [
+      10,
+      0
+    ]
+  ],
+  "top_features": [
+    {
+      "layer": 9,
+      "idx": 9,
+      "kind": "attn_head",
+      "score": 0.5136986374855042,
+      "token_pos": -1
+    },
+    {
+      "layer": 9,
+      "idx": 6,
+      "kind": "attn_head",
+      "score": 0.2442922443151474,
+      "token_pos": -1
+    },
+    {
+      "layer": 10,
+      "idx": 0,
+      "kind": "attn_head",
+      "score": 0.19178082048892975,
+      "token_pos": -1
+    }
+  ],
+  "clean_logit_diff": 2.671875,
+  "corrupt_logit_diff": -3.796875,
+  "patched_logit_diff": 2.609375,
+  "patch_effect_recovery": 0.9903381642512077,
+  "n_samples": 500
+}

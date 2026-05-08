@@ -1,0 +1,3 @@
+./src/autointerp/benchmarks/_registry.py
+./src/autointerp/benchmarks/ioi.py
+./src/autointerp_agent/stage0_tools.py

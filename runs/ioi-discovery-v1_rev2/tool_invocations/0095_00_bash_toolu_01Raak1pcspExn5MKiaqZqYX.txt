@@ -1,0 +1,20 @@
+### Criterion Evaluation
+
+- ✅ **discovery-recovery** PASSED: patch_effect_recovery 0.456 >= 0.4 threshold
+
+### Analysis
+
+The discovery sub-agent successfully identified a compact set of attention heads that implement IOI:
+- The top-5 heads span layers 9-11 (late in the 12-layer model)
+- Joint patching these 5 heads recovers nearly half of the clean-corrupt gap
+- Head combinations exhibit non-monotonic behavior (K=4 worse than K=3), suggesting complex interactions
+- The discovered circuit is concentrated in a narrow layer range, consistent with the hypothesis that IOI involves late-layer name-mover heads
+
+### Artifacts
+- `discovery/stage01_call6/` - Discovery sub-agent session directory
+- `scratch/stage1_joint_patch_final.json` - K=5 joint patch results
+- `scratch/stage1_K_sweep.json` - Full K sweep results
+- `findings/stage_1_feature_discovery/metric_stage1-dev-joint-patch-recovery.json` - Recovery metric
+- `findings/stage_1_feature_discovery/candidate_*.json` - 5 CandidateSite artifacts
+
+---

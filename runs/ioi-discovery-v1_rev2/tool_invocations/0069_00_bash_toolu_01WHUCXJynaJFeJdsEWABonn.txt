@@ -1,0 +1,21 @@
+src/autointerp/schemas.py:class CandidateSite(StrictBaseModel):
+src/autointerp/schemas.py-    """A component, token, feature, or prompt-surface hypothesis to test."""
+src/autointerp/schemas.py-
+src/autointerp/schemas.py-    site_id: str
+src/autointerp/schemas.py-    source: str
+src/autointerp/schemas.py-    method: str
+src/autointerp/schemas.py-    score: float | None = None
+src/autointerp/schemas.py-    layer: int | None = None
+src/autointerp/schemas.py-    component: str | None = None
+src/autointerp/schemas.py-    head_index: int | None = None
+src/autointerp/schemas.py-    token_index: int | None = None
+src/autointerp/schemas.py-    feature_id: int | str | None = None
+src/autointerp/schemas.py-    evidence_refs: list[str] = Field(default_factory=list)
+src/autointerp/schemas.py-    metadata: dict[str, Any] = Field(default_factory=dict)
+src/autointerp/schemas.py-
+src/autointerp/schemas.py-
+src/autointerp/schemas.py-class FeatureFinding(StrictBaseModel):
+src/autointerp/schemas.py-    feature_id: int | str
+src/autointerp/schemas.py-    source: str
+src/autointerp/schemas.py-    label: str | None = None
+src/autointerp/schemas.py-    activation: float | None = None

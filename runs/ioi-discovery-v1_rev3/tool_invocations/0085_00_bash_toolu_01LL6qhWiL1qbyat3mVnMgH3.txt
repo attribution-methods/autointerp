@@ -1,0 +1,8 @@
+Data loaded and ready for compute_metric:
+
+1. Accuracy: 500 predictions, 500 labels
+2. Logit diff: 500 targets, 500 foils
+
+================================================================================
+NOW CALLING COMPUTE_METRIC VIA TOOL INTERFACE
+================================================================================

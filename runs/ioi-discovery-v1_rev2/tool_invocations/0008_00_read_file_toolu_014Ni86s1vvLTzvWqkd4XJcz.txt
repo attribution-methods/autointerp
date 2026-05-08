@@ -1,0 +1,83 @@
+     1	phenomenon_id: ioi
+     2	question: How does the model perform Indirect Object Identification (IOI)?
+     3	hypothesis: >
+     4	  IOI is implemented by name-mover heads in mid-late layers that copy the IO
+     5	  token to the final residual stream, gated by S-inhibition heads that suppress
+     6	  the subject token at the END position. Pattern follows Wang et al. (2022).
+     7	behavior:
+     8	  behavior_id: ioi-name-mover-circuit
+     9	  description: >
+    10	    On ABBA/BABA templates the model assigns higher logit to the indirect object
+    11	    than the subject. The circuit responsible should be localizable to a small
+    12	    set of attention heads.
+    13	  risk_area: null
+    14	  positive_examples:
+    15	    - "When John and Mary went to the store, John gave a drink to Mary"
+    16	  negative_examples:
+    17	    - "When John and Mary went to the store, John gave a drink to John"
+    18	  success_criteria:
+    19	    - "Identified circuit recovers majority of clean-vs-corrupt logit difference"
+    20	  tags: [ioi, attention, circuit]
+    21	model:
+    22	  model_id: gpt2
+    23	  provider: huggingface
+    24	  revision: main
+    25	  dtype: float32
+    26	  device: cuda
+    27	dataset:
+    28	  dataset_id: ioi-abba-baba
+    29	  source: generated
+    30	  n_samples: 1000
+    31	  split: dev
+    32	  seed: 0
+    33	  generator_id: ioi.templates.v1
+    34	  notes: ABBA/BABA templates from Wang et al. (2022).
+    35	contrast:
+    36	  contrast_id: ioi-abba-vs-baba
+    37	  positive_template: "When {A} and {B} went to the {place}, {A} gave a {object} to"
+    38	  negative_template: "When {A} and {B} went to the {place}, {B} gave a {object} to"
+    39	  pairing: matched
+    40	stages:
+    41	  - stage: black_box
+    42	    pattern: blackbox_then_patching
+    43	    tools: [blackbox_probe]
+    44	    metrics: [logit_diff, hit_rate]
+    45	    budget: { max_samples: 1000 }
+    46	    notes: Confirm baseline IOI effect before localization.
+    47	  - stage: localization
+    48	    pattern: blackbox_then_patching
+    49	    tools: [activation_patching, path_patching]
+    50	    metrics: [patch_effect_recovery, kl_to_clean]
+    51	    budget: { max_gpu_seconds: 1800 }
+    52	    notes: Localize causal heads via activation + path patching.
+    53	  - stage: validation
+    54	    pattern: blackbox_then_patching
+    55	    tools: [activation_patching]
+    56	    metrics: [faithfulness, completeness, minimality, necessity_drop]
+    57	    budget: { max_samples: 500 }
+    58	    notes: Held-out faithfulness, completeness, minimality.
+    59	success_criteria:
+    60	  - criterion_id: faithfulness-heldout
+    61	    description: Identified circuit reproduces clean logit-diff on heldout.
+    62	    metric: faithfulness
+    63	    comparator: ">="
+    64	    threshold: 0.85
+    65	    n_min: 500
+    66	    on_split: heldout
+    67	  - criterion_id: minimality
+    68	    description: Removing any single head from the circuit drops faithfulness.
+    69	    metric: minimality
+    70	    comparator: ">="
+    71	    threshold: 0.2
+    72	    n_min: 500
+    73	    on_split: heldout
+    74	abort_if:
+    75	  - "Three consecutive revisions fail to improve faithfulness by >= 0.05."
+    76	  - "Stage 1 fails to reproduce baseline IOI effect (logit_diff < 1.0 on dev)."
+    77	max_revisions: 5
+    78	budget:
+    79	  max_gpu_seconds: 7200
+    80	  max_tool_calls: 200
+    81	risks:
+    82	  - "Circuit may differ across model sizes; this prior is calibrated to GPT-2 small."
+    83	  - "Template overfitting: validate on paraphrases before claiming generality."

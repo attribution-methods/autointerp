@@ -1,0 +1,7 @@
+- [completed] Read spec.json to understand dataset format and requirements
+- [completed] Load GPT-2-small model and generate IOI dataset
+- [completed] Run forward passes on clean (dev) prompts and extract logits
+- [in_progress] Compute accuracy and logit_diff metrics (SCALARS only)
+- [pending] Commit MetricResults for accuracy and logit_diff
+- [pending] Evaluate behavioral-sanity criterion (accuracy >= 0.95)
+- [pending] Advance to stage 1 (feature_discovery)

@@ -1,0 +1,22 @@
+{
+  "site_id": "L9H6",
+  "source": "discover_features_stage1",
+  "method": "head_patch_sweep",
+  "score": 0.2442922443151474,
+  "layer": 9,
+  "component": "attn_head",
+  "head_index": 6,
+  "token_index": -1,
+  "feature_id": null,
+  "evidence_refs": [],
+  "metadata": {
+    "discovery_algorithm": "algorithm_v3",
+    "joint_recovery": 0.9903381642512077,
+    "rank": 2,
+    "_provenance": {
+      "stage_idx": 1,
+      "split": "dev",
+      "committed_at": "2026-05-07T22:07:56.724531Z"
+    }
+  }
+}

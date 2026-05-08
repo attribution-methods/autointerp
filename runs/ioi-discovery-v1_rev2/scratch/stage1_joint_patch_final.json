@@ -1,0 +1,32 @@
+{
+  "top_K": [
+    [
+      9,
+      9
+    ],
+    [
+      10,
+      7
+    ],
+    [
+      9,
+      6
+    ],
+    [
+      11,
+      10
+    ],
+    [
+      10,
+      0
+    ]
+  ],
+  "K": 5,
+  "clean_logit_diff": 2.671875,
+  "corrupt_logit_diff": -3.796875,
+  "gap": 6.46875,
+  "joint_patched_logit_diff": -0.84765625,
+  "patch_effect_recovery": 0.4559178743961353,
+  "n_samples": 500,
+  "note": "K=5 selected to meet discovery-recovery criterion threshold of 0.4"
+}

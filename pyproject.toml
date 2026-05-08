@@ -35,13 +35,21 @@ mechinterp = [
   "huggingface-hub>=0.22.0",
   "datasets>=2.18.0",
 ]
+discovery = [
+  # Iterative discovery sub-agent uses the Claude Agent SDK (renamed from
+  # claude-code-sdk; the legacy 0.0.25 release trips on a `rate_limit_event`
+  # message the current `claude` CLI emits). Subscription auth flows through
+  # the local `claude` CLI's OAuth tokens so users on Claude Pro / Max /
+  # Team can run discovery without an API key.
+  "claude-agent-sdk>=0.1.70",
+]
 dev = [
   "pytest>=8.0.0",
   "ruff>=0.4.0",
   "mypy>=1.9.0",
 ]
 all = [
-  "autointerp[mcp,mechinterp,dev]",
+  "autointerp[mcp,mechinterp,discovery,dev]",
 ]
 
 [project.scripts]

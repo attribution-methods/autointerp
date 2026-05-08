@@ -1,0 +1,2 @@
+Combined metric inputs saved to METRIC_INPUTS_READY.json
+This file contains both acc and ld inputs ready for compute_metric

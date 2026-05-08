@@ -1,0 +1,6 @@
+Type: <class 'dict'>
+Keys: ['predictions', 'labels']
+predictions length: 500
+labels length: 500
+
+Dict is ready for compute_metric

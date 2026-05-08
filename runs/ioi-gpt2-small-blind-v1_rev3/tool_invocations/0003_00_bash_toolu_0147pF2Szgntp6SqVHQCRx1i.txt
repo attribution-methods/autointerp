@@ -1,0 +1,7 @@
+total 0
+drwxrwxr-x 1 li li 0 May  7 21:35 .
+drwxrwxr-x 1 li li 0 May  7 05:06 ..
+drwxrwxr-x 1 li li 0 May  7 18:19 ioi-discovery-v1_rev2
+drwxrwxr-x 1 li li 0 May  7 21:36 ioi-discovery-v1_rev3
+drwxrwxr-x 1 li li 0 May  7 18:06 ioi-gpt2-small-blind-v1_rev2
+drwxrwxr-x 1 li li 0 May  7 21:36 ioi-gpt2-small-blind-v1_rev3

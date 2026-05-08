@@ -1,0 +1,3 @@
+acc_inputs type: <class 'dict'>
+acc_inputs keys: ['predictions', 'labels']
+Ready to call compute_metric with this dict

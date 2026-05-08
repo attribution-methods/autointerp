@@ -1,0 +1,19 @@
+{
+  "metric_id": "ioi-dev-ablation-drop",
+  "value": 0.296875,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "metric_name": "ablation_drop",
+    "metric_family": "localization",
+    "inputs_hash": "sha256:68038b4289fa7e95239975b2a405b791ef3f56771336699dada58cab95bf0fe4",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 2,
+      "split": "dev",
+      "committed_at": "2026-05-07T21:49:15.094636Z"
+    }
+  }
+}

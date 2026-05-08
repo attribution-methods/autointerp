@@ -1,0 +1,2 @@
+Target logits length: 500
+Foil logits length: 500

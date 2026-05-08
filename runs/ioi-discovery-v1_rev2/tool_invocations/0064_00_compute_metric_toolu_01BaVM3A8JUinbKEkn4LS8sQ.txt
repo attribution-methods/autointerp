@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "metric_id": "stage1-dev-joint-patch-recovery",
+    "value": 0.4559178743961353,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "patch_effect_recovery",
+      "metric_family": "causal",
+      "inputs_hash": "sha256:e0b444e5ab77695b119f7e34f388de02b7ce8d8fab12505bc68db856f532a4aa",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_f26eed708971f19433c55377a2381c58"
+}

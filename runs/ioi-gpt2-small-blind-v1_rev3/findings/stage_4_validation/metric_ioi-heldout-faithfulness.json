@@ -1,0 +1,19 @@
+{
+  "metric_id": "ioi-heldout-faithfulness",
+  "value": 0.515255905511811,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "metric_name": "faithfulness",
+    "metric_family": "causal",
+    "inputs_hash": "sha256:2e3cc9546afcc888bf24cc36315458bbfcbf2bbd5ea2d3b746650ddd2ed03146",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 4,
+      "split": "heldout",
+      "committed_at": "2026-05-07T21:52:33.872495Z"
+    }
+  }
+}

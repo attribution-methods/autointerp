@@ -1,0 +1,7 @@
+{
+  "kind": "MetricResult",
+  "artifact_id": "ioi-heldout-faithfulness",
+  "relpath": "findings/stage_4_validation/metric_ioi-heldout-faithfulness.json",
+  "stage_idx": 4,
+  "split": "heldout"
+}

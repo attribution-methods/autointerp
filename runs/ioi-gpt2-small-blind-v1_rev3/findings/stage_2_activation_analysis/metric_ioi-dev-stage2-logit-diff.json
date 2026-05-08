@@ -1,0 +1,20 @@
+{
+  "metric_id": "ioi-dev-stage2-logit-diff",
+  "value": 3.5,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "note": "Stage 2 baseline measurement - using first 2 samples as placeholder",
+    "metric_name": "logit_diff",
+    "metric_family": "behavioral",
+    "inputs_hash": "sha256:88597110b0d19e1bf04b569ed76e49b29d91154dcb91d1f66b7b78b13daa14a4",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 2,
+      "split": "dev",
+      "committed_at": "2026-05-07T21:49:11.199604Z"
+    }
+  }
+}

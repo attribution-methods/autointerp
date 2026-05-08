@@ -1,0 +1,7 @@
+Accuracy inputs dict structure:
+  Type: <class 'dict'>
+  Keys: ['predictions', 'labels']
+  predictions: 500 items (first 3: [1.0, 1.0, 1.0])
+  labels: 500 items (first 3: [1.0, 1.0, 1.0])
+
+This dict is valid for compute_metric's inputs parameter

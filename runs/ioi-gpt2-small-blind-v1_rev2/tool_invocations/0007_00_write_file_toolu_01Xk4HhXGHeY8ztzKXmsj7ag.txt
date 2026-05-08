@@ -1,0 +1,1 @@
+Wrote 5918 bytes to runs/ioi-gpt2-small-blind-v1_rev2/scripts/stage0_black_box.py

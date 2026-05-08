@@ -1,0 +1,3 @@
+interface:
+  display_name: "Circuit Discovery"
+  short_description: "Iterative sub-agent for SAE feature / circuit-site search"

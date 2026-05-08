@@ -1,0 +1,8 @@
+Computing KL divergence for top-3 heads: [(9, 9), (9, 6), (10, 0)]
+Mean KL(patched || clean): 0.3574
+KL range: [0.0294, 1.9453]
+
+KL inputs saved (500 samples)
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2239.11it/s]

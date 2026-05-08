@@ -1,0 +1,8 @@
+- [in_progress] Call discover_features to find top-K attention heads for IOI
+- [pending] Extract top-K sites from discovery results
+- [pending] Prepare clean/corrupt prompts and compute baseline logit_diffs
+- [pending] Run JOINT patch with all K heads simultaneously
+- [pending] Compute patch_effect_recovery metric and commit
+- [pending] Commit CandidateSite artifacts for the K heads
+- [pending] Evaluate discovery-recovery criterion
+- [pending] Advance to stage 2 (localization)

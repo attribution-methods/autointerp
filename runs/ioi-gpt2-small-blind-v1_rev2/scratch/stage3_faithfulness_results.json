@@ -1,0 +1,21 @@
+{
+  "circuit_heads": [
+    [
+      9,
+      9
+    ],
+    [
+      8,
+      6
+    ],
+    [
+      8,
+      10
+    ]
+  ],
+  "clean_logit_diff": 2.9985,
+  "corrupt_logit_diff": 1.593,
+  "circuit_only_logit_diff": 0.478515625,
+  "faithfulness": -0.7929451262895767,
+  "recovery": -0.7929451262895767
+}

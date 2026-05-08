@@ -1,0 +1,19 @@
+{
+  "metric_id": "ioi-dev-faithfulness",
+  "value": 0.5123792270531401,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "metric_name": "faithfulness",
+    "metric_family": "causal",
+    "inputs_hash": "sha256:9c328d97f4ee603103a8c34e767adb0a6c2a4b419e300e0297ad4ef2a57178fd",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 3,
+      "split": "dev",
+      "committed_at": "2026-05-07T21:50:53.653765Z"
+    }
+  }
+}

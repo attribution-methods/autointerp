@@ -1,0 +1,33 @@
+Top-3 heads from discovery:
+  1. Layer 9, Head 9 (score=29.0)
+  2. Layer 10, Head 7 (score=23.0)
+  3. Layer 9, Head 6 (score=18.0)
+
+Loading GPT-2-small model...
+
+Generating 500 IOI pairs for dev split...
+Generated 500 pairs
+  Sample clean:   'When Sarah and John went to the school, John gave a book to'
+  Sample corrupt: 'When Susan and John went to the school, John gave a book to'
+
+=== Computing baseline logit_diffs ===
+Clean logit_diff:   2.6719
+Corrupt logit_diff: -3.7969
+Gap (clean - corrupt): 6.4688
+
+=== Caching head z on clean prompts for layers [9, 10] ===
+  Layer 9: shape torch.Size([500, 14, 12, 64])
+  Layer 10: shape torch.Size([500, 14, 12, 64])
+
+=== Running JOINT patch: all 3 heads simultaneously ===
+
+Joint patched logit_diff: -1.2891
+Recovery: (-1.2891 - -3.7969) / (2.6719 - -3.7969) = 0.3877
+
+=== SUMMARY ===
+Top-3 heads: [(9, 9), (10, 7), (9, 6)]
+Joint patch_effect_recovery: 0.3877
+Results saved to /home/li/autointerp-fadi/runs/ioi-discovery-v1_rev2/scratch/stage1_joint_patch_results.json
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2266.97it/s]

@@ -138,6 +138,141 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
             return _err(exc)
         return _ok(req.model_dump())
 
+    async def _discover_features_handler(args: dict[str, Any]) -> tuple[str, bool]:
+        from autointerp.pipelines.investigation.discovery import (
+            run_discovery_subagent,
+        )
+        from autointerp.spec import InvestigationSpec
+
+        # Stage gating: discover_features is only legal when the active
+        # stage's tools include DISCOVER_FEATURES (or the tool is unscoped
+        # in spec.stages). The agent can read current_stage to confirm.
+        try:
+            spec = InvestigationSpec.model_validate_json(handle.spec_path.read_text())
+        except Exception as exc:
+            return _err(exc)
+        state = read_state(handle.state_path)
+        idx = state.current_stage_idx
+        if idx >= len(spec.stages):
+            return "discover_features: no active stage to discover for", False
+        stage = spec.stages[idx]
+        from autointerp.spec import ToolName
+        if ToolName.DISCOVER_FEATURES not in stage.tools:
+            return (
+                f"discover_features: stage {stage.stage.value} (idx {idx}) "
+                f"does not list `discover_features` in its tools — refused. "
+                f"Either add it to the spec via revision, or call only in a "
+                f"stage that allows it.",
+                False,
+            )
+
+        task = args.get("task")
+        if not isinstance(task, str) or not task:
+            return "task (non-empty string) is required", False
+
+        # Bind the reward metric to the spec's pre-registered list for this
+        # stage. The user picks the allowed metrics at Stage 0; the master
+        # agent may pick *among* them at runtime, but cannot substitute or
+        # invent a new one without a spec revision.
+        allowed = sorted({m.value for m in stage.metrics})
+        reward_metric = args.get("reward_metric")
+        if reward_metric is None:
+            if len(allowed) == 1:
+                reward_metric = allowed[0]
+            else:
+                return (
+                    f"discover_features: reward_metric is required when the "
+                    f"current stage lists multiple pre-registered metrics: "
+                    f"{allowed}. Pick one explicitly.",
+                    False,
+                )
+        elif reward_metric not in allowed:
+            return (
+                f"discover_features: reward_metric={reward_metric!r} is not "
+                f"in the stage's pre-registered metrics: {allowed}. Either "
+                f"pick one of those, or open a spec revision via "
+                f"`request_spec_revision`.",
+                False,
+            )
+        reward_description = args.get(
+            "reward_description",
+            f"Discovery reward: {reward_metric}. See metrics/{reward_metric}.md "
+            "for the contract.",
+        )
+        max_iterations = int(args.get("max_iterations", 10))
+        max_turns = int(args.get("max_turns_per_iteration", 20))
+        timeout = float(args.get("iteration_timeout_s", 1200.0))
+        model = str(args.get("model", "claude-sonnet-4-5"))
+        permission_mode = str(args.get("permission_mode", "bypassPermissions"))
+        dry_run = bool(args.get("dry_run", False))
+        session_name = str(
+            args.get("session_name") or f"stage{idx:02d}_call{int(state.budget_consumed.tool_calls)}"
+        )
+
+        # Pull substrate config from the spec's frozen DiscoveryConfig.
+        # Validators on StageSpec already guarantee that any stage with
+        # DISCOVER_FEATURES in tools also has a non-None ``discovery``
+        # field, so the .substrate access here is safe.
+        disco = stage.discovery
+        substrate = disco.substrate if disco is not None else None
+        component_kinds = (
+            list(disco.component_kinds) if disco is not None else None
+        )
+        decomposition = disco.decomposition if disco is not None else None
+        n_pairs = disco.n_pairs if disco is not None else 30
+        k_grid = list(disco.k_grid) if disco is not None else None
+        # The benchmark id comes from the spec's dataset.generator_id.
+        benchmark_id = spec.dataset.generator_id
+
+        session_dir = handle.discovery_dir / session_name
+        try:
+            result = run_discovery_subagent(
+                session_dir=session_dir,
+                task=task,
+                reward_metric=reward_metric,
+                reward_description=reward_description,
+                substrate=substrate,
+                component_kinds=component_kinds,
+                decomposition=decomposition,
+                benchmark_id=benchmark_id,
+                model_id=spec.model.model_id,
+                n_pairs=n_pairs,
+                k_grid=k_grid,
+                seed=spec.dataset.seed,
+                split=spec.dataset.split,
+                objective=reward_metric,
+                max_iterations=max_iterations,
+                max_turns_per_iteration=max_turns,
+                iteration_timeout_s=timeout,
+                model=model,
+                permission_mode=permission_mode,
+                dry_run=dry_run,
+            )
+        except Exception as exc:
+            return _err(exc)
+
+        return _ok(
+            {
+                "session_dir": str(result.session_dir),
+                "best_candidate": result.best_candidate,
+                "best_summary": result.best_summary,
+                "iterations_run": result.iterations_run,
+                "terminated_by": result.terminated_by,
+                "cost_usd": result.cost_usd,
+                # Surface the per-iteration log so error messages aren't
+                # swallowed when terminated_by="error". The agent sees the
+                # exception type + str so it can act on it (retry vs revise).
+                "log": result.log,
+                "next_step": (
+                    "Inspect best_summary.top_features. To record them as "
+                    "evidence, build a CandidateSite or FeatureFinding payload "
+                    "and call commit_artifact. To register the reward as an "
+                    "evaluable metric, call compute_metric with the same "
+                    "reward_metric on a heldout split, then commit_artifact."
+                ),
+            }
+        )
+
     metric_enum = sorted(m.value for m in MetricName)
 
     return [
@@ -270,6 +405,65 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
                 "required": ["reason"],
             },
             handler=_request_revision_handler,
+        ),
+        ToolSpec(
+            name="discover_features",
+            description=(
+                "Spawn an iterative sub-agent that hill-climbs SAE features / "
+                "circuit sites against a reward metric. Only allowed in stages "
+                "whose `tools` list includes `discover_features`. The sub-agent "
+                "writes algorithm_v{N}.py candidates inside a session dir under "
+                "the run's discovery/ tree, evaluates each via the discovery "
+                "harness, and returns the best candidate's top features. The "
+                "outer agent then calls commit_artifact (FeatureFinding / "
+                "CandidateSite) and compute_metric+commit_artifact "
+                "(MetricResult) to record evidence — discover_features itself "
+                "does NOT commit gated artifacts."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "description": "Free-text task description for the sub-agent.",
+                    },
+                    "reward_metric": {
+                        "type": "string",
+                        "description": "Reward to maximize (default: combined_auc_k).",
+                    },
+                    "reward_description": {
+                        "type": "string",
+                        "description": "Short paragraph summarizing the reward.",
+                    },
+                    "max_iterations": {"type": "integer"},
+                    "max_turns_per_iteration": {"type": "integer"},
+                    "iteration_timeout_s": {"type": "number"},
+                    "model": {
+                        "type": "string",
+                        "description": "Claude model name (default claude-sonnet-4-5).",
+                    },
+                    "permission_mode": {
+                        "type": "string",
+                        "enum": ["default", "acceptEdits", "plan", "bypassPermissions"],
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": (
+                            "Skip the SDK and run the deterministic stub "
+                            "iteration. Use for smoke tests / CI."
+                        ),
+                    },
+                    "session_name": {
+                        "type": "string",
+                        "description": (
+                            "Override session sub-dir name under "
+                            "<run_dir>/discovery/. Defaults to a stage+call id."
+                        ),
+                    },
+                },
+                "required": ["task"],
+            },
+            handler=_discover_features_handler,
         ),
     ]
 

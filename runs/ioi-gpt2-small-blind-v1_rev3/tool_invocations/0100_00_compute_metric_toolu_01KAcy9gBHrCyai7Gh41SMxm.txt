@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "metric_id": "ioi-heldout-faithfulness",
+    "value": 0.515255905511811,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "faithfulness",
+      "metric_family": "causal",
+      "inputs_hash": "sha256:2e3cc9546afcc888bf24cc36315458bbfcbf2bbd5ea2d3b746650ddd2ed03146",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_6412506666137749bf15d6c9c1bd279a"
+}

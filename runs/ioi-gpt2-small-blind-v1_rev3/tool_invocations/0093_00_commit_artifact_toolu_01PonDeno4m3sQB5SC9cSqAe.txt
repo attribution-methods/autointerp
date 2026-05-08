@@ -1,0 +1,7 @@
+{
+  "kind": "MetricResult",
+  "artifact_id": "ioi-dev-stage3-recovery",
+  "relpath": "findings/stage_3_intervention/metric_ioi-dev-stage3-recovery.json",
+  "stage_idx": 3,
+  "split": "dev"
+}

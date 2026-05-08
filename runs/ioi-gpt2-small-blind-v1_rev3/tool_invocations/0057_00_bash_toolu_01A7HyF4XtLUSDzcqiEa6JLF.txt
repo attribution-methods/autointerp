@@ -1,0 +1,4 @@
+baseline_metric: 2.671875
+corrupted_metric: -3.796875
+patched_metric: 2.21875
+joint_recovery: 0.9299516908212561

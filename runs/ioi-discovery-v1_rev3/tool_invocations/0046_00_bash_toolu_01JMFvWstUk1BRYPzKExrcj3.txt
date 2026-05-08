@@ -1,0 +1,3 @@
+Keys: ['predictions', 'labels']
+Predictions type: <class 'list'>, length: 500
+Labels type: <class 'list'>, length: 500

@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "metric_id": "ioi-dev-kl-to-clean",
+    "value": 0.356753173828125,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "kl_to_clean",
+      "metric_family": "localization",
+      "inputs_hash": "sha256:7d668fd3396f6d46b3fb1e9a31ac7a129fed49174321b0aa1464606e8cc996de",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_acf765e0251d714897940cf798e109f0"
+}

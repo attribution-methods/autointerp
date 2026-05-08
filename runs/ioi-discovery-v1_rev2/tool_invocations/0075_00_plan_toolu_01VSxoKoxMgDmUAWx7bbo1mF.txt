@@ -1,0 +1,8 @@
+- [completed] Call discover_features to find top-K attention heads for IOI
+- [completed] Extract top-K sites from discovery results
+- [completed] Prepare clean/corrupt prompts and compute baseline logit_diffs
+- [completed] Run JOINT patch with all K heads simultaneously
+- [completed] Compute patch_effect_recovery metric and commit
+- [completed] Commit CandidateSite artifacts for the K heads
+- [completed] Evaluate discovery-recovery criterion
+- [in_progress] Advance to stage 2 (localization)

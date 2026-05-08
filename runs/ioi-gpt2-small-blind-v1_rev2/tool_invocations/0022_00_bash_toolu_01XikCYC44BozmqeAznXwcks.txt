@@ -1,0 +1,14 @@
+=== ACCURACY INPUTS ===
+predictions length: 500
+labels length: 500
+First 5 predictions: [1, 1, 1, 1, 1]
+First 5 labels: [1, 1, 1, 1, 1]
+
+=== LOGIT_DIFF INPUTS ===
+target_logits length: 500
+foil_logits length: 500
+First 5 target_logits: [-76.0, -70.5, -84.5, -81.0, -80.5]
+First 5 foil_logits: [-79.0, -76.0, -85.5, -82.5, -82.5]
+
+Expected accuracy: 0.9980
+Expected logit_diff: 2.9985

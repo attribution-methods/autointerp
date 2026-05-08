@@ -1,0 +1,7 @@
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2288.55it/s]
+Running forward passes...
+Saved metric inputs to runs/ioi-discovery-v1_rev3/scratch/stage0_metric_inputs.json
+Accuracy: 0.9800
+Logit diff mean: 2.6725

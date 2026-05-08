@@ -1,0 +1,2 @@
+logit_diff: 2.671875
+ablation_drop inputs: {"baseline_metric": 2.671875, "ablated_metric": 2.375}

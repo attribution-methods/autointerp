@@ -1,0 +1,7 @@
+{
+  "kind": "CandidateSite",
+  "artifact_id": "ioi-head-L10H7",
+  "relpath": "findings/stage_1_feature_discovery/candidate_ioi-head-L10H7.json",
+  "stage_idx": 1,
+  "split": "dev"
+}

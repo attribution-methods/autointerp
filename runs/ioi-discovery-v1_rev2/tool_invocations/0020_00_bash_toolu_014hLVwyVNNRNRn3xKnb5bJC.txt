@@ -1,0 +1,10 @@
+Loading GPT-2-small model...
+Generating 500 IOI pairs for dev split...
+Running forward passes on clean prompts...
+
+Metric inputs saved to /home/li/autointerp-fadi/runs/ioi-discovery-v1_rev2/scratch/stage0_metric_inputs.json
+  accuracy: 500 predictions, 500 labels
+  logit_diff: 500 target_logits, 500 foil_logits
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 1986.57it/s]

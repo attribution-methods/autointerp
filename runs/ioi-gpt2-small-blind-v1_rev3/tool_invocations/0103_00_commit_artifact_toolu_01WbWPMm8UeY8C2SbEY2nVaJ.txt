@@ -1,0 +1,7 @@
+{
+  "kind": "MetricResult",
+  "artifact_id": "ioi-heldout-minimality",
+  "relpath": "findings/stage_4_validation/metric_ioi-heldout-minimality.json",
+  "stage_idx": 4,
+  "split": "heldout"
+}

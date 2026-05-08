@@ -1,0 +1,9 @@
+Accuracy inputs structure:
+  predictions: list[float] of length 500
+  labels: list[float] of length 500
+
+Logit_diff inputs structure:
+  target_logits: list[float] of length 500
+  foil_logits: list[float] of length 500
+
+Ready to call compute_metric

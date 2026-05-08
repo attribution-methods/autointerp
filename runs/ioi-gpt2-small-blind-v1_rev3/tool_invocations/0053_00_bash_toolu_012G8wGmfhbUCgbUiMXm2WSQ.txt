@@ -1,0 +1,26 @@
+Loading model gpt2...
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2279.75it/s]
+Model: 12 layers, 12 heads/layer = 144 total heads
+
+Generating 500 IOI dev pairs...
+Generated 500 pairs
+Example clean:   'When Sarah and John went to the school, John gave a book to'
+Example corrupt: 'When Susan and John went to the school, John gave a book to'
+
+=== Computing baselines ===
+Clean logit_diff:   2.6719
+Corrupt logit_diff: -3.7969
+Gap (clean - corrupt): 6.4688
+
+=== Pass 1: Per-head sweep across all 144 heads ===
+Caching clean and corrupt head z activations...
+Running head_patch_sweep...
+Traceback (most recent call last):
+  File "/home/li/autointerp-fadi/runs/ioi-gpt2-small-blind-v1_rev3/scripts/stage1_localization.py", line 161, in <module>
+    main()
+  File "/home/li/autointerp-fadi/runs/ioi-gpt2-small-blind-v1_rev3/scripts/stage1_localization.py", line 79, in main
+    sweep_results = head_patch_sweep(
+                    ^^^^^^^^^^^^^^^^^
+TypeError: head_patch_sweep() got an unexpected keyword argument 'corrupt_cache'

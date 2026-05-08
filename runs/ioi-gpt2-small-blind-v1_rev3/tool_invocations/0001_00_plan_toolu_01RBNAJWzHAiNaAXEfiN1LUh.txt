@@ -1,0 +1,6 @@
+- [in_progress] Load IOI dataset and understand the structure
+- [pending] Create script to measure accuracy and logit_diff on dev split (500 samples)
+- [pending] Compute accuracy metric (logit(IO) > logit(S))
+- [pending] Compute logit_diff metric (mean logit(IO) - logit(S))
+- [pending] Evaluate behavioral-sanity criterion (accuracy >= 0.95)
+- [pending] Advance to stage 1 (localization)

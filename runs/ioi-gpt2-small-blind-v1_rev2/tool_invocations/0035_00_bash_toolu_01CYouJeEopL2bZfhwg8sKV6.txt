@@ -1,0 +1,30 @@
+Loading GPT-2-small...
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2153.51it/s]
+Loading IOI dev dataset...
+Creating ABC-corrupted dataset...
+Sample clean: When John and Mary went to the beach, Mary gave a pen to
+Sample corrupt: When John and Emma went to the beach, Mary gave a pen to
+\nCaching clean and corrupt head activations...
+Cached 12 layers
+Sample cache shape: torch.Size([500, 14, 12, 64])
+\nRunning head patch sweep (144 heads)...
+Recovery matrix shape: torch.Size([12, 12])
+\nRecovery statistics:
+  Max: 0.4667
+  Mean: -0.0019
+  Min: -0.7389
+\nTop-5 heads by single-head recovery:
+  1. L9H9: 0.4667
+  2. L8H6: 0.4667
+  3. L8H10: 0.2611
+  4. L7H9: 0.2167
+  5. L10H0: 0.1056
+Traceback (most recent call last):
+  File "/home/li/autointerp-fadi/runs/ioi-gpt2-small-blind-v1_rev2/scripts/stage1_localization.py", line 216, in <module>
+    main()
+  File "/home/li/autointerp-fadi/runs/ioi-gpt2-small-blind-v1_rev2/scripts/stage1_localization.py", line 153, in main
+    'clean_metric': float(sweep_result['clean_metric'].mean()),
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'float' object has no attribute 'mean'

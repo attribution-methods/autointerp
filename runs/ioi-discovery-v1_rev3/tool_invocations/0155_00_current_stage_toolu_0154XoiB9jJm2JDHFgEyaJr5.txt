@@ -1,0 +1,24 @@
+{
+  "stage_idx": 3,
+  "n_stages": 6,
+  "stage": "activation_analysis",
+  "pattern": "blackbox_then_patching",
+  "tools": [
+    "logit_lens",
+    "contrastive_directions"
+  ],
+  "metrics": [
+    "logit_diff",
+    "ablation_drop"
+  ],
+  "notes": "Extract contrastive directions (IO vs S) from the residual stream at candidate layers identified in localization. Mean-ablate the top candidate heads from localization individually and measure ablation_drop on logit_diff. ablation_drop expects (baseline_metric, ablated_metric) scalars.\n\nSTAGE DISCIPLINE: this is stage 3 of 6. After committing this stage's metrics, IMMEDIATELY call advance_stage(). Do NOT write a wrap-up summary \u2014 there are 2 stages left (intervention, validation).",
+  "status": "pending",
+  "artifact_refs": [],
+  "committed_metric_names": [],
+  "complete": false,
+  "terminal_state": null,
+  "skills": {
+    "logit_lens": "---\nname: logit-lens\ndescription: Logit lens analysis for decoding intermediate residual stream predictions. Use when asking what tokens a layer appears to predict, where output-relevant information emerges, which positions have high intermediate-final KL divergence, or whether a hidden behavior appears in latent token predictions.\n---\n\n# Logit Lens\n\n## Workflow\n\n1. Choose a prompt or cached activation set with token positions relevant to the behavior.\n2. Decode intermediate residual states with the unembedding matrix, optionally after final normalization.\n3. Inspect top tokens by layer and position.\n4. Filter positions by KL divergence from final logits when searching large prompt sets.\n5. Treat decoded tokens as suggestive evidence, then validate with patching, steering, or prompt counterfactuals.\n\n## Tools\n\nUse `../../src/autointerp/tools/lenses.py`:\n\n```python\nfrom autointerp.tools.lenses import logit_lens\n\nrows = logit_lens(handle, prompt, layers=[20, 30, 40, 50], top_k=16)\nfor row in rows:\n    print(row[\"layer\"], row[\"kl_to_final\"], row[\"top_tokens\"][:5])\n```\n\n## Interpretation\n\nLook for specific names, topics, goals, refusals, answers, or behavior-relevant words that appear earlier than the final distribution would suggest.\n\n## Cautions\n\nThe plain logit lens is not calibrated across layers. Layernorm handling matters. Use tuned lens when calibrated intermediate predictions are central to the claim.\n",
+    "contrastive_directions": "---\nname: contrastive-directions\ndescription: Contrastive activation directions and vector geometry. Use for mean-difference vectors, concept directions, refusal or honesty directions, persona vectors, baseline-subtracted concept vectors, cosine comparisons, direction normalization, and vector reuse in steering or causal tests.\n---\n\n# Contrastive Directions\n\n## Workflow\n\n1. Define positive and negative prompt sets that differ mainly in the target attribute.\n2. Format all prompts identically and extract activations at a fixed layer, component, and token position.\n3. Compute the mean positive activation minus the mean negative activation.\n4. Normalize only when cosine geometry or steering scale invariance is desired.\n5. Validate specificity by testing related concepts, random controls, and held-out prompts.\n\n## Tools\n\nUse `../../src/autointerp/tools/vectors.py`:\n\n```python\nfrom autointerp.tools.vectors import contrastive_direction, cosine_similarity\n\ndirection = contrastive_direction(\n    handle,\n    positive_prompts=honest_transcripts,\n    negative_prompts=dishonest_transcripts,\n    layer=40,\n    token_index=-1,\n    normalize=False,\n)\n```\n\n## Examples\n\nUse honesty vs deception, harmful refusal vs helpful compliance, target persona vs neutral persona, or behavior-present vs behavior-absent transcripts. For single-word concepts, use baseline-subtracted directions with many neutral baseline terms.\n\n## Cautions\n\nMean-difference vectors can encode prompt style, length, or role markers. Match prompt structure tightly and audit nearest-neighbor concepts before assigning a semantic label.\n"
+  }
+}

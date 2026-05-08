@@ -1,0 +1,4 @@
+acc_inputs keys: ['predictions', 'labels']
+ld_inputs keys: ['target_logits', 'foil_logits']
+acc_inputs predictions length: 500
+ld_inputs target_logits length: 500

@@ -1,0 +1,38 @@
+{
+  "baseline_logit_diff": 2.671875,
+  "ablation_results": [
+    {
+      "layer": 9,
+      "head": 9,
+      "ablated_logit_diff": 2.375,
+      "drop": 0.296875,
+      "drop_percent": 11.11111111111111
+    },
+    {
+      "layer": 9,
+      "head": 6,
+      "ablated_logit_diff": 3.0,
+      "drop": -0.328125,
+      "drop_percent": -12.280701754385964
+    },
+    {
+      "layer": 10,
+      "head": 0,
+      "ablated_logit_diff": 2.421875,
+      "drop": 0.25,
+      "drop_percent": 9.35672514619883
+    }
+  ],
+  "worst_drop": 0.296875,
+  "worst_head": {
+    "layer": 9,
+    "head": 9
+  },
+  "metrics": {
+    "logit_diff": 2.671875,
+    "ablation_drop_inputs": {
+      "baseline_metric": 2.671875,
+      "ablated_metric": 2.375
+    }
+  }
+}

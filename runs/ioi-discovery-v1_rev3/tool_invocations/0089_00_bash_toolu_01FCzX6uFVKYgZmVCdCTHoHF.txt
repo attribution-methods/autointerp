@@ -1,0 +1,5 @@
+Dicts loaded in memory
+Type of acc_inputs_dict: <class 'dict'>
+Type of ld_inputs_dict: <class 'dict'>
+
+These Python dict objects are ready to pass directly to compute_metric

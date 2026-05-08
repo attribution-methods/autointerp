@@ -1,0 +1,7 @@
+{
+  "kind": "MetricResult",
+  "artifact_id": "stage3_dev_circuit_faithfulness_20heads",
+  "relpath": "findings/stage_3_intervention/metric_stage3_dev_circuit_faithfulness_20heads.json",
+  "stage_idx": 3,
+  "split": "dev"
+}

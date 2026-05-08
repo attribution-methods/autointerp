@@ -1,0 +1,8 @@
+Dicts loaded
+ACC keys: ['predictions', 'labels']
+LD keys: ['target_logits', 'foil_logits']
+
+acc_json length: 5029
+ld_json length: 7047
+
+JSON strings ready for tool invocation

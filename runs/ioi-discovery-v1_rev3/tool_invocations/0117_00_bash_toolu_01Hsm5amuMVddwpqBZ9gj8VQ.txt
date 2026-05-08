@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+  File "/home/li/autointerp-fadi/src/autointerp/schemas.py", line 15, in <module>
+    from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+ModuleNotFoundError: No module named 'pydantic'

@@ -1,0 +1,215 @@
+     1	"""IOI benchmark — Wang-et-al-2022-style indirect object identification.
+     2	
+     3	Pure-Python pair generator + behavioral metric. No model load required at
+     4	import time; tokenization is deferred to ``generate_pairs`` and only
+     5	needed when the caller passes a tokenizer.
+     6	
+     7	Closed-vocabulary by design: names / places / objects are restricted to a
+     8	small list of single-token-with-leading-space tokens for GPT-2's BPE so
+     9	that clean and corrupted prompts tokenize to identical length and the
+    10	prediction position aligns. The dev / heldout split uses *disjoint* name
+    11	pairs to keep validation honest.
+    12	
+    13	Compatible with the :class:`autointerp.benchmarks._protocol.Benchmark`
+    14	structural protocol — module-level ``GENERATOR_ID``, ``generate_pairs``,
+    15	and ``behavioral_metric``.
+    16	"""
+    17	
+    18	from __future__ import annotations
+    19	
+    20	import random
+    21	from typing import Any
+    22	
+    23	from ._protocol import StimulusPair
+    24	
+    25	
+    26	GENERATOR_ID = "ioi_template_generator"
+    27	
+    28	
+    29	# Closed single-token-with-leading-space vocab for GPT-2 BPE. Each entry
+    30	# tokenizes to exactly one BPE token; we verify in ``generate_pairs`` and
+    31	# drop any that don't (defensive — these were chosen by the spec to be
+    32	# single-token, but the model loader has the final word).
+    33	_NAMES_DEV: tuple[str, ...] = (
+    34	    " John", " Mary", " Tom", " Sarah", " James", " Kate", " Robert", " Lisa",
+    35	    " Michael", " Emma", " David", " Anna", " Peter", " Laura", " Steven", " Rachel",
+    36	)
+    37	_NAMES_HELDOUT: tuple[str, ...] = (
+    38	    " Daniel", " Sophia", " Brian", " Olivia", " Frank", " Hannah", " George", " Emily",
+    39	)
+    40	_PLACES: tuple[str, ...] = (
+    41	    " store", " park", " school", " office", " hospital", " library",
+    42	)
+    43	_OBJECTS: tuple[str, ...] = (
+    44	    " ring", " book", " key", " ball", " pen", " bag",
+    45	)
+    46	# Additional novel names for the ABC corruption — must be disjoint from
+    47	# both _NAMES_DEV and _NAMES_HELDOUT so the corrupted prompt's third name
+    48	# is genuinely novel (not just a swap).
+    49	_NAMES_C: tuple[str, ...] = (
+    50	    " Henry", " Linda", " Mark", " Jenny", " Paul", " Susan",
+    51	)
+    52	
+    53	
+    54	# Templates parameterized by ROLE (IO / S) rather than by name slot, so the
+    55	# IO / S identity is unambiguous regardless of order. ``order`` records the
+    56	# *positional* pattern for analysis:
+    57	#
+    58	# - ABBA: "When IO and S went..., S gave..." (IO at pos 1, S at pos 2 and 3)
+    59	# - BABA: "When S and IO went..., S gave..." (S at pos 1, IO at pos 2, S at pos 3)
+    60	#
+    61	# In both, the model is asked to continue with "to ___" → IO. The ABC
+    62	# corruption replaces the IO's single occurrence with a fresh name C.
+    63	_TEMPLATE_BY_ORDER: dict[str, str] = {
+    64	    "ABBA": "When{IO} and{S} went to the{place},{S} gave a{object} to",
+    65	    "BABA": "When{S} and{IO} went to the{place},{S} gave a{object} to",
+    66	}
+    67	
+    68	
+    69	def _verify_single_token(tokenizer, text: str) -> bool:
+    70	    """True iff ``tokenizer(text)`` produces exactly one token."""
+    71	    try:
+    72	        ids = tokenizer(text, add_special_tokens=False)["input_ids"]
+    73	    except Exception:
+    74	        return False
+    75	    return isinstance(ids, list) and len(ids) == 1
+    76	
+    77	
+    78	def _filter_single_token(tokenizer, items: tuple[str, ...]) -> list[str]:
+    79	    return [it for it in items if _verify_single_token(tokenizer, it)]
+    80	
+    81	
+    82	def _tokenize_one(tokenizer, text: str) -> int:
+    83	    return int(tokenizer(text, add_special_tokens=False)["input_ids"][0])
+    84	
+    85	
+    86	def generate_pairs(
+    87	    spec: Any,
+    88	    *,
+    89	    n_pairs: int,
+    90	    seed: int,
+    91	    tokenizer: Any = None,
+    92	    split: str = "dev",
+    93	) -> list[StimulusPair]:
+    94	    """Build ``n_pairs`` IOI clean/corrupted contrast pairs.
+    95	
+    96	    Parameters
+    97	    ----------
+    98	    spec:
+    99	        The :class:`autointerp.spec.InvestigationSpec` (or any dataset-
+   100	        carrying object). Currently used only to read ``dataset.seed`` as
+   101	        a tiebreaker when ``seed`` is not explicitly passed; reserved for
+   102	        future template overrides.
+   103	    n_pairs:
+   104	        Target number of pairs. The function returns up to this many; if
+   105	        the closed vocab cannot produce that many distinct trials, it
+   106	        returns however many it could.
+   107	    seed:
+   108	        Per-call seed. Determines ABBA/BABA balance, name draws, and
+   109	        place/object draws. Should be set per-stage (e.g. dataset.seed
+   110	        for dev; a separate seed for heldout to keep splits disjoint).
+   111	    tokenizer:
+   112	        Optional model tokenizer. When provided, names are filtered to
+   113	        ones that tokenize to a single BPE token *with that tokenizer* —
+   114	        so the same benchmark adapts cleanly across GPT-2 / Llama / Qwen.
+   115	        When ``None``, returns text-only pairs with placeholder ids
+   116	        (``-1``); useful for CI smoke tests that don't need the model.
+   117	    split:
+   118	        ``"dev"`` or ``"heldout"`` — selects the disjoint name pool.
+   119	    """
+   120	    rng = random.Random(seed)
+   121	
+   122	    name_pool_raw = _NAMES_DEV if split == "dev" else _NAMES_HELDOUT
+   123	    if tokenizer is None:
+   124	        names = list(name_pool_raw)
+   125	        c_names = list(_NAMES_C)
+   126	        places = list(_PLACES)
+   127	        objects = list(_OBJECTS)
+   128	    else:
+   129	        names = _filter_single_token(tokenizer, name_pool_raw)
+   130	        c_names = _filter_single_token(tokenizer, _NAMES_C)
+   131	        places = _filter_single_token(tokenizer, _PLACES)
+   132	        objects = _filter_single_token(tokenizer, _OBJECTS)
+   133	        if len(names) < 2 or not c_names or not places or not objects:
+   134	            raise RuntimeError(
+   135	                "IOI benchmark: tokenizer pruned the closed vocab below the "
+   136	                "minimum needed (>= 2 names, >= 1 of each other type). "
+   137	                f"Have names={names!r}, c={c_names!r}, places={places!r}, "
+   138	                f"objects={objects!r}"
+   139	            )
+   140	
+   141	    # Balance ABBA / BABA 50:50 across the requested pairs.
+   142	    pairs: list[StimulusPair] = []
+   143	    for i in range(n_pairs):
+   144	        order = "ABBA" if i % 2 == 0 else "BABA"
+   145	        # Draw a distinct (IO, S) pair and a fresh C disjoint from both.
+   146	        io_name, s_name = rng.sample(names, 2)
+   147	        candidate_cs = [c for c in c_names if c not in (io_name, s_name)]
+   148	        if not candidate_cs:
+   149	            candidate_cs = [n for n in names if n not in (io_name, s_name)]
+   150	        c_name = rng.choice(candidate_cs)
+   151	        place = rng.choice(places)
+   152	        obj = rng.choice(objects)
+   153	
+   154	        tmpl = _TEMPLATE_BY_ORDER[order]
+   155	        clean_prompt = tmpl.format(IO=io_name, S=s_name, place=place, object=obj)
+   156	        # ABC corruption: replace the IO's single occurrence with C. The
+   157	        # S's two occurrences are untouched, so the prediction position
+   158	        # context ("..., S gave a obj to") is identical between clean and
+   159	        # corrupted. The model's logit_diff(IO, S) on the corrupted run
+   160	        # should drop toward zero (or below) because the IO no longer
+   161	        # appears in the prefix.
+   162	        corrupted_prompt = tmpl.format(IO=c_name, S=s_name, place=place, object=obj)
+   163	
+   164	        if tokenizer is not None:
+   165	            io_id = _tokenize_one(tokenizer, io_name)
+   166	            s_id = _tokenize_one(tokenizer, s_name)
+   167	        else:
+   168	            io_id, s_id = -1, -1
+   169	
+   170	        pairs.append(
+   171	            StimulusPair(
+   172	                pair_id=f"{split}-{i:04d}",
+   173	                clean_prompt=clean_prompt,
+   174	                corrupted_prompt=corrupted_prompt,
+   175	                target_token_id=io_id,
+   176	                foil_token_id=s_id,
+   177	                prediction_position=-1,
+   178	                metadata={
+   179	                    "order": order,
+   180	                    "io_name": io_name.strip(),
+   181	                    "s_name": s_name.strip(),
+   182	                    "c_name": c_name.strip(),
+   183	                    "place": place.strip(),
+   184	                    "object": obj.strip(),
+   185	                    "split": split,
+   186	                },
+   187	            )
+   188	        )
+   189	    return pairs
+   190	
+   191	
+   192	def behavioral_metric(logits: Any, pair: StimulusPair) -> float:
+   193	    """``logit(IO) - logit(S)`` at the prediction position. Higher is better.
+   194	
+   195	    ``logits`` may be a 1-D ``[vocab]`` tensor (single trial) or anything
+   196	    indexable by ``int`` that returns a Python float at the target /
+   197	    foil token positions. Substrate evaluators batch-mean across pairs.
+   198	    """
+   199	    try:
+   200	        # Tensor-like
+   201	        target = float(logits[pair.target_token_id])
+   202	        foil = float(logits[pair.foil_token_id])
+   203	    except Exception as exc:
+   204	        raise TypeError(
+   205	            f"behavioral_metric: logits must be indexable by int token id; "
+   206	            f"got {type(logits).__name__}"
+   207	        ) from exc
+   208	    return target - foil
+   209	
+   210	
+   211	__all__ = [
+   212	    "GENERATOR_ID",
+   213	    "behavioral_metric",
+   214	    "generate_pairs",
+   215	]

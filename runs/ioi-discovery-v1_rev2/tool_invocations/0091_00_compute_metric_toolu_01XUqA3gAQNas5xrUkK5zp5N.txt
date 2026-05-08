@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "metric_id": "stage2-dev-kl-to-clean",
+    "value": 0.415489990234375,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "kl_to_clean",
+      "metric_family": "localization",
+      "inputs_hash": "sha256:2158b97f195c57db226b74e09a904bcfe3ea2896586df94aa35d5d2ea7a0e311",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_f488e1ffc9371d4b7cb74001e930edbe"
+}

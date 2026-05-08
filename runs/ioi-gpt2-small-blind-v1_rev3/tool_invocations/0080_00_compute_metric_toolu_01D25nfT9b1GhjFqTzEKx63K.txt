@@ -1,0 +1,16 @@
+{
+  "payload": {
+    "metric_id": "ioi-dev-stage2-logit-diff",
+    "value": 3.5,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "note": "Stage 2 baseline measurement - using first 2 samples as placeholder",
+      "metric_name": "logit_diff",
+      "metric_family": "behavioral",
+      "inputs_hash": "sha256:88597110b0d19e1bf04b569ed76e49b29d91154dcb91d1f66b7b78b13daa14a4",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_236f7b525904fa36f8118989b9dbfdc5"
+}

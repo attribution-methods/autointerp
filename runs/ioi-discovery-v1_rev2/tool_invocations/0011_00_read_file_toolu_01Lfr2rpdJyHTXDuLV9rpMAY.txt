@@ -1,0 +1,80 @@
+     1	"""IOI benchmark — Wang-et-al-2022-style indirect object identification.
+     2	
+     3	Pure-Python pair generator + behavioral metric. No model load required at
+     4	import time; tokenization is deferred to ``generate_pairs`` and only
+     5	needed when the caller passes a tokenizer.
+     6	
+     7	Closed-vocabulary by design: names / places / objects are restricted to a
+     8	small list of single-token-with-leading-space tokens for GPT-2's BPE so
+     9	that clean and corrupted prompts tokenize to identical length and the
+    10	prediction position aligns. The dev / heldout split uses *disjoint* name
+    11	pairs to keep validation honest.
+    12	
+    13	Compatible with the :class:`autointerp.benchmarks._protocol.Benchmark`
+    14	structural protocol — module-level ``GENERATOR_ID``, ``generate_pairs``,
+    15	and ``behavioral_metric``.
+    16	"""
+    17	
+    18	from __future__ import annotations
+    19	
+    20	import random
+    21	from typing import Any
+    22	
+    23	from ._protocol import StimulusPair
+    24	
+    25	
+    26	GENERATOR_ID = "ioi_template_generator"
+    27	
+    28	
+    29	# Closed single-token-with-leading-space vocab for GPT-2 BPE. Each entry
+    30	# tokenizes to exactly one BPE token; we verify in ``generate_pairs`` and
+    31	# drop any that don't (defensive — these were chosen by the spec to be
+    32	# single-token, but the model loader has the final word).
+    33	_NAMES_DEV: tuple[str, ...] = (
+    34	    " John", " Mary", " Tom", " Sarah", " James", " Kate", " Robert", " Lisa",
+    35	    " Michael", " Emma", " David", " Anna", " Peter", " Laura", " Steven", " Rachel",
+    36	)
+    37	_NAMES_HELDOUT: tuple[str, ...] = (
+    38	    " Daniel", " Sophia", " Brian", " Olivia", " Frank", " Hannah", " George", " Emily",
+    39	)
+    40	_PLACES: tuple[str, ...] = (
+    41	    " store", " park", " school", " office", " hospital", " library",
+    42	)
+    43	_OBJECTS: tuple[str, ...] = (
+    44	    " ring", " book", " key", " ball", " pen", " bag",
+    45	)
+    46	# Additional novel names for the ABC corruption — must be disjoint from
+    47	# both _NAMES_DEV and _NAMES_HELDOUT so the corrupted prompt's third name
+    48	# is genuinely novel (not just a swap).
+    49	_NAMES_C: tuple[str, ...] = (
+    50	    " Henry", " Linda", " Mark", " Jenny", " Paul", " Susan",
+    51	)
+    52	
+    53	
+    54	# Templates parameterized by ROLE (IO / S) rather than by name slot, so the
+    55	# IO / S identity is unambiguous regardless of order. ``order`` records the
+    56	# *positional* pattern for analysis:
+    57	#
+    58	# - ABBA: "When IO and S went..., S gave..." (IO at pos 1, S at pos 2 and 3)
+    59	# - BABA: "When S and IO went..., S gave..." (S at pos 1, IO at pos 2, S at pos 3)
+    60	#
+    61	# In both, the model is asked to continue with "to ___" → IO. The ABC
+    62	# corruption replaces the IO's single occurrence with a fresh name C.
+    63	_TEMPLATE_BY_ORDER: dict[str, str] = {
+    64	    "ABBA": "When{IO} and{S} went to the{place},{S} gave a{object} to",
+    65	    "BABA": "When{S} and{IO} went to the{place},{S} gave a{object} to",
+    66	}
+    67	
+    68	
+    69	def _verify_single_token(tokenizer, text: str) -> bool:
+    70	    """True iff ``tokenizer(text)`` produces exactly one token."""
+    71	    try:
+    72	        ids = tokenizer(text, add_special_tokens=False)["input_ids"]
+    73	    except Exception:
+    74	        return False
+    75	    return isinstance(ids, list) and len(ids) == 1
+    76	
+    77	
+    78	def _filter_single_token(tokenizer, items: tuple[str, ...]) -> list[str]:
+    79	    return [it for it in items if _verify_single_token(tokenizer, it)]
+    80	

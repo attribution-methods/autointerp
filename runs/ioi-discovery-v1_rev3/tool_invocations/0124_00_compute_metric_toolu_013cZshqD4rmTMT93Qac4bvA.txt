@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "metric_id": "stage1-patch_effect_recovery-dev",
+    "value": 0.9903381642512077,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "patch_effect_recovery",
+      "metric_family": "causal",
+      "inputs_hash": "sha256:59e8fc0adf54ba5284d184a9b93c415504508a166ebad48c7a6584afb7cc4253",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_6e83a521aa712c5ad9cbe63e96df6900"
+}

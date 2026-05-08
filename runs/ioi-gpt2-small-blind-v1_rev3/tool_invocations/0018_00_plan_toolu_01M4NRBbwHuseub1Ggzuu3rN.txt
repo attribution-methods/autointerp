@@ -1,0 +1,7 @@
+- [completed] Load IOI dataset and understand the structure
+- [completed] Create script to measure accuracy and logit_diff on dev split (500 samples)
+- [completed] Run the script to compute accuracy and logit_diff
+- [in_progress] Commit accuracy metric (0.98)
+- [pending] Commit logit_diff metric (2.67)
+- [pending] Evaluate behavioral-sanity criterion (accuracy >= 0.95)
+- [pending] Advance to stage 1 (localization)

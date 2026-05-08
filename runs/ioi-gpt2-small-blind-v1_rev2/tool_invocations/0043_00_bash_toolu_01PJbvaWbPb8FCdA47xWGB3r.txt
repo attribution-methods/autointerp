@@ -1,0 +1,9 @@
+KL metric inputs:
+  kl_per_sample length: 500
+  Sample values: [0.478515625, 1.5625, 0.2236328125, 0.59375, 0.380859375]
+
+Patch recovery metric inputs:
+  clean_metric: 3.0
+  corrupt_metric: 1.59375
+  patched_metric: 2.953125
+  Expected recovery: 0.9666666666666667

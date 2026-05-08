@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "metric_id": "stage2-dev-localization-recovery",
+    "value": 0.9903381642512077,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "patch_effect_recovery",
+      "metric_family": "causal",
+      "inputs_hash": "sha256:59e8fc0adf54ba5284d184a9b93c415504508a166ebad48c7a6584afb7cc4253",
+      "registry_version": 1
+    }
+  },
+  "provenance_token": "tok_07b47fd711034d4eb0617b12db5aea8f"
+}

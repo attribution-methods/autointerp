@@ -1,0 +1,19 @@
+{
+  "metric_id": "ioi-dev-accuracy",
+  "value": 0.98,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "metric_name": "accuracy",
+    "metric_family": "behavioral",
+    "inputs_hash": "sha256:13805952fa9f57d43b02c7e9f44fccc7a51e0933bbd514e2f6461edd47e6bfae",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 0,
+      "split": "dev",
+      "committed_at": "2026-05-07T21:42:38.411466Z"
+    }
+  }
+}

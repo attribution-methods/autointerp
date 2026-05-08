@@ -1,0 +1,6 @@
+- [completed] Stages 0-1: Completed - identified top-3 circuit heads
+- [in_progress] Stage 2: Extract contrastive directions (IO vs S) from residual stream
+- [pending] Stage 2: Mean-ablate top-3 heads and measure ablation_drop
+- [pending] Stage 2: Commit logit_diff and ablation_drop metrics
+- [pending] Stage 3: Path patching and faithfulness on dev
+- [pending] Stage 4: Validation on heldout split

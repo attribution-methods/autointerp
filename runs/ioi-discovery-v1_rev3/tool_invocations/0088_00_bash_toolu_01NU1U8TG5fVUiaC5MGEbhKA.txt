@@ -1,0 +1,9 @@
+✓ All assertions passed
+✓ acc_inputs is a valid dict with predictions and labels
+✓ ld_inputs is a valid dict with target_logits and foil_logits
+
+================================================================================
+READY TO INVOKE compute_metric TOOL
+================================================================================
+
+Next: Call compute_metric() via the tool interface with these dicts

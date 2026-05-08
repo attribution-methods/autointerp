@@ -1,0 +1,7 @@
+- [in_progress] Run exhaustive head_patch_sweep across all 144 (layer, head) pairs
+- [pending] Identify top-K heads by recovery from sweep
+- [pending] Run JOINT patch with localization top-K heads
+- [pending] Compute kl_to_clean and patch_effect_recovery metrics
+- [pending] Compare localization top-K with discovery top-K
+- [pending] Evaluate localization-recovery criterion
+- [pending] Advance to stage 3

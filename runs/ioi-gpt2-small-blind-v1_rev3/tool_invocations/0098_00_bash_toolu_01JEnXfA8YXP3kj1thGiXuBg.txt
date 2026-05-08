@@ -1,0 +1,15 @@
+{
+  "faithfulness_inputs": {
+    "circuit_metric": -0.62890625,
+    "full_model_metric": 3.21875,
+    "corrupted_metric": -4.71875
+  },
+  "minimality_inputs": {
+    "full_circuit_faithfulness": 0.515255905511811,
+    "removed_faithfulness": [
+      0.5565944881889764,
+      0.5255905511811023,
+      0.5359251968503937
+    ]
+  }
+}

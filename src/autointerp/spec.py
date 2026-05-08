@@ -75,6 +75,9 @@ class MetricName(str, Enum):
     STEERING_EFFECT_SIZE = "steering_effect_size"
     MUTUAL_INFORMATION = "mutual_information"
     CAUSAL_INDIRECT_EFFECT = "causal_indirect_effect"
+    MEAN_ABLATION_AUC_K = "mean_ablation_auc_k"
+    MEAN_STEERING_AUC_K = "mean_steering_auc_k"
+    COMBINED_AUC_K = "combined_auc_k"
     CUSTOM = "custom"
 
 
@@ -94,6 +97,7 @@ class ToolName(str, Enum):
     ATTENTION_HEADS = "attention_heads"
     ACTIVATION_CACHE = "activation_cache"
     QK_OV_DECOMPOSITION = "qk_ov_decomposition"
+    DISCOVER_FEATURES = "discover_features"
 
 
 class MetricMeta(StrictBaseModel):
@@ -133,8 +137,8 @@ METRIC_META: dict[MetricName, MetricMeta] = {
     MetricName.LOGIT_DIFF: MetricMeta(
         name=MetricName.LOGIT_DIFF, family=MetricFamily.BEHAVIORAL,
         value_range=(None, None), direction="higher",
-        requires_inputs=["logits", "target_token", "foil_token"],
-        one_line="logit(target) - logit(foil) at the prediction position.",
+        requires_inputs=["target_logits", "foil_logits"],
+        one_line="Mean(target_logits[i] - foil_logits[i]); pass scalars per example.",
     ),
     MetricName.HIT_RATE: MetricMeta(
         name=MetricName.HIT_RATE, family=MetricFamily.BEHAVIORAL,
@@ -151,8 +155,8 @@ METRIC_META: dict[MetricName, MetricMeta] = {
     MetricName.KL_TO_CLEAN: MetricMeta(
         name=MetricName.KL_TO_CLEAN, family=MetricFamily.LOCALIZATION,
         value_range=(0.0, None), direction="lower",
-        requires_inputs=["p_clean", "p_intervened"],
-        one_line="KL divergence between intervened and clean output distributions.",
+        requires_inputs=["kl_per_sample"],
+        one_line="Mean per-sample KL(intervened || clean); pass list[float] of per-sample KLs.",
     ),
     MetricName.DIRECT_CONTRIBUTION: MetricMeta(
         name=MetricName.DIRECT_CONTRIBUTION, family=MetricFamily.LOCALIZATION,
@@ -163,8 +167,8 @@ METRIC_META: dict[MetricName, MetricMeta] = {
     MetricName.ABLATION_DROP: MetricMeta(
         name=MetricName.ABLATION_DROP, family=MetricFamily.LOCALIZATION,
         value_range=(None, None), direction="higher",
-        requires_inputs=["clean_metric", "ablated_metric"],
-        one_line="Drop in a behavioral metric when a component is ablated.",
+        requires_inputs=["baseline_metric", "ablated_metric"],
+        one_line="baseline_metric - ablated_metric; positive = ablating the component hurt behavior.",
     ),
     MetricName.PATCH_EFFECT_RECOVERY: MetricMeta(
         name=MetricName.PATCH_EFFECT_RECOVERY, family=MetricFamily.CAUSAL,
@@ -175,8 +179,8 @@ METRIC_META: dict[MetricName, MetricMeta] = {
     MetricName.FAITHFULNESS: MetricMeta(
         name=MetricName.FAITHFULNESS, family=MetricFamily.CAUSAL,
         value_range=(0.0, 1.0), direction="higher",
-        requires_inputs=["circuit_metric", "full_model_metric"],
-        one_line="Behavior reproduced by the candidate circuit alone (Wang et al.).",
+        requires_inputs=["circuit_metric", "full_model_metric", "corrupted_metric"],
+        one_line="(circuit_metric - corrupted_metric) / (full_model_metric - corrupted_metric); Wang et al. faithfulness.",
     ),
     MetricName.COMPLETENESS: MetricMeta(
         name=MetricName.COMPLETENESS, family=MetricFamily.CAUSAL,
@@ -187,8 +191,8 @@ METRIC_META: dict[MetricName, MetricMeta] = {
     MetricName.MINIMALITY: MetricMeta(
         name=MetricName.MINIMALITY, family=MetricFamily.CAUSAL,
         value_range=(0.0, None), direction="higher",
-        requires_inputs=["faithfulness_full", "faithfulness_minus_one"],
-        one_line="Faithfulness drop when removing any single circuit component.",
+        requires_inputs=["full_circuit_faithfulness", "removed_faithfulness"],
+        one_line="Min over components of (full_circuit_faithfulness - removed_faithfulness[i]); pass scalar + list[float].",
     ),
     MetricName.NECESSITY_DROP: MetricMeta(
         name=MetricName.NECESSITY_DROP, family=MetricFamily.CAUSAL,
@@ -237,6 +241,24 @@ METRIC_META: dict[MetricName, MetricMeta] = {
         value_range=(None, None), direction="higher",
         requires_inputs=["mediated_effect", "total_effect"],
         one_line="Pearl-style indirect effect mediated through a component.",
+    ),
+    MetricName.MEAN_ABLATION_AUC_K: MetricMeta(
+        name=MetricName.MEAN_ABLATION_AUC_K, family=MetricFamily.CAUSAL,
+        value_range=(0.0, 1.0), direction="higher",
+        requires_inputs=["delta_curve_per_pair"],
+        one_line="Area under the normalized ablation-delta curve over a top-K sweep, averaged across contrast pairs.",
+    ),
+    MetricName.MEAN_STEERING_AUC_K: MetricMeta(
+        name=MetricName.MEAN_STEERING_AUC_K, family=MetricFamily.FEATURE,
+        value_range=(0.0, 1.0), direction="higher",
+        requires_inputs=["delta_curve_per_pair"],
+        one_line="Area under the normalized steering-delta curve over a top-K sweep, averaged across contrast pairs.",
+    ),
+    MetricName.COMBINED_AUC_K: MetricMeta(
+        name=MetricName.COMBINED_AUC_K, family=MetricFamily.CAUSAL,
+        value_range=(0.0, 1.0), direction="higher",
+        requires_inputs=["mean_ablation_auc_k", "mean_steering_auc_k"],
+        one_line="0.5*(mean_ablation_auc_k + mean_steering_auc_k). Default discovery-stage reward.",
     ),
     MetricName.CUSTOM: MetricMeta(
         name=MetricName.CUSTOM, family=MetricFamily.BEHAVIORAL,
@@ -311,6 +333,11 @@ TOOL_META: dict[ToolName, ToolMeta] = {
         name=ToolName.QK_OV_DECOMPOSITION, requires_fields=[],
         families_emitted=[MetricFamily.LOCALIZATION],
         one_line="Decompose head circuits into QK (where to attend) and OV (what to write).",
+    ),
+    ToolName.DISCOVER_FEATURES: ToolMeta(
+        name=ToolName.DISCOVER_FEATURES, requires_fields=["contrast"],
+        families_emitted=[MetricFamily.FEATURE, MetricFamily.CAUSAL],
+        one_line="Spawn an iterative sub-agent that hill-climbs SAE features / circuit sites against a reward metric.",
     ),
 }
 
@@ -542,6 +569,78 @@ class AbortPredicate(StrictBaseModel):
         return self
 
 
+class DiscoveryConfig(StrictBaseModel):
+    """Substrate / search-space configuration for a feature_discovery stage.
+
+    Substrate-agnostic on the orchestration side; substrate-specific on the
+    evaluator side. The discovery sub-agent's loop and session machinery do
+    not care whether the candidates are attention heads, MLP neurons, or SAE
+    features — they're all just ``Candidate(layer, idx, score, kind, ...)``
+    rows. The harness's evaluator dispatches on the substrate values
+    declared here.
+
+    Two substrates supported today:
+
+    - ``components`` — directly addressable nodes in the model's computation
+      graph (attn heads, MLP neurons, MLP layers, residual-layer sites).
+      Interventions are ablation / patching / mean-replacement.
+    - ``features`` — learned directions in some decomposition of activations
+      (SAE features, transcoder features, probe directions). Interventions
+      are projection / steering along the direction.
+    """
+
+    substrate: Literal["components", "features"]
+
+    # components-only — which kinds of components to score over. Most
+    # concrete IOI / induction / sycophancy specs will use ["attn_head"].
+    component_kinds: list[
+        Literal["attn_head", "mlp_layer", "mlp_neuron", "residual_layer"]
+    ] = Field(default_factory=lambda: ["attn_head"])
+
+    # features-only — which decomposition + how to load it.
+    decomposition: str | None = None  # "sae_gemmascope" | "sae_bloom_gpt2_small" | "probe_v1" | ...
+    decomposition_layers: list[int] | None = None
+    decomposition_release: str | None = None  # HF revision tag, etc.
+
+    # Common harness knobs — defaults match the circuitbreaker reference.
+    n_pairs: int = Field(default=30, ge=2)
+    k_grid: list[int] = Field(default_factory=lambda: [1, 5, 10, 20, 50])
+
+    # Override the default evaluator picked by the registry. ``module:attr``.
+    evaluator: str | None = None
+
+    @model_validator(mode="after")
+    def _check_substrate_deps(self) -> "DiscoveryConfig":
+        if self.substrate == "components":
+            if not self.component_kinds:
+                raise ValueError(
+                    "DiscoveryConfig: substrate='components' requires "
+                    "at least one entry in component_kinds"
+                )
+            # Lightly nudge: features-only fields shouldn't be set for components.
+            if self.decomposition is not None:
+                raise ValueError(
+                    "DiscoveryConfig: substrate='components' must not set "
+                    "decomposition (that field is for substrate='features')"
+                )
+        else:  # substrate == "features"
+            if self.decomposition is None:
+                raise ValueError(
+                    "DiscoveryConfig: substrate='features' requires "
+                    "decomposition (e.g. 'sae_gemmascope')"
+                )
+        if not self.k_grid or any(k < 1 for k in self.k_grid):
+            raise ValueError(
+                f"DiscoveryConfig.k_grid must be a non-empty list of positive ints; "
+                f"got {self.k_grid!r}"
+            )
+        if list(self.k_grid) != sorted(self.k_grid):
+            raise ValueError(
+                f"DiscoveryConfig.k_grid must be sorted ascending; got {self.k_grid!r}"
+            )
+        return self
+
+
 class StageSpec(StrictBaseModel):
     stage: InvestigationStage
     pattern: PatternId
@@ -549,11 +648,34 @@ class StageSpec(StrictBaseModel):
     metrics: list[MetricName]
     budget: Budget = Field(default_factory=Budget)
     notes: str | None = None
+    discovery: DiscoveryConfig | None = None
 
     @model_validator(mode="after")
     def _has_tools(self) -> "StageSpec":
         if not self.tools:
             raise ValueError(f"stage {self.stage} must declare at least one tool")
+        return self
+
+    @model_validator(mode="after")
+    def _discovery_consistency(self) -> "StageSpec":
+        # If the stage uses discover_features, the spec MUST declare a
+        # DiscoveryConfig — otherwise the handler doesn't know what substrate
+        # to dispatch to. Conversely, declaring a DiscoveryConfig outside a
+        # discovery-tool stage is meaningless and probably a copy-paste error.
+        has_tool = ToolName.DISCOVER_FEATURES in self.tools
+        if has_tool and self.discovery is None:
+            raise ValueError(
+                f"stage {self.stage.value}: tools includes "
+                f"`discover_features` but `discovery` is not set. "
+                f"Add `discovery: {{substrate: components|features, ...}}` "
+                f"so the sub-agent knows what to search over."
+            )
+        if self.discovery is not None and not has_tool:
+            raise ValueError(
+                f"stage {self.stage.value}: `discovery` is set but the stage "
+                f"does not list `discover_features` in its tools. Either add "
+                f"the tool or drop the discovery config."
+            )
         return self
 
 

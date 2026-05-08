@@ -1,0 +1,7 @@
+# Accuracy inputs:
+predictions: 500 values
+labels: 500 values
+
+# Logit diff inputs:
+target_logits: 500 values
+foil_logits: 500 values

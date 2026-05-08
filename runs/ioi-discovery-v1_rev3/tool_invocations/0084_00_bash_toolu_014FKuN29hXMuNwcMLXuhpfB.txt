@@ -1,0 +1,6 @@
+Accuracy inputs as JSON (5029 chars):
+{"predictions": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0...
+
+The acc_inputs_dict variable contains the dict to pass to compute_metric
+Type: <class 'dict'>
+Keys: ['predictions', 'labels']

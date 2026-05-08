@@ -1,0 +1,38 @@
+================================================================================
+STAGE 0: BLACK-BOX IOI EVALUATION
+================================================================================
+
+[1/5] Loading GPT-2-small...
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2370.48it/s]
+Model loaded: gpt2, device=cuda, dtype=torch.bfloat16
+
+[2/5] Loading IOI dev dataset (n=500, seed=42)...
+Loaded 500 clean/corrupt pairs
+Example clean: When Sarah and John went to the school, John gave a book to
+Example corrupt: When Susan and John went to the school, John gave a book to
+Example IO name: Sarah (id=10490)
+Example S name: John (id=1757)
+
+[3/5] Running clean forward passes...
+Clean logits shape: torch.Size([500, 50257])
+
+[4/5] Extracting IO vs S logits...
+IO logits shape: torch.Size([500]), mean=-73.882
+S logits shape: torch.Size([500]), mean=-76.554
+
+[5/5] Computing metrics...
+
+================================================================================
+RESULTS (dev split, n=500)
+================================================================================
+Accuracy (IO > S):     0.9800  (490/500)
+Logit diff (IO - S):   2.6725
+================================================================================
+
+✓ Accuracy 0.9800 >= 0.9 (passes abort threshold)
+
+Results saved to runs/ioi-discovery-v1_rev3/scratch/stage0_results.json
+
+Next: Commit accuracy and logit_diff MetricResults, evaluate behavioral-sanity criterion.

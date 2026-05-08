@@ -1,0 +1,41 @@
+================================================================================
+STAGE 2: JOINT PATCH AND METRICS
+================================================================================
+
+[1/8] Loading GPT-2-small...
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2121.65it/s]
+Model loaded: gpt2
+
+[2/8] Loading IOI dev dataset (n=500, seed=42)...
+Loaded 500 clean/corrupt pairs
+
+[3/8] Loading head sweep results...
+Top-3 heads from sweep: [(9, 9), (9, 6), (10, 0)]
+
+[4/8] Computing clean baseline logits...
+Clean logit_diff: 2.6719
+
+[5/8] Computing corrupt baseline logits...
+Corrupt logit_diff: -3.7969
+Clean-corrupt gap: 6.4688
+
+[6/8] Caching clean head z activations...
+Cached layers: [9, 10]
+
+[7/8] Running joint top-K patch...
+Patched logit_diff: 2.6094
+Patch effect recovery: 0.9903
+
+[8/8] Computing KL divergence...
+Traceback (most recent call last):
+  File "/home/li/autointerp-fadi/runs/ioi-discovery-v1_rev3/scripts/stage2_joint_patch_and_metrics.py", line 178, in <module>
+    main()
+  File "/home/li/autointerp-fadi/runs/ioi-discovery-v1_rev3/scripts/stage2_joint_patch_and_metrics.py", line 145, in main
+    kl_clean_to_patched = compute_kl_divergence(clean_logits, patched_logits)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/li/autointerp-fadi/runs/ioi-discovery-v1_rev3/scripts/stage2_joint_patch_and_metrics.py", line 28, in compute_kl_divergence
+    kl = (p2 * (log_p2 - log_p1)).sum(dim=-1)
+                ~~~~~~~^~~~~~~~
+RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!

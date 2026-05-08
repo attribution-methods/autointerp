@@ -1,0 +1,7 @@
+{
+  "kind": "MetricResult",
+  "artifact_id": "ioi-dev-kl-to-clean",
+  "relpath": "findings/stage_1_localization/metric_ioi-dev-kl-to-clean.json",
+  "stage_idx": 1,
+  "split": "dev"
+}

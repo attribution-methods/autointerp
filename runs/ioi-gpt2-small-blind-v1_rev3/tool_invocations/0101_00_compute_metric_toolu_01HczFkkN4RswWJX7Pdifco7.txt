@@ -1,0 +1,20 @@
+{
+  "payload": {
+    "metric_id": "ioi-heldout-minimality",
+    "value": 0.0,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "minimality",
+      "metric_family": "causal",
+      "inputs_hash": "sha256:22d63641307336bbb5a0a2e585bdf144fd3b35c8ac97094f4409bdf19a5a2dba",
+      "registry_version": 1,
+      "unclipped_value": -0.04133858267716539,
+      "clipped_to_range": [
+        0.0,
+        null
+      ]
+    }
+  },
+  "provenance_token": "tok_329bce0386317537700654ea2d423e20"
+}

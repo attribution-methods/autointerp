@@ -1,0 +1,13 @@
+{
+  "ts": "2026-05-07T18:06:16.833768Z",
+  "n_turns": 88,
+  "cost_usd": 2.590696,
+  "usage": {
+    "prompt_tokens": 4878819,
+    "completion_tokens": 51895,
+    "cache_read_input_tokens": 4777672,
+    "cache_creation_input_tokens": 100704
+  },
+  "scope": "master_agent_litellm",
+  "note": "Sub-agent (discover_features) costs are NOT included here; see runs/<id>/discovery/<session>/loop_log.jsonl for those."
+}

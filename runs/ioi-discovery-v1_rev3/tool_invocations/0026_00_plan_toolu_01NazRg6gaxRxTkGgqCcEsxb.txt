@@ -1,0 +1,6 @@
+- [completed] Stage 0: Load IOI dev dataset (500 samples) and generate clean/corrupt prompt pairs
+- [completed] Stage 0: Run GPT-2-small forward passes and extract IO vs S logits at END position
+- [in_progress] Stage 0: Compute accuracy and logit_diff metrics, commit MetricResults
+- [pending] Stage 0: Evaluate behavioral-sanity criterion and advance to stage 1
+- [pending] Stage 1: Run discover_features sub-agent to find top-K attention heads
+- [pending] Stage 1: Joint patch top-K heads on dev, compute patch_effect_recovery, evaluate discovery-recovery criterion

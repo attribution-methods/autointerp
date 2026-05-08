@@ -1,0 +1,5 @@
+Prepared function call inputs:
+  accuracy: <class 'dict'>, keys=['predictions', 'labels']
+  logit_diff: <class 'dict'>, keys=['target_logits', 'foil_logits']
+
+Saved call inputs to separate files

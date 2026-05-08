@@ -1,0 +1,13 @@
+Accuracy inputs:
+  Type: <class 'dict'>
+  predictions: <class 'list'>, len=500
+  labels: <class 'list'>, len=500
+
+Logit diff inputs:
+  Type: <class 'dict'>
+  target_logits: <class 'list'>, len=500
+  foil_logits: <class 'list'>, len=500
+
+Both dicts are ready to pass to compute_metric
+
+Preparing to call compute_metric via the tool interface...

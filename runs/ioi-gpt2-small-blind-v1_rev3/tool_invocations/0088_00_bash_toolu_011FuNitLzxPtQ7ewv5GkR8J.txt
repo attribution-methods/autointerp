@@ -1,0 +1,12 @@
+{
+  "faithfulness_inputs": {
+    "circuit_metric": -0.482421875,
+    "full_model_metric": 2.671875,
+    "corrupted_metric": -3.796875
+  },
+  "patch_effect_recovery_inputs": {
+    "clean_metric": 2.671875,
+    "corrupt_metric": -3.796875,
+    "patched_metric": 2.21875
+  }
+}

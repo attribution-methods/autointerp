@@ -1,0 +1,41 @@
+Localization top-10 heads:
+  1. L9H9: 0.4988
+  2. L9H6: 0.2222
+  3. L10H0: 0.1812
+  4. L10H10: 0.0797
+  5. L10H2: 0.0773
+  6. L11H2: 0.0700
+  7. L10H6: 0.0628
+  8. L9H8: 0.0556
+  9. L11H1: 0.0459
+  10. L11H3: 0.0459
+
+Loading model...
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights:  82%|████████▏ | 121/148 [00:00<00:00, 1196.63it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 1068.69it/s]
+
+Baseline:
+  Clean:   2.6719
+  Corrupt: -3.7969
+  Gap:     6.4688
+
+=== Joint patches with localization top-K ===
+K= 1: recovery=0.5145
+K= 2: recovery=0.7754
+K= 3: recovery=0.9903
+K= 4: recovery=1.0894
+K= 5: recovery=1.1763
+K= 6: recovery=1.2295
+K= 7: recovery=1.3019
+K= 8: recovery=1.3647
+K=10: recovery=1.4034
+
+=== BEST ===
+K=10: recovery=1.4034
+
+Best meeting 0.85 threshold:
+K=3: recovery=0.9903
+
+Results saved to scratch/stage2_joint_patch_localization.json

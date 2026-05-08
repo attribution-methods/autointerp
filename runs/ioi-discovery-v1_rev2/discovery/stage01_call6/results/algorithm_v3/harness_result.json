@@ -1,0 +1,499 @@
+{
+  "mean_ablation_auc_k": 0.06100994477088887,
+  "mean_steering_auc_k": 0.0,
+  "combined_auc_k": 0.030504972385444435,
+  "patch_effect_recovery": 0.08669108669108665,
+  "clean_metric": 2.808333333333333,
+  "corrupt_metric": -4.016666666666667,
+  "patched_metric": 2.216666666666667,
+  "k_grid": [
+    1,
+    3,
+    5,
+    10
+  ],
+  "effective_grid": [
+    1,
+    3,
+    5,
+    10
+  ],
+  "top_features": [
+    {
+      "layer": 11,
+      "idx": 10,
+      "kind": "attn_head",
+      "score": 3.03125,
+      "token_pos": -1
+    },
+    {
+      "layer": 9,
+      "idx": 9,
+      "kind": "attn_head",
+      "score": 2.65625,
+      "token_pos": -1
+    },
+    {
+      "layer": 1,
+      "idx": 7,
+      "kind": "attn_head",
+      "score": 2.578125,
+      "token_pos": -1
+    },
+    {
+      "layer": 10,
+      "idx": 7,
+      "kind": "attn_head",
+      "score": 2.5,
+      "token_pos": -1
+    },
+    {
+      "layer": 8,
+      "idx": 3,
+      "kind": "attn_head",
+      "score": 2.375,
+      "token_pos": -1
+    },
+    {
+      "layer": 4,
+      "idx": 3,
+      "kind": "attn_head",
+      "score": 2.125,
+      "token_pos": -1
+    },
+    {
+      "layer": 7,
+      "idx": 9,
+      "kind": "attn_head",
+      "score": 2.09375,
+      "token_pos": -1
+    },
+    {
+      "layer": 3,
+      "idx": 0,
+      "kind": "attn_head",
+      "score": -1.9375,
+      "token_pos": -1
+    },
+    {
+      "layer": 3,
+      "idx": 7,
+      "kind": "attn_head",
+      "score": 1.7578125,
+      "token_pos": -1
+    },
+    {
+      "layer": 6,
+      "idx": 9,
+      "kind": "attn_head",
+      "score": -1.75,
+      "token_pos": -1
+    },
+    {
+      "layer": 5,
+      "idx": 10,
+      "kind": "attn_head",
+      "score": 1.7109375,
+      "token_pos": -1
+    },
+    {
+      "layer": 4,
+      "idx": 10,
+      "kind": "attn_head",
+      "score": -1.6875,
+      "token_pos": -1
+    },
+    {
+      "layer": 7,
+      "idx": 3,
+      "kind": "attn_head",
+      "score": 1.6640625,
+      "token_pos": -1
+    },
+    {
+      "layer": 3,
+      "idx": 4,
+      "kind": "attn_head",
+      "score": -1.5859375,
+      "token_pos": -1
+    },
+    {
+      "layer": 0,
+      "idx": 6,
+      "kind": "attn_head",
+      "score": 1.53125,
+      "token_pos": -1
+    },
+    {
+      "layer": 2,
+      "idx": 11,
+      "kind": "attn_head",
+      "score": -1.4296875,
+      "token_pos": -1
+    },
+    {
+      "layer": 9,
+      "idx": 6,
+      "kind": "attn_head",
+      "score": 1.421875,
+      "token_pos": -1
+    },
+    {
+      "layer": 0,
+      "idx": 0,
+      "kind": "attn_head",
+      "score": 1.3359375,
+      "token_pos": -1
+    },
+    {
+      "layer": 6,
+      "idx": 10,
+      "kind": "attn_head",
+      "score": -1.3359375,
+      "token_pos": -1
+    },
+    {
+      "layer": 5,
+      "idx": 1,
+      "kind": "attn_head",
+      "score": -1.2734375,
+      "token_pos": -1
+    }
+  ],
+  "n_candidates": 20,
+  "per_pair": [
+    {
+      "pair_id": "dev-0000",
+      "clean_metric": 2.0,
+      "corrupt_metric": -3.0,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pair_id": "dev-0001",
+      "clean_metric": 5.5,
+      "corrupt_metric": -2.5,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pair_id": "dev-0002",
+      "clean_metric": 3.0,
+      "corrupt_metric": -5.0,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pair_id": "dev-0003",
+      "clean_metric": 2.5,
+      "corrupt_metric": -3.5,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pair_id": "dev-0004",
+      "clean_metric": 2.0,
+      "corrupt_metric": -3.0,
+      "ablation_curve": [
+        0.0,
+        0.1,
+        0.2,
+        0.4
+      ]
+    },
+    {
+      "pair_id": "dev-0005",
+      "clean_metric": 1.5,
+      "corrupt_metric": -3.0,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.2222222222222222,
+        0.2222222222222222
+      ]
+    },
+    {
+      "pair_id": "dev-0006",
+      "clean_metric": 1.5,
+      "corrupt_metric": -1.5,
+      "ablation_curve": [
+        0.16666666666666666,
+        0.3333333333333333,
+        0.5,
+        0.6666666666666666
+      ]
+    },
+    {
+      "pair_id": "dev-0007",
+      "clean_metric": 1.0,
+      "corrupt_metric": -2.5,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.14285714285714285
+      ]
+    },
+    {
+      "pair_id": "dev-0008",
+      "clean_metric": 1.0,
+      "corrupt_metric": -4.0,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pair_id": "dev-0009",
+      "clean_metric": 1.5,
+      "corrupt_metric": -5.5,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.14285714285714285
+      ]
+    },
+    {
+      "pair_id": "dev-0010",
+      "clean_metric": 2.75,
+      "corrupt_metric": -5.0,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.16129032258064516
+      ]
+    },
+    {
+      "pair_id": "dev-0011",
+      "clean_metric": 1.5,
+      "corrupt_metric": -4.5,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.08333333333333333
+      ]
+    },
+    {
+      "pair_id": "dev-0012",
+      "clean_metric": 4.0,
+      "corrupt_metric": -2.5,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.38461538461538464
+      ]
+    },
+    {
+      "pair_id": "dev-0013",
+      "clean_metric": 5.0,
+      "corrupt_metric": -6.5,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pair_id": "dev-0014",
+      "clean_metric": 3.5,
+      "corrupt_metric": -4.0,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pair_id": "dev-0015",
+      "clean_metric": 4.5,
+      "corrupt_metric": -5.0,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.05263157894736842
+      ]
+    },
+    {
+      "pair_id": "dev-0016",
+      "clean_metric": 4.0,
+      "corrupt_metric": -2.5,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.15384615384615385,
+        0.3076923076923077
+      ]
+    },
+    {
+      "pair_id": "dev-0017",
+      "clean_metric": 3.0,
+      "corrupt_metric": -4.0,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pair_id": "dev-0018",
+      "clean_metric": 3.0,
+      "corrupt_metric": -6.5,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.05263157894736842,
+        0.21052631578947367
+      ]
+    },
+    {
+      "pair_id": "dev-0019",
+      "clean_metric": 4.5,
+      "corrupt_metric": -5.0,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pair_id": "dev-0020",
+      "clean_metric": 2.0,
+      "corrupt_metric": -4.0,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.08333333333333333
+      ]
+    },
+    {
+      "pair_id": "dev-0021",
+      "clean_metric": 2.5,
+      "corrupt_metric": -4.0,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pair_id": "dev-0022",
+      "clean_metric": 3.0,
+      "corrupt_metric": -4.0,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.07142857142857142,
+        0.2857142857142857
+      ]
+    },
+    {
+      "pair_id": "dev-0023",
+      "clean_metric": 2.0,
+      "corrupt_metric": -5.0,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.07142857142857142
+      ]
+    },
+    {
+      "pair_id": "dev-0024",
+      "clean_metric": 3.5,
+      "corrupt_metric": -2.5,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.16666666666666666,
+        0.3333333333333333
+      ]
+    },
+    {
+      "pair_id": "dev-0025",
+      "clean_metric": 3.5,
+      "corrupt_metric": -4.0,
+      "ablation_curve": [
+        0.0,
+        0.06666666666666667,
+        0.0,
+        0.2
+      ]
+    },
+    {
+      "pair_id": "dev-0026",
+      "clean_metric": 2.5,
+      "corrupt_metric": -6.0,
+      "ablation_curve": [
+        0.0,
+        0.058823529411764705,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pair_id": "dev-0027",
+      "clean_metric": 3.0,
+      "corrupt_metric": -4.5,
+      "ablation_curve": [
+        0.06666666666666667,
+        0.06666666666666667,
+        0.0,
+        0.06666666666666667
+      ]
+    },
+    {
+      "pair_id": "dev-0028",
+      "clean_metric": 1.0,
+      "corrupt_metric": -4.0,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pair_id": "dev-0029",
+      "clean_metric": 4.0,
+      "corrupt_metric": -3.5,
+      "ablation_curve": [
+        0.0,
+        0.0,
+        0.0,
+        0.26666666666666666
+      ]
+    }
+  ],
+  "objective_metric": "patch_effect_recovery",
+  "objective_value": 0.08669108669108665,
+  "algorithm": "/home/li/autointerp-fadi/runs/ioi-discovery-v1_rev2/discovery/stage01_call6/algorithm_v3.py"
+}

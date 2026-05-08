@@ -1,0 +1,6 @@
+Total samples: 500
+Mean KL: 0.415472
+Min KL: 0.028564
+Max KL: 2.343750
+
+Saved compact JSON for compute_metric

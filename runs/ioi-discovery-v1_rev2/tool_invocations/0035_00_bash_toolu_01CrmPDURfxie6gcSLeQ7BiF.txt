@@ -1,0 +1,5 @@
+Saved accuracy inputs to scratch/accuracy_inputs.json
+Predictions: 500
+Labels: 500
+Sum predictions: 490
+Sum labels: 500

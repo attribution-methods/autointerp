@@ -1,0 +1,5 @@
+Accuracy JSON string length: 4028
+Logit diff JSON string length: 6046
+
+Both JSON strings are ready as single-line compact JSON
+These can be passed directly to the compute_metric tool

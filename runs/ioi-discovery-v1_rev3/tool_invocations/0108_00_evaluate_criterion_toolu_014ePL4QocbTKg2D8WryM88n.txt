@@ -1,0 +1,10 @@
+{
+  "criterion_id": "behavioral-sanity",
+  "passed": true,
+  "value": 0.98,
+  "metric": "accuracy",
+  "comparator": ">=",
+  "threshold": 0.95,
+  "metric_result_ref": "findings/stage_0_black_box/metric_stage0-accuracy-dev.json",
+  "evaluated_at": "2026-05-07T21:53:14.906251Z"
+}
