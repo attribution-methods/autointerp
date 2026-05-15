@@ -232,13 +232,17 @@ def test_compute_unknown_metric_string_rejected(tmp_path: Path) -> None:
 
 
 def test_compute_metric_without_canonical_impl(tmp_path: Path) -> None:
-    """Closed vocabulary metrics that aren't in the registry yet are rejected."""
+    """Closed vocabulary metrics that aren't in the registry yet are rejected.
+
+    DIRECT_CONTRIBUTION still has no canonical impl (model-internal data
+    structures don't fit the JSON-input contract). Use it as the canary.
+    """
     spec = _approved_spec()
     handle = init_run(spec, runs_root=tmp_path)
     with pytest.raises(MetricRegistryError, match="no canonical implementation"):
         compute_metric(
             handle,
-            metric=MetricName.COMPLETENESS,
+            metric=MetricName.DIRECT_CONTRIBUTION,
             metric_id="m1",
             inputs={},
         )

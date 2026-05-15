@@ -29,12 +29,14 @@ from autointerp.pipelines.investigation import (
     enforce_budget,
     evaluate_criterion,
     init_run,
+    render_progress,
     request_spec_revision,
     write_report,
 )
 from autointerp.pipelines.investigation.state import (
     StageStatus,
     TerminalState,
+    Verdict,
     read_state,
 )
 from autointerp.schemas import (
@@ -169,7 +171,7 @@ def test_evaluate_criterion_pass(tmp_path: Path) -> None:
     handle = init_run(_spec(), runs_root=tmp_path)
     _commit_accuracy(handle, value=0.8, split="dev")
     rec = evaluate_criterion(handle, "behavioral-sanity")
-    assert rec.passed is True
+    assert rec.verdict is Verdict.PASS
     assert rec.value == 0.8
 
 
@@ -177,7 +179,7 @@ def test_evaluate_criterion_fail_terminates(tmp_path: Path) -> None:
     handle = init_run(_spec(), runs_root=tmp_path)
     _commit_accuracy(handle, value=0.3, split="dev")
     rec = evaluate_criterion(handle, "behavioral-sanity")
-    assert rec.passed is False
+    assert rec.verdict is Verdict.FAIL
     state = read_state(handle.state_path)
     assert state.terminal_state is TerminalState.CRITERION_FAILED
 
@@ -212,7 +214,7 @@ def test_explicit_metric_result_ref(tmp_path: Path) -> None:
     rec = evaluate_criterion(
         handle, "behavioral-sanity", metric_result_ref=ref.relpath
     )
-    assert rec.passed is True
+    assert rec.verdict is Verdict.PASS
 
 
 def test_explicit_ref_split_mismatch_rejected(tmp_path: Path) -> None:
@@ -383,7 +385,7 @@ def test_full_pipeline_end_to_end(tmp_path: Path) -> None:
     commit_artifact(handle, "PromptBatch", batch)
     _commit_accuracy(handle, value=0.8, split="dev")
     rec1 = evaluate_criterion(handle, "behavioral-sanity")
-    assert rec1.passed
+    assert rec1.verdict is Verdict.PASS
     advance_stage(handle)
 
     # Stage 1: commit faithfulness on heldout, evaluate the heldout criterion, advance.
@@ -396,7 +398,7 @@ def test_full_pipeline_end_to_end(tmp_path: Path) -> None:
     commit_artifact(handle, "PromptBatch", heldout)
     _commit_faithfulness(handle, ratio=0.9, split="heldout")
     rec2 = evaluate_criterion(handle, "circuit-faithfulness")
-    assert rec2.passed
+    assert rec2.verdict is Verdict.PASS
     advance_stage(handle)
 
     state = read_state(handle.state_path)
@@ -408,7 +410,7 @@ def test_full_pipeline_end_to_end(tmp_path: Path) -> None:
     blob = json.loads(report_path.read_text())
     assert blob["report_id"] == "pipeline-fixture_rev1"
     assert blob["metadata"]["terminal_state"] == "completed"
-    assert blob["metadata"]["criteria_evaluated"]["behavioral-sanity"]["passed"] is True
+    assert blob["metadata"]["criteria_evaluated"]["behavioral-sanity"]["verdict"] == "pass"
 
 
 def test_advance_final_stage_refuses_with_unevaluated_criteria(tmp_path: Path) -> None:
@@ -520,7 +522,7 @@ def test_assemble_report_minimal(tmp_path: Path) -> None:
     handle = init_run(_spec(), runs_root=tmp_path)
     _commit_accuracy(handle, value=0.6, split="dev")
     rec = evaluate_criterion(handle, "behavioral-sanity")
-    assert rec.passed
+    assert rec.verdict is Verdict.PASS
     report = assemble_report(handle)
     assert report.report_id == "pipeline-fixture_rev1"
     assert any("PASS criterion 'behavioral-sanity'" in c for c in report.claims)
@@ -540,3 +542,122 @@ def test_guarderror_for_post_terminal_budget_call(tmp_path: Path) -> None:
     # Subsequent enforce_budget calls raise too.
     with pytest.raises(GuardError, match="budget exhausted"):
         enforce_budget(handle)
+
+
+# ---- inconclusive verdict -------------------------------------------------
+
+
+def test_evaluate_criterion_inconclusive_does_not_terminate(tmp_path: Path) -> None:
+    handle = init_run(_spec(), runs_root=tmp_path)
+    # Value 0.3 would FAIL the >=0.5 criterion, but the agent declares the
+    # evidence inconclusive instead. The run must NOT terminate.
+    _commit_accuracy(handle, value=0.3, split="dev")
+    rec = evaluate_criterion(
+        handle,
+        "behavioral-sanity",
+        inconclusive_reason="only 3 usable samples after dedup",
+    )
+    assert rec.verdict is Verdict.INCONCLUSIVE
+    assert rec.inconclusive_reason == "only 3 usable samples after dedup"
+    assert rec.value == 0.3  # value still recorded for the report
+    state = read_state(handle.state_path)
+    assert state.terminal_state is None
+    assert "behavioral-sanity" in state.criteria_evaluated
+
+
+def test_inconclusive_overrides_a_passing_value(tmp_path: Path) -> None:
+    """Reason wins: a value that would PASS is still INCONCLUSIVE if flagged."""
+    handle = init_run(_spec(), runs_root=tmp_path)
+    _commit_accuracy(handle, value=0.9, split="dev")
+    rec = evaluate_criterion(
+        handle, "behavioral-sanity", inconclusive_reason="dev set leaked into train"
+    )
+    assert rec.verdict is Verdict.INCONCLUSIVE
+    state = read_state(handle.state_path)
+    assert state.terminal_state is None
+
+
+def test_blank_inconclusive_reason_falls_back_to_passfail(tmp_path: Path) -> None:
+    handle = init_run(_spec(), runs_root=tmp_path)
+    _commit_accuracy(handle, value=0.8, split="dev")
+    rec = evaluate_criterion(handle, "behavioral-sanity", inconclusive_reason="   ")
+    assert rec.verdict is Verdict.PASS
+    assert rec.inconclusive_reason is None
+
+
+def test_inconclusive_criterion_counts_for_final_advance(tmp_path: Path) -> None:
+    """A run can terminate COMPLETED with an inconclusive criterion."""
+    handle = init_run(_spec(), runs_root=tmp_path)
+    batch = PromptBatch(
+        batch_id="dev-batch",
+        behavior_id="b",
+        cases=[PromptCase(prompt_id="p1", messages=[ChatMessage(role="user", content="hi")])],
+        split="dev",
+    )
+    commit_artifact(handle, "PromptBatch", batch)
+    _commit_accuracy(handle, value=0.8, split="dev")
+    evaluate_criterion(handle, "behavioral-sanity")
+    advance_stage(handle)
+
+    heldout = PromptBatch(
+        batch_id="heldout-batch",
+        behavior_id="b",
+        cases=[PromptCase(prompt_id="p2", messages=[ChatMessage(role="user", content="bye")])],
+        split="heldout",
+    )
+    commit_artifact(handle, "PromptBatch", heldout)
+    _commit_faithfulness(handle, ratio=0.9, split="heldout")
+    rec = evaluate_criterion(
+        handle, "circuit-faithfulness", inconclusive_reason="patch set too small"
+    )
+    assert rec.verdict is Verdict.INCONCLUSIVE
+    advance_stage(handle)
+
+    state = read_state(handle.state_path)
+    assert state.terminal_state is TerminalState.COMPLETED
+
+
+# ---- progress digest ------------------------------------------------------
+
+
+def test_progress_md_written_on_init(tmp_path: Path) -> None:
+    handle = init_run(_spec(), runs_root=tmp_path)
+    assert handle.progress_path.exists()
+    text = handle.progress_path.read_text()
+    assert "pipeline-fixture_rev1" in text
+    assert "Status: in_progress" in text
+    # Unevaluated criteria show as pending.
+    assert "pending" in text
+    assert "behavioral-sanity" in text
+
+
+def test_render_progress_reflects_verdicts(tmp_path: Path) -> None:
+    handle = init_run(_spec(), runs_root=tmp_path)
+    _commit_accuracy(handle, value=0.8, split="dev")
+    evaluate_criterion(handle, "behavioral-sanity")
+    text = render_progress(handle)
+    assert "PASS" in text
+    assert "behavioral-sanity" in text
+    # The other criterion is still pending.
+    assert "pending" in text
+    assert "circuit-faithfulness" in text
+
+
+def test_progress_md_refreshed_on_inconclusive(tmp_path: Path) -> None:
+    handle = init_run(_spec(), runs_root=tmp_path)
+    _commit_accuracy(handle, value=0.3, split="dev")
+    evaluate_criterion(
+        handle, "behavioral-sanity", inconclusive_reason="too few samples"
+    )
+    text = handle.progress_path.read_text()
+    assert "INCONCLUSIVE" in text
+    assert "too few samples" in text
+
+
+def test_progress_md_shows_terminal_after_fail(tmp_path: Path) -> None:
+    handle = init_run(_spec(), runs_root=tmp_path)
+    _commit_accuracy(handle, value=0.1, split="dev")
+    evaluate_criterion(handle, "behavioral-sanity")  # FAIL -> terminal
+    text = handle.progress_path.read_text()
+    assert "Status: criterion_failed" in text
+    assert "FAIL" in text

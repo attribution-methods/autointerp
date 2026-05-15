@@ -21,7 +21,8 @@ from autointerp.spec import MetricName
 from .artifacts import ArtifactGateError, commit_artifact
 from .criteria import CriterionGateError, evaluate_criterion
 from .guards import GuardError
-from .metrics import MetricRegistryError, compute_metric
+from .metrics import MetricRegistryError, compute_and_commit_metric, compute_metric
+from .progress import render_progress
 from .revision import RevisionGateError, request_spec_revision
 from .run_dir import RunHandle
 from .stages import StageGateError, advance_stage, current_stage_view
@@ -71,6 +72,41 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
             }
         )
 
+    async def _compute_and_commit_handler(args: dict[str, Any]) -> tuple[str, bool]:
+        metric = args.get("metric")
+        metric_id = args.get("metric_id")
+        inputs = args.get("inputs")
+        split = args.get("split")
+        threshold = args.get("threshold")
+        comparator = args.get("comparator")
+        metadata = args.get("metadata")
+        criterion_id = args.get("criterion_id")
+        inconclusive_reason = args.get("inconclusive_reason")
+        if not isinstance(metric, str):
+            return "metric (string) is required", False
+        if not isinstance(metric_id, str) or not metric_id:
+            return "metric_id (non-empty string) is required", False
+        if not isinstance(inputs, dict):
+            return "inputs must be an object/dict", False
+        if not isinstance(split, str) or not split:
+            return "split (non-empty string) is required", False
+        try:
+            out = compute_and_commit_metric(
+                handle,
+                metric=metric,
+                metric_id=metric_id,
+                inputs=inputs,
+                split=split,
+                threshold=threshold,
+                comparator=comparator,
+                metadata=metadata,
+                criterion_id=criterion_id,
+                inconclusive_reason=inconclusive_reason,
+            )
+        except (MetricRegistryError, ArtifactGateError, CriterionGateError, GuardError) as exc:
+            return _err(exc)
+        return _ok(out)
+
     async def _compute_metric_handler(args: dict[str, Any]) -> tuple[str, bool]:
         metric = args.get("metric")
         metric_id = args.get("metric_id")
@@ -101,10 +137,16 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
     async def _evaluate_criterion_handler(args: dict[str, Any]) -> tuple[str, bool]:
         cid = args.get("criterion_id")
         ref = args.get("metric_result_ref")
+        inconclusive_reason = args.get("inconclusive_reason")
         if not isinstance(cid, str) or not cid:
             return "criterion_id (non-empty string) is required", False
         try:
-            rec = evaluate_criterion(handle, cid, metric_result_ref=ref)
+            rec = evaluate_criterion(
+                handle,
+                cid,
+                metric_result_ref=ref,
+                inconclusive_reason=inconclusive_reason,
+            )
         except CriterionGateError as exc:
             return _err(exc)
         return _ok({"criterion_id": cid, **rec.model_dump()})
@@ -126,6 +168,9 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
     async def _get_budget_handler(_args: dict[str, Any]) -> tuple[str, bool]:
         state = read_state(handle.state_path)
         return _ok(state.budget_consumed.model_dump())
+
+    async def _get_progress_handler(_args: dict[str, Any]) -> tuple[str, bool]:
+        return render_progress(handle), True
 
     async def _request_revision_handler(args: dict[str, Any]) -> tuple[str, bool]:
         reason = args.get("reason")
@@ -163,6 +208,53 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
                 "required": ["kind", "payload"],
             },
             handler=_commit_artifact_handler,
+        ),
+        ToolSpec(
+            name="compute_and_commit_metric",
+            description=(
+                "PREFERRED: one-shot metric flow. Computes the canonical "
+                "metric, commits the MetricResult (using the issued provenance "
+                "token), and — if `criterion_id` is given — evaluates that "
+                "success criterion against this result. Replaces the manual "
+                "compute_metric → commit_artifact → evaluate_criterion dance.\n"
+                "When metric='custom', include '__custom_name__' in `inputs` "
+                "naming the custom_metric_def in the spec.\n"
+                "Set `inconclusive_reason` (with `criterion_id`) to record the "
+                "criterion as INCONCLUSIVE instead of PASS/FAIL — for honest "
+                "non-results (too few samples, wide CI, degenerate data). "
+                "INCONCLUSIVE does not terminate the run."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "metric": {"type": "string", "enum": metric_enum},
+                    "metric_id": {"type": "string"},
+                    "inputs": {"type": "object", "additionalProperties": True},
+                    "split": {
+                        "type": "string",
+                        "description": "Split tag for the MetricResult (e.g. 'dev', 'heldout').",
+                    },
+                    "threshold": {"type": "number"},
+                    "comparator": {
+                        "type": "string",
+                        "enum": [">=", ">", "<=", "<", "=="],
+                    },
+                    "metadata": {"type": "object", "additionalProperties": True},
+                    "criterion_id": {
+                        "type": "string",
+                        "description": "Optional pre-registered criterion to evaluate.",
+                    },
+                    "inconclusive_reason": {
+                        "type": "string",
+                        "description": (
+                            "If set (with criterion_id), record the criterion "
+                            "INCONCLUSIVE with this reason instead of PASS/FAIL."
+                        ),
+                    },
+                },
+                "required": ["metric", "metric_id", "inputs", "split"],
+            },
+            handler=_compute_and_commit_handler,
         ),
         ToolSpec(
             name="compute_metric",
@@ -208,14 +300,25 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
             name="evaluate_criterion",
             description=(
                 "One-shot evaluation of a pre-registered success criterion. "
-                "Refuses on cross-split contamination. A failed criterion "
-                "terminates the run; recover via request_spec_revision."
+                "Refuses on cross-split contamination. A FAILed criterion "
+                "terminates the run; recover via request_spec_revision. Pass "
+                "`inconclusive_reason` to record INCONCLUSIVE instead — the "
+                "metric value is still recorded but no PASS/FAIL is read off "
+                "it and the run continues. Use for honest non-results, not to "
+                "dodge a fail you can defend."
             ),
             parameters={
                 "type": "object",
                 "properties": {
                     "criterion_id": {"type": "string"},
                     "metric_result_ref": {"type": "string"},
+                    "inconclusive_reason": {
+                        "type": "string",
+                        "description": (
+                            "Why the metric cannot yield a PASS/FAIL verdict "
+                            "(e.g. n too small, CI too wide, degenerate data)."
+                        ),
+                    },
                 },
                 "required": ["criterion_id"],
             },
@@ -253,6 +356,18 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
             description="Read-only view of consumed budget (tool_calls, gpu_seconds, samples, …).",
             parameters={"type": "object", "properties": {}},
             handler=_get_budget_handler,
+        ),
+        ToolSpec(
+            name="get_progress",
+            description=(
+                "Compact progress digest: stage checklist, per-criterion "
+                "verdicts (PASS/FAIL/INCONCLUSIVE or pending), budget, and any "
+                "abort. Cheap to call — use it to re-ground after a long "
+                "stretch of bash work instead of re-reading state.json or the "
+                "transcript. Same content as the run's progress.md."
+            ),
+            parameters={"type": "object", "properties": {}},
+            handler=_get_progress_handler,
         ),
         ToolSpec(
             name="request_spec_revision",

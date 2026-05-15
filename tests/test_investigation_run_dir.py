@@ -17,6 +17,7 @@ from autointerp.pipelines.investigation.state import (
     RunState,
     StageStatus,
     TerminalState,
+    Verdict,
     initial_state,
     now_iso,
     read_state,
@@ -116,7 +117,7 @@ def test_initial_state_round_trip(tmp_path: Path) -> None:
 def test_state_handles_optional_records(tmp_path: Path) -> None:
     state = initial_state("x", 1, 1, ["black_box"])
     state.criteria_evaluated["c1"] = CriterionRecord(
-        passed=True,
+        verdict=Verdict.PASS,
         value=0.9,
         metric="accuracy",
         comparator=">=",
@@ -137,7 +138,7 @@ def test_state_handles_optional_records(tmp_path: Path) -> None:
     path = tmp_path / "state.json"
     write_state(path, state)
     loaded = read_state(path)
-    assert loaded.criteria_evaluated["c1"].passed is True
+    assert loaded.criteria_evaluated["c1"].verdict is Verdict.PASS
     assert loaded.pending_provenance_tokens["tok_abc"].metric == "accuracy"
     assert loaded.terminal_state is TerminalState.COMPLETED
 

@@ -20,6 +20,7 @@ from autointerp.pipelines.investigation.main import build_system_prompt, prepare
 from autointerp.pipelines.investigation.observer import RunObserver
 from autointerp.pipelines.investigation.state import read_state
 from autointerp.pipelines.investigation.tools import create_investigation_tools
+from autointerp.utils.cost import CostTracker
 
 from .agent_loop import run_agent_turn
 from .config import DEFAULT_CONFIG_PATH, AgentConfig, load_config
@@ -89,16 +90,30 @@ async def async_main(argv: list[str] | None = None) -> int:
         verbose=args.verbose,
     )
 
+    cost_path = handle.root / "cost.json"
+    cost_tracker = CostTracker.load_or_new(cost_path, run_id=handle.run_id)
+
     async with ToolRouter(
         skill_registry=registry,
         auto_approve=config.auto_approve,
     ) as router:
+        # Range-restrict write_file/edit_file to the agent-writable roots.
+        # commit_artifact remains the only path into typed artifact dirs.
+        router.writable_roots = handle.writable_roots()
+        router.scratch_dir = handle.scratch_dir
         for tool in create_investigation_tools(handle):
             router.register_tool(tool)
-        answer = await run_agent_turn(
-            args.prompt, config, context, router, observer=observer
-        )
+        try:
+            answer = await run_agent_turn(
+                args.prompt, config, context, router,
+                observer=observer, cost_tracker=cost_tracker,
+            )
+        finally:
+            # Always persist the cost snapshot — partial runs are still billable.
+            cost_tracker.write(cost_path)
         console.print(answer)
+
+    console.print(cost_tracker.format_summary())
 
     final_state = read_state(handle.state_path)
     if final_state.terminal_state is not None:

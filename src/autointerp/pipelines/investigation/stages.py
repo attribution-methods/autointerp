@@ -232,6 +232,10 @@ def advance_stage(handle: RunHandle) -> dict[str, Any]:
     with handle.log_path.open("a") as fh:
         fh.write(line)
 
+    from .progress import refresh_progress
+
+    refresh_progress(handle)
+
     return {
         "advanced_from": idx,
         "current_stage_idx": state.current_stage_idx,

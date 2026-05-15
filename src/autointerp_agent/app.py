@@ -66,6 +66,13 @@ def _add_investigate_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--no-resume", action="store_true",
                         help="Refuse to resume; require a fresh run dir")
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument(
+        "--max-revisions", type=int, default=3,
+        help=(
+            "Max child specs to draft automatically when a run ends with "
+            "CRITERION_FAILED or REVISION_REQUESTED. Set 0 to disable the loop."
+        ),
+    )
 
 
 def cmd_investigate(argv: list[str]) -> int:
@@ -76,15 +83,83 @@ def cmd_investigate(argv: list[str]) -> int:
     if not args.spec and not args.question:
         parser.error("provide a question (Stage 0) or --spec FILE (skip Stage 0)")
 
+    console = Console()
     if args.spec:
-        return _run_pipeline(args, spec_path=args.spec)
+        spec_path = args.spec
+    else:
+        path = _stage0_to_spec(args)
+        if path is None:
+            console.print("[yellow]Stage 0 ended without a finalized spec — nothing to run.[/yellow]")
+            return 1
+        console.print(f"[bold]Spec finalized:[/bold] {path}")
+        spec_path = path
 
-    spec_path = _stage0_to_spec(args)
-    if spec_path is None:
-        Console().print("[yellow]Stage 0 ended without a finalized spec — nothing to run.[/yellow]")
-        return 1
-    Console().print(f"[bold]Spec finalized:[/bold] {spec_path}")
-    return _run_pipeline(args, spec_path=spec_path)
+    rc = _run_pipeline(args, spec_path=spec_path)
+    return _maybe_revise_loop(args, console=console, last_spec_path=spec_path, last_rc=rc)
+
+
+def _maybe_revise_loop(
+    args: argparse.Namespace, *, console: Console, last_spec_path: str, last_rc: int
+) -> int:
+    """If the run ended in a revisable state, re-engage Stage 0 with the
+    prior-run summary as initial context, then run the resulting child spec.
+    Loops up to ``args.max_revisions`` times.
+    """
+    from .revision_loop import should_auto_revise, summarize_for_stage0
+
+    if args.max_revisions <= 0:
+        return last_rc
+
+    revisions = 0
+    spec_path = last_spec_path
+    rc = last_rc
+    while revisions < args.max_revisions:
+        run_dir = _run_dir_for_spec(args, spec_path)
+        state = _read_json(run_dir / "state.json") if run_dir else None
+        if not should_auto_revise(state):
+            return rc
+
+        terminal = (state or {}).get("terminal_state", "?")
+        revisions += 1
+        console.print(
+            f"\n[bold yellow]Run terminal state:[/bold yellow] {terminal}.\n"
+            f"[bold]Auto-revising[/bold] (attempt {revisions}/{args.max_revisions}). "
+            "Re-engaging Stage 0 with the prior-run summary preloaded — "
+            "review the agent's draft and approve to continue."
+        )
+        summary = summarize_for_stage0(run_dir) if run_dir else ""
+        # Stage 0 expects a research question; passing the summary as the
+        # initial user prompt keeps the existing finalize-watcher in place.
+        revised_args = argparse.Namespace(**vars(args))
+        revised_args.question = summary
+        new_spec_path = _stage0_to_spec(revised_args)
+        if new_spec_path is None:
+            console.print("[yellow]Stage 0 declined to draft a child spec.[/yellow]")
+            return rc
+        console.print(f"[bold]Child spec finalized:[/bold] {new_spec_path}")
+        rc = _run_pipeline(args, spec_path=new_spec_path)
+        spec_path = new_spec_path
+
+    console.print(
+        f"[yellow]Hit --max-revisions={args.max_revisions}. "
+        "Stop auto-revising; resume manually with `autointerp investigate --spec <child>`.[/yellow]"
+    )
+    return rc
+
+
+def _run_dir_for_spec(args: argparse.Namespace, spec_path: str) -> Optional[Path]:
+    """Resolve the runs-root entry for the just-finished spec.
+
+    The pipeline names runs ``<spec_id>_rev<n>``. We read the spec to get
+    those identifiers and join with --runs-root.
+    """
+    try:
+        from autointerp.spec import InvestigationSpec
+        spec = InvestigationSpec.model_validate_json(Path(spec_path).read_text())
+    except Exception:
+        return None
+    run_dir = Path(args.runs_root) / f"{spec.spec_id}_rev{spec.revision}"
+    return run_dir if run_dir.is_dir() else None
 
 
 def _stage0_to_spec(args: argparse.Namespace) -> Optional[str]:
@@ -244,8 +319,13 @@ def _runs_list(runs_root: Path, *, include_hidden: bool) -> int:
         terminal = state.get("terminal_state") if state else None
         if report and report.get("metadata", {}).get("criteria_evaluated"):
             crits = report["metadata"]["criteria_evaluated"]
-            passed = sum(1 for c in crits.values() if c.get("passed"))
+            passed = sum(1 for c in crits.values() if c.get("verdict") == "pass")
+            inconcl = sum(
+                1 for c in crits.values() if c.get("verdict") == "inconclusive"
+            )
             crit_str = f"{passed}/{len(crits)} ✓"
+            if inconcl:
+                crit_str += f" ({inconcl}?)"
         else:
             crit_str = "—"
         started = state.get("run_started_at", "") if state else ""
@@ -295,8 +375,13 @@ def _runs_show(run_dir: Path) -> int:
         table.add_column("threshold")
         table.add_column("observed")
         table.add_column("result")
+        _VERDICT_MARK = {
+            "pass": "[green]✓ pass[/green]",
+            "fail": "[red]✗ fail[/red]",
+            "inconclusive": "[yellow]? inconclusive[/yellow]",
+        }
         for cid, c in crits.items():
-            mark = "[green]✓ pass[/green]" if c.get("passed") else "[red]✗ fail[/red]"
+            mark = _VERDICT_MARK.get(c.get("verdict"), "[dim]?[/dim]")
             table.add_row(
                 cid, str(c.get("metric")), str(c.get("comparator")),
                 f"{c.get('threshold')}", f"{c.get('value'):.4g}" if isinstance(c.get('value'), (int, float)) else str(c.get('value')),

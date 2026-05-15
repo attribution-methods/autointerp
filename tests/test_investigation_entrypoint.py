@@ -168,11 +168,13 @@ def test_create_investigation_tools_registers_all(tmp_path: Path) -> None:
     assert names == {
         "commit_artifact",
         "compute_metric",
+        "compute_and_commit_metric",
         "evaluate_criterion",
         "advance_stage",
         "current_stage",
         "get_state",
         "get_budget",
+        "get_progress",
         "request_spec_revision",
     }
     # Each tool exposes a JSON schema and a handler.

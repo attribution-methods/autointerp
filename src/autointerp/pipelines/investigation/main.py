@@ -17,7 +17,7 @@ from autointerp.spec import InvestigationSpec, SpecStatus
 
 from .report import write_report
 from .run_dir import RunHandle, init_run, load_run
-from .state import RunState, TerminalState, read_state
+from .state import RunState, TerminalState, is_terminal_state, read_state
 
 
 SYSTEM_PROMPT_HEADER = """\
@@ -49,6 +49,12 @@ InvestigationSpec; you are executing it.
   restricted to `scripts/`, `scratch/`, and `INVESTIGATION_LOG.md`.
 - When you finish a stage's metric work, run `evaluate_criterion` for any
   criterion that this stage's split now satisfies, then `advance_stage`.
+- A criterion has three outcomes, not two. If the metric is computed but the
+  evidence genuinely cannot support a PASS/FAIL (too few samples, wide CI,
+  degenerate or contaminated data), pass `inconclusive_reason` to record it
+  INCONCLUSIVE: the value is still logged, the run is NOT terminated, and the
+  criterion counts as evaluated. Use this for honest non-results — not to
+  dodge a FAIL you could defend. A FAIL still terminates the run.
 - If results contradict the spec's hypothesis or methodology, do NOT silently
   reroute — call `request_spec_revision` with a clear `reason`.
 
@@ -104,9 +110,14 @@ stage's `tools` field — read those before writing scripts.
   — typed artifacts; written via `commit_artifact`
 - `scripts/`, `scratch/` — your free space
 - `INVESTIGATION_LOG.md` — your narrative notes
+- `progress.md` — auto-regenerated digest (stage checklist, criterion
+  verdicts, budget). Do not edit it; it is overwritten on every
+  `advance_stage` / `evaluate_criterion`.
 - `log.jsonl` — append-only audit (do not edit)
 
-Use `current_stage` to see what's expected of you right now.
+Use `current_stage` to see what's expected of you right now. After a long
+stretch of bash work, call `get_progress` (or read `progress.md`) to
+re-ground cheaply instead of re-reading `state.json` or the transcript.
 """
 
 
@@ -198,7 +209,7 @@ def prepare_run(
 
 
 def is_terminal(state: RunState) -> bool:
-    return state.terminal_state is not None
+    return is_terminal_state(state.terminal_state)
 
 
 def finalize(handle: RunHandle) -> Path:

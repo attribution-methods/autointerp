@@ -10,6 +10,7 @@ from .guards import GuardError, check_abort_predicates, enforce_budget
 from .metrics import REGISTRY as METRIC_REGISTRY
 from .metrics import MetricRegistryError, compute_metric
 from .observer import RunObserver
+from .progress import refresh_progress, render_progress, write_progress
 from .report import assemble_report, write_report
 from .revision import RevisionGateError, request_spec_revision
 from .run_dir import RunHandle, init_run, load_run
@@ -40,6 +41,9 @@ __all__ = [
     "evaluate_criterion",
     "init_run",
     "load_run",
+    "refresh_progress",
+    "render_progress",
     "request_spec_revision",
+    "write_progress",
     "write_report",
 ]

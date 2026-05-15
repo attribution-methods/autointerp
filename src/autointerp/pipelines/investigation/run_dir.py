@@ -91,6 +91,10 @@ class RunHandle:
     def report_path(self) -> Path:
         return self.root / "report.json"
 
+    @property
+    def progress_path(self) -> Path:
+        return self.root / "progress.md"
+
     def stage_findings_dir(self, stage_idx: int, stage_name: str) -> Path:
         return self.findings_dir / f"stage_{stage_idx}_{stage_name}"
 
@@ -157,6 +161,10 @@ def init_run(spec: InvestigationSpec, runs_root: Path | None = None) -> RunHandl
         stage_names=[s.stage.value for s in spec.stages],
     )
     write_state(handle.state_path, state)
+
+    from .progress import refresh_progress  # deferred: progress imports run_dir
+
+    refresh_progress(handle)
     return handle
 
 
@@ -192,6 +200,10 @@ def load_run(run_dir: Path) -> tuple[RunHandle, InvestigationSpec, RunState]:
     if os.access(spec_path, os.W_OK):
         _freeze_spec_file(spec_path)
     _ensure_log_files(handle)
+
+    from .progress import refresh_progress  # deferred: progress imports run_dir
+
+    refresh_progress(handle)
 
     return handle, spec, state
 

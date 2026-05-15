@@ -271,6 +271,155 @@ def _effect_size(inputs: dict[str, Any]) -> float:
     return (ma - mb) / sd
 
 
+def _auroc(inputs: dict[str, Any]) -> float:
+    """Binary ROC-AUC for ``scores`` against 0/1 ``labels``.
+
+    Computed by the rank-sum identity (Mann-Whitney U): with no ties,
+    AUC = (sum_of_positive_ranks - n_pos*(n_pos+1)/2) / (n_pos * n_neg).
+    Tied scores are handled by midranks. Range [0, 1]; 0.5 = chance.
+
+    Required inputs:
+      - scores: list[float] — model scores (higher = positive)
+      - labels: list[int]   — 0/1 labels parallel to scores
+    """
+    _require_keys(MetricName.AUROC, inputs, ("scores", "labels"))
+    scores = _as_float_list(MetricName.AUROC, "scores", inputs["scores"])
+    raw_labels = inputs["labels"]
+    if not isinstance(raw_labels, list) or len(raw_labels) != len(scores):
+        raise MetricRegistryError(
+            f"auroc: labels must be a list parallel to scores "
+            f"({len(scores)} scores)"
+        )
+    labels: list[int] = []
+    for i, l in enumerate(raw_labels):
+        if l in (0, 1, True, False):
+            labels.append(int(bool(l)))
+        else:
+            raise MetricRegistryError(
+                f"auroc.labels[{i}] = {l!r} is not 0/1 (or boolean)"
+            )
+    n_pos = sum(labels)
+    n_neg = len(labels) - n_pos
+    if n_pos == 0 or n_neg == 0:
+        raise MetricRegistryError(
+            "auroc: need at least one positive and one negative label"
+        )
+
+    # Midrank assignment (for ties): sort by score, assign average of the
+    # tied positions as the rank.
+    order = sorted(range(len(scores)), key=lambda i: scores[i])
+    ranks = [0.0] * len(scores)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and scores[order[j + 1]] == scores[order[i]]:
+            j += 1
+        avg_rank = (i + j) / 2.0 + 1.0  # 1-indexed midrank
+        for k in range(i, j + 1):
+            ranks[order[k]] = avg_rank
+        i = j + 1
+
+    sum_pos_ranks = sum(r for r, l in zip(ranks, labels) if l == 1)
+    auc = (sum_pos_ranks - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg)
+    return float(auc)
+
+
+def _hit_rate(inputs: dict[str, Any]) -> float:
+    """Fraction of trials satisfying a behavioral predicate.
+
+    The agent evaluates the predicate in its own script (predicates can't
+    be JSON-serialized) and passes the boolean result vector.
+
+    Required inputs:
+      - hits: list[bool|int] — 1 if the predicate fired, 0 otherwise
+    """
+    _require_keys(MetricName.HIT_RATE, inputs, ("hits",))
+    raw = inputs["hits"]
+    if not isinstance(raw, list) or not raw:
+        raise MetricRegistryError("hit_rate.hits must be a non-empty list")
+    hits = 0
+    for i, v in enumerate(raw):
+        if v in (0, 1, True, False):
+            hits += int(bool(v))
+        else:
+            raise MetricRegistryError(
+                f"hit_rate.hits[{i}] = {v!r} is not 0/1 (or boolean)"
+            )
+    return hits / len(raw)
+
+
+def _necessity_drop(inputs: dict[str, Any]) -> float:
+    """Drop in a behavioral metric when a component is removed in vivo:
+
+        necessity_drop = clean_metric - with_component_removed
+
+    Sign convention: positive drop = component is necessary (removal hurts).
+
+    Required inputs:
+      - clean_metric: float — full-model behavior
+      - with_component_removed: float — full model with the component ablated
+    """
+    _require_keys(
+        MetricName.NECESSITY_DROP,
+        inputs,
+        ("clean_metric", "with_component_removed"),
+    )
+    clean = float(inputs["clean_metric"])
+    removed = float(inputs["with_component_removed"])
+    return clean - removed
+
+
+def _completeness(inputs: dict[str, Any]) -> float:
+    """Behavior reproduced when only the circuit is intact:
+
+        completeness = circuit_only_metric / full_model_metric
+
+    Range [0, 1] (range-clipping in the registry preserves the unclipped
+    value in metadata if the agent passes a circuit_only > full).
+
+    Required inputs:
+      - full_model_metric:    float — clean full-model behavior
+      - circuit_only_metric:  float — behavior with everything-but-circuit ablated
+    """
+    _require_keys(
+        MetricName.COMPLETENESS,
+        inputs,
+        ("full_model_metric", "circuit_only_metric"),
+    )
+    full = float(inputs["full_model_metric"])
+    circuit_only = float(inputs["circuit_only_metric"])
+    if math.isclose(full, 0.0, abs_tol=1e-9):
+        raise MetricRegistryError(
+            "completeness: full_model_metric is 0; ratio is undefined"
+        )
+    return circuit_only / full
+
+
+def _sufficiency(inputs: dict[str, Any]) -> float:
+    """Behavior reproduced when only the candidate component is active:
+
+        sufficiency = only_component_metric / full_model_metric
+
+    Range [0, 1]. Same shape as completeness but for a single component.
+
+    Required inputs:
+      - full_model_metric:      float — clean full-model behavior
+      - only_component_metric:  float — behavior with everything else ablated
+    """
+    _require_keys(
+        MetricName.SUFFICIENCY,
+        inputs,
+        ("full_model_metric", "only_component_metric"),
+    )
+    full = float(inputs["full_model_metric"])
+    only = float(inputs["only_component_metric"])
+    if math.isclose(full, 0.0, abs_tol=1e-9):
+        raise MetricRegistryError(
+            "sufficiency: full_model_metric is 0; ratio is undefined"
+        )
+    return only / full
+
+
 def _minimality(inputs: dict[str, Any]) -> float:
     """Smallest single-component faithfulness drop in the circuit.
 
@@ -351,6 +500,36 @@ REGISTRY: dict[MetricName, MetricImpl] = {
         required_inputs=("group_a", "group_b"),
         compute=_effect_size,
         one_line="Cohen's d (or paired d_z) between group_a and group_b.",
+    ),
+    MetricName.AUROC: MetricImpl(
+        name=MetricName.AUROC,
+        required_inputs=("scores", "labels"),
+        compute=_auroc,
+        one_line="Binary ROC-AUC via Mann-Whitney U with midrank tie handling.",
+    ),
+    MetricName.HIT_RATE: MetricImpl(
+        name=MetricName.HIT_RATE,
+        required_inputs=("hits",),
+        compute=_hit_rate,
+        one_line="Mean(hits); fraction of trials satisfying the predicate.",
+    ),
+    MetricName.NECESSITY_DROP: MetricImpl(
+        name=MetricName.NECESSITY_DROP,
+        required_inputs=("clean_metric", "with_component_removed"),
+        compute=_necessity_drop,
+        one_line="clean_metric - with_component_removed.",
+    ),
+    MetricName.COMPLETENESS: MetricImpl(
+        name=MetricName.COMPLETENESS,
+        required_inputs=("full_model_metric", "circuit_only_metric"),
+        compute=_completeness,
+        one_line="circuit_only_metric / full_model_metric, clipped to [0, 1].",
+    ),
+    MetricName.SUFFICIENCY: MetricImpl(
+        name=MetricName.SUFFICIENCY,
+        required_inputs=("full_model_metric", "only_component_metric"),
+        compute=_sufficiency,
+        one_line="only_component_metric / full_model_metric, clipped to [0, 1].",
     ),
 }
 
@@ -640,9 +819,77 @@ def compute_metric(
     return payload, token
 
 
+def compute_and_commit_metric(
+    handle: RunHandle,
+    *,
+    metric: MetricName | str,
+    metric_id: str,
+    inputs: dict[str, Any],
+    split: str,
+    threshold: float | None = None,
+    comparator: str | None = None,
+    metadata: dict[str, Any] | None = None,
+    criterion_id: str | None = None,
+    inconclusive_reason: str | None = None,
+) -> dict[str, Any]:
+    """One-shot metric flow: compute, commit, optionally evaluate a criterion.
+
+    Replaces the recipe that was being reinvented per run as ``stage0_*.py``
+    scripts: ``compute_metric`` → ``commit_artifact("MetricResult", ...,
+    provenance_token=...)`` → ``evaluate_criterion`` (when ``criterion_id``
+    is given). All three steps share a single budget tick worth's of UX
+    weight; rolling them into one tool removes ~3 agent iterations per
+    metric, and removes a class of "agent forgot to commit" bugs.
+
+    Returns a dict with keys ``metric_result`` (the validated payload),
+    ``artifact_ref`` (kind/relpath/stage_idx/split), and ``criterion_record``
+    (the CriterionRecord if ``criterion_id`` was given, else None).
+
+    ``inconclusive_reason`` is forwarded to ``evaluate_criterion``: when set
+    (and ``criterion_id`` given) the criterion is recorded INCONCLUSIVE
+    instead of PASS/FAIL and the run is not terminated.
+    """
+    from .artifacts import commit_artifact  # local import to avoid cycles
+    from .criteria import evaluate_criterion
+
+    payload, token = compute_metric(
+        handle,
+        metric=metric,
+        metric_id=metric_id,
+        inputs=inputs,
+        threshold=threshold,
+        comparator=comparator,
+        metadata=metadata,
+    )
+    ref = commit_artifact(
+        handle, "MetricResult", payload, split=split, provenance_token=token
+    )
+    out: dict[str, Any] = {
+        "metric_result": payload,
+        "artifact_ref": {
+            "kind": ref.kind,
+            "artifact_id": ref.artifact_id,
+            "relpath": ref.relpath,
+            "stage_idx": ref.stage_idx,
+            "split": ref.split,
+        },
+        "criterion_record": None,
+    }
+    if criterion_id is not None:
+        rec = evaluate_criterion(
+            handle,
+            criterion_id,
+            metric_result_ref=ref.relpath,
+            inconclusive_reason=inconclusive_reason,
+        )
+        out["criterion_record"] = {"criterion_id": criterion_id, **rec.model_dump()}
+    return out
+
+
 __all__ = [
     "MetricImpl",
     "MetricRegistryError",
     "REGISTRY",
     "compute_metric",
+    "compute_and_commit_metric",
 ]

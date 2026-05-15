@@ -15,7 +15,7 @@ from autointerp import schemas as S
 from autointerp.spec import InvestigationSpec
 
 from .run_dir import RunHandle
-from .state import read_state
+from .state import Verdict, read_state
 
 
 def _load_all(dir_: Path, glob: str, cls: type) -> list[Any]:
@@ -56,11 +56,19 @@ def assemble_report(handle: RunHandle) -> S.InvestigationReport:
     claims: list[str] = []
     limitations: list[str] = []
     for cid, rec in state.criteria_evaluated.items():
-        verdict = "PASS" if rec.passed else "FAIL"
-        claims.append(
-            f"{verdict} criterion {cid!r}: {rec.metric} {rec.comparator} "
-            f"{rec.threshold} (observed {rec.value})"
-        )
+        if rec.verdict is Verdict.INCONCLUSIVE:
+            claims.append(
+                f"INCONCLUSIVE criterion {cid!r}: {rec.metric} (observed "
+                f"{rec.value}) — {rec.inconclusive_reason}"
+            )
+            limitations.append(
+                f"criterion {cid!r} inconclusive: {rec.inconclusive_reason}"
+            )
+        else:
+            claims.append(
+                f"{rec.verdict.value.upper()} criterion {cid!r}: {rec.metric} "
+                f"{rec.comparator} {rec.threshold} (observed {rec.value})"
+            )
     if state.terminal_state is not None:
         limitations.append(f"run terminal_state={state.terminal_state.value}")
     if state.abort_triggered is not None:
@@ -68,6 +76,24 @@ def assemble_report(handle: RunHandle) -> S.InvestigationReport:
             f"abort {state.abort_triggered.predicate_id} on metric "
             f"{state.abort_triggered.metric} (value={state.abort_triggered.value})"
         )
+
+    metadata: dict[str, Any] = {
+        "spec_id": spec.spec_id,
+        "spec_revision": spec.revision,
+        "terminal_state": (
+            state.terminal_state.value if state.terminal_state is not None else None
+        ),
+        "criteria_evaluated": {
+            cid: rec.model_dump() for cid, rec in state.criteria_evaluated.items()
+        },
+        "budget_consumed": state.budget_consumed.model_dump(),
+    }
+    cost_path = handle.root / "cost.json"
+    if cost_path.exists():
+        try:
+            metadata["cost"] = json.loads(cost_path.read_text())
+        except json.JSONDecodeError:
+            pass
 
     report = S.InvestigationReport(
         report_id=state.run_id,
@@ -82,17 +108,7 @@ def assemble_report(handle: RunHandle) -> S.InvestigationReport:
         validations=validations,
         claims=claims,
         limitations=limitations,
-        metadata={
-            "spec_id": spec.spec_id,
-            "spec_revision": spec.revision,
-            "terminal_state": (
-                state.terminal_state.value if state.terminal_state is not None else None
-            ),
-            "criteria_evaluated": {
-                cid: rec.model_dump() for cid, rec in state.criteria_evaluated.items()
-            },
-            "budget_consumed": state.budget_consumed.model_dump(),
-        },
+        metadata=metadata,
     )
     return report
 

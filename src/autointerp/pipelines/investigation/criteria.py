@@ -16,6 +16,14 @@ that make pre-registration meaningful live here:
 Failed criteria flip the run to ``terminal_state = CRITERION_FAILED``. The
 only legitimate way forward from there is a child spec via
 ``request_spec_revision`` (in ``tools.py``).
+
+A criterion may also be evaluated ``INCONCLUSIVE``: the agent passes an
+``inconclusive_reason`` when the metric was computed but a stated limitation
+(too few samples, wide CI, degenerate data) prevents reading a verdict off
+the value. INCONCLUSIVE is one-shot like PASS/FAIL and counts as "evaluated"
+for the final ``advance_stage`` gate, but it is terminal-state-neutral — it
+does not flip the run to ``CRITERION_FAILED``. This lets a run record an
+honest non-result instead of forcing a binary it cannot defend.
 """
 
 from __future__ import annotations
@@ -31,6 +39,7 @@ from .state import (
     CriterionRecord,
     RunState,
     TerminalState,
+    Verdict,
     now_iso,
     read_state,
     write_state,
@@ -191,8 +200,17 @@ def evaluate_criterion(
     criterion_id: str,
     *,
     metric_result_ref: str | None = None,
+    inconclusive_reason: str | None = None,
 ) -> CriterionRecord:
-    """Evaluate one ``Criterion`` exactly once per spec rev."""
+    """Evaluate one ``Criterion`` exactly once per spec rev.
+
+    When ``inconclusive_reason`` is a non-empty string the criterion is
+    recorded ``INCONCLUSIVE``: the matching MetricResult is still resolved and
+    its value recorded for the report, but the threshold comparison is skipped
+    and the run is *not* flipped to ``CRITERION_FAILED``. Use this for honest
+    non-results (too few samples, wide CI, degenerate data) rather than
+    forcing a PASS/FAIL the evidence cannot support.
+    """
     state = read_state(handle.state_path)
     if state.terminal_state is not None and state.terminal_state is not TerminalState.CRITERION_FAILED:
         # CRITERION_FAILED is the one terminal state where re-evaluating cached
@@ -216,25 +234,45 @@ def evaluate_criterion(
             f"MetricResult at {metric_path} is missing a 'value' field"
         )
     value = float(payload["value"])
-    passed = _apply_comparator(value, criterion.comparator, criterion.threshold)
+
+    reason = inconclusive_reason.strip() if isinstance(inconclusive_reason, str) else None
+    if reason:
+        verdict = Verdict.INCONCLUSIVE
+    else:
+        reason = None
+        verdict = (
+            Verdict.PASS
+            if _apply_comparator(value, criterion.comparator, criterion.threshold)
+            else Verdict.FAIL
+        )
 
     record = CriterionRecord(
-        passed=passed,
+        verdict=verdict,
         value=value,
         metric=criterion.metric.value,
         comparator=criterion.comparator,
         threshold=criterion.threshold,
         metric_result_ref=metric_path.relative_to(handle.root).as_posix(),
         evaluated_at=now_iso(),
+        inconclusive_reason=reason,
     )
 
     state.criteria_evaluated[criterion_id] = record
     state.budget_consumed.tool_calls += 1
-    if not passed and state.terminal_state is None:
+    if verdict is Verdict.FAIL and state.terminal_state is None:
         state.terminal_state = TerminalState.CRITERION_FAILED
         state.run_ended_at = record.evaluated_at
     write_state(handle.state_path, state)
 
+    if verdict is Verdict.INCONCLUSIVE:
+        result_summary = (
+            f"value={value!r} -> INCONCLUSIVE ({reason})"
+        )
+    else:
+        result_summary = (
+            f"value={value!r} {criterion.comparator} {criterion.threshold!r} "
+            f"-> {verdict.value}"
+        )
     _append_log(
         handle,
         {
@@ -244,15 +282,16 @@ def evaluate_criterion(
             "args": {
                 "criterion_id": criterion_id,
                 "metric_result_ref": record.metric_result_ref,
+                "inconclusive_reason": reason,
             },
             "ok": True,
-            "result_summary": (
-                f"value={value!r} {criterion.comparator} {criterion.threshold!r} "
-                f"-> passed={passed}"
-            ),
+            "result_summary": result_summary,
             "budget_after": state.budget_consumed.model_dump(),
         },
     )
+    from .progress import refresh_progress
+
+    refresh_progress(handle)
     return record
 
 

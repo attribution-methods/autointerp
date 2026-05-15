@@ -77,6 +77,7 @@ async def run_agent_turn(
     context: ContextManager,
     tool_router: ToolRouter,
     observer: TurnObserver | None = None,
+    cost_tracker: Any | None = None,
 ) -> str:
     context.add_user(user_prompt)
     final_text = ""
@@ -90,6 +91,11 @@ async def run_agent_turn(
             tool_choice="auto",
             stream=False,
         )
+        if cost_tracker is not None:
+            try:
+                cost_tracker.add_response(response)
+            except Exception:
+                pass
         message = response.choices[0].message
         assistant_message = _message_to_dict(message)
         await _emit(observer, "on_assistant", iteration, assistant_message)

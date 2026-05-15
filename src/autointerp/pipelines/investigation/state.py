@@ -38,6 +38,21 @@ class TerminalState(str, Enum):
     REVISION_REQUESTED = "revision_requested"
 
 
+class Verdict(str, Enum):
+    """Three-way outcome for a pre-registered criterion.
+
+    PASS / FAIL are the threshold-comparison outcomes. INCONCLUSIVE is for
+    honest non-results — the metric was computed, but a stated reason (small
+    n, wide CI, data-quality issue, etc.) prevents reading a verdict off the
+    value. Only FAIL flips the run to ``CRITERION_FAILED``; INCONCLUSIVE is
+    terminal-state-neutral.
+    """
+
+    PASS = "pass"
+    FAIL = "fail"
+    INCONCLUSIVE = "inconclusive"
+
+
 class StateBaseModel(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
@@ -52,13 +67,14 @@ class StageRecord(StateBaseModel):
 
 
 class CriterionRecord(StateBaseModel):
-    passed: bool
+    verdict: Verdict
     value: float
     metric: str
     comparator: str
     threshold: float
     metric_result_ref: str
     evaluated_at: str
+    inconclusive_reason: str | None = None
 
 
 class AbortRecord(StateBaseModel):
@@ -120,6 +136,16 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
+def is_terminal_state(value: TerminalState | None) -> bool:
+    """Single greppable predicate: the run will not transition further.
+
+    Adapted from claude-code's ``isTerminalTaskStatus`` — a central helper
+    beats scattered ``state.terminal_state in {COMPLETED, ABORTED, ...}``
+    literals across gates / report / CLI.
+    """
+    return value is not None
+
+
 def read_state(path: Path) -> RunState:
     return RunState.model_validate_json(Path(path).read_text())
 
@@ -166,12 +192,14 @@ __all__ = [
     "StageRecord",
     "StageStatus",
     "TerminalState",
+    "Verdict",
     "CriterionRecord",
     "AbortRecord",
     "BudgetConsumed",
     "RevisionRequest",
     "ProvenanceToken",
     "now_iso",
+    "is_terminal_state",
     "read_state",
     "write_state",
     "initial_state",
