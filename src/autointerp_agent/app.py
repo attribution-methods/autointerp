@@ -216,6 +216,17 @@ def cmd_runs(argv: list[str]) -> int:
     p_tail = sub.add_parser("tail", help="Live stream of tool calls + turns")
     p_tail.add_argument("run_id")
     p_tail.add_argument("--runs-root", default="runs")
+    p_panel = sub.add_parser(
+        "panel", help="Interactive results panel (web UI) for a run"
+    )
+    p_panel.add_argument("run_id")
+    p_panel.add_argument("--runs-root", default="runs")
+    p_panel.add_argument("--host", default="127.0.0.1")
+    p_panel.add_argument("--port", type=int, default=8080)
+    p_panel.add_argument("--no-browser", action="store_true",
+                         help="Do not auto-open a browser tab")
+    p_panel.add_argument("--snapshot-only", action="store_true",
+                         help="Just write results_panel.html and exit (no server)")
     args = parser.parse_args(argv)
 
     if args.action == "list":
@@ -224,7 +235,47 @@ def cmd_runs(argv: list[str]) -> int:
         return _runs_show(Path(args.runs_root) / args.run_id)
     if args.action == "tail":
         return _runs_tail(Path(args.runs_root) / args.run_id)
+    if args.action == "panel":
+        return _runs_panel(
+            Path(args.runs_root) / args.run_id,
+            host=args.host,
+            port=args.port,
+            open_browser=not args.no_browser,
+            snapshot_only=args.snapshot_only,
+        )
     return 2
+
+
+def _runs_panel(
+    run_dir: Path,
+    *,
+    host: str,
+    port: int,
+    open_browser: bool,
+    snapshot_only: bool,
+) -> int:
+    console = Console()
+    if not run_dir.exists():
+        console.print(f"[red]No such run dir:[/red] {run_dir}")
+        return 1
+    try:
+        from autointerp.pipelines.investigation import panel
+    except Exception as exc:  # pragma: no cover
+        console.print(f"[red]Cannot load panel module:[/red] {exc}")
+        return 1
+    try:
+        snap = panel.write_snapshot(run_dir)
+        console.print(f"[green]Snapshot written:[/green] {snap}")
+        if snapshot_only:
+            return 0
+        panel.serve(run_dir, host=host, port=port, open_browser=open_browser)
+        return 0
+    except RuntimeError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 1
+    except KeyboardInterrupt:
+        console.print("\n[dim]panel stopped[/dim]")
+        return 0
 
 
 def _runs_list(runs_root: Path, *, include_hidden: bool) -> int:

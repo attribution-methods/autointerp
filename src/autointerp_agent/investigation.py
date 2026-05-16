@@ -104,6 +104,21 @@ async def async_main(argv: list[str] | None = None) -> int:
     if final_state.terminal_state is not None:
         report_path = write_report(handle)
         console.print(f"[bold green]Report written:[/bold green] {report_path}")
+        try:
+            from autointerp.pipelines.investigation.panel import write_snapshot
+
+            snap = write_snapshot(handle.root)
+            console.print(
+                f"[bold green]Results panel:[/bold green] {snap}\n"
+                f"  Interactive view: "
+                f"[cyan]autointerp runs panel {handle.run_id} "
+                f"--runs-root {handle.root.parent}[/cyan]"
+            )
+        except Exception as exc:  # never let the panel break a finished run
+            console.print(
+                f"[yellow]Results panel skipped ({type(exc).__name__}: "
+                f"{exc}); run artifacts are intact.[/yellow]"
+            )
     else:
         console.print("[yellow]Run still in-progress; no report written this turn.[/yellow]")
     return 0
