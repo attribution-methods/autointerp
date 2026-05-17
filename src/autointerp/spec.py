@@ -133,13 +133,13 @@ METRIC_META: dict[MetricName, MetricMeta] = {
     MetricName.LOGIT_DIFF: MetricMeta(
         name=MetricName.LOGIT_DIFF, family=MetricFamily.BEHAVIORAL,
         value_range=(None, None), direction="higher",
-        requires_inputs=["logits", "target_token", "foil_token"],
+        requires_inputs=["target_logits", "foil_logits"],
         one_line="logit(target) - logit(foil) at the prediction position.",
     ),
     MetricName.HIT_RATE: MetricMeta(
         name=MetricName.HIT_RATE, family=MetricFamily.BEHAVIORAL,
         value_range=(0.0, 1.0), direction="higher",
-        requires_inputs=["outputs", "predicate"],
+        requires_inputs=["hits"],
         one_line="Fraction of outputs satisfying a behavioral predicate.",
     ),
     MetricName.EFFECT_SIZE: MetricMeta(
@@ -151,7 +151,7 @@ METRIC_META: dict[MetricName, MetricMeta] = {
     MetricName.KL_TO_CLEAN: MetricMeta(
         name=MetricName.KL_TO_CLEAN, family=MetricFamily.LOCALIZATION,
         value_range=(0.0, None), direction="lower",
-        requires_inputs=["p_clean", "p_intervened"],
+        requires_inputs=["kl_per_sample"],
         one_line="KL divergence between intervened and clean output distributions.",
     ),
     MetricName.DIRECT_CONTRIBUTION: MetricMeta(
@@ -163,7 +163,7 @@ METRIC_META: dict[MetricName, MetricMeta] = {
     MetricName.ABLATION_DROP: MetricMeta(
         name=MetricName.ABLATION_DROP, family=MetricFamily.LOCALIZATION,
         value_range=(None, None), direction="higher",
-        requires_inputs=["clean_metric", "ablated_metric"],
+        requires_inputs=["baseline_metric", "ablated_metric"],
         one_line="Drop in a behavioral metric when a component is ablated.",
     ),
     MetricName.PATCH_EFFECT_RECOVERY: MetricMeta(
@@ -175,7 +175,7 @@ METRIC_META: dict[MetricName, MetricMeta] = {
     MetricName.FAITHFULNESS: MetricMeta(
         name=MetricName.FAITHFULNESS, family=MetricFamily.CAUSAL,
         value_range=(0.0, 1.0), direction="higher",
-        requires_inputs=["circuit_metric", "full_model_metric"],
+        requires_inputs=["circuit_metric", "full_model_metric", "corrupted_metric"],
         one_line="Behavior reproduced by the candidate circuit alone (Wang et al.).",
     ),
     MetricName.COMPLETENESS: MetricMeta(
@@ -187,7 +187,7 @@ METRIC_META: dict[MetricName, MetricMeta] = {
     MetricName.MINIMALITY: MetricMeta(
         name=MetricName.MINIMALITY, family=MetricFamily.CAUSAL,
         value_range=(0.0, None), direction="higher",
-        requires_inputs=["faithfulness_full", "faithfulness_minus_one"],
+        requires_inputs=["full_circuit_faithfulness", "removed_faithfulness"],
         one_line="Faithfulness drop when removing any single circuit component.",
     ),
     MetricName.NECESSITY_DROP: MetricMeta(

@@ -1,0 +1,1 @@
+MetricRegistryError: logit_diff: missing required input keys: ['foil_logits', 'target_logits']; got ['foil_token', 'logits', 'target_token']

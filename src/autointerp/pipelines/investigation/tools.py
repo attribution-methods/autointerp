@@ -86,8 +86,18 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
             return "metric (string) is required", False
         if not isinstance(metric_id, str) or not metric_id:
             return "metric_id (non-empty string) is required", False
+        if isinstance(inputs, str):
+            import json as _json
+            from pathlib import Path as _Path
+            p = _Path(inputs) if _Path(inputs).is_absolute() else handle.root / inputs
+            if not p.exists():
+                return f"inputs file not found: {p}", False
+            try:
+                inputs = _json.loads(p.read_text())
+            except Exception as exc:
+                return f"failed to read inputs file {p}: {exc}", False
         if not isinstance(inputs, dict):
-            return "inputs must be an object/dict", False
+            return "inputs must be an object/dict or a path to a JSON file", False
         if not isinstance(split, str) or not split:
             return "split (non-empty string) is required", False
         try:
@@ -118,8 +128,18 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
             return "metric (string) is required", False
         if not isinstance(metric_id, str) or not metric_id:
             return "metric_id (non-empty string) is required", False
+        if isinstance(inputs, str):
+            import json as _json
+            from pathlib import Path as _Path
+            p = _Path(inputs) if _Path(inputs).is_absolute() else handle.root / inputs
+            if not p.exists():
+                return f"inputs file not found: {p}", False
+            try:
+                inputs = _json.loads(p.read_text())
+            except Exception as exc:
+                return f"failed to read inputs file {p}: {exc}", False
         if not isinstance(inputs, dict):
-            return "inputs must be an object/dict", False
+            return "inputs must be an object/dict or a path to a JSON file", False
         try:
             payload, token = compute_metric(
                 handle,
@@ -229,7 +249,13 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
                 "properties": {
                     "metric": {"type": "string", "enum": metric_enum},
                     "metric_id": {"type": "string"},
-                    "inputs": {"type": "object", "additionalProperties": True},
+                    "inputs": {
+                        "description": (
+                            "Metric inputs as a dict, OR a path (string) to a "
+                            "JSON file containing the inputs dict. Use a file "
+                            "path when inputs are large (e.g. per-sample arrays)."
+                        ),
+                    },
                     "split": {
                         "type": "string",
                         "description": "Split tag for the MetricResult (e.g. 'dev', 'heldout').",

@@ -1,0 +1,1 @@
+Refused unsafe path: 'scripts/01_verify_ioi.py'

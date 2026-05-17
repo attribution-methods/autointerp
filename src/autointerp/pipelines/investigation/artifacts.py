@@ -260,7 +260,11 @@ def commit_artifact(
 
     if kind == "MetricResult":
         assert isinstance(model, S.MetricResult)
-        _check_metric_provenance(state, model, provenance_token, stage_idx)
+        # Flag B: when the provenance mechanism is off, MetricResult may be
+        # committed with an agent-reported value and no token (number
+        # fabrication is exactly the failure mode under test).
+        if handle.flags.provenance_metrics:
+            _check_metric_provenance(state, model, provenance_token, stage_idx)
     elif provenance_token is not None:
         raise ArtifactGateError(
             f"provenance_token is only valid for MetricResult; got {kind!r}"
@@ -281,7 +285,7 @@ def commit_artifact(
     if rec.status is StageStatus.PENDING:
         rec.status = StageStatus.IN_PROGRESS
         rec.started_at = rec.started_at or committed_at
-    if kind == "MetricResult" and provenance_token:
+    if kind == "MetricResult" and provenance_token and handle.flags.provenance_metrics:
         state.pending_provenance_tokens.pop(provenance_token, None)
         state.provenance_tokens_consumed += 1
     state.budget_consumed.tool_calls += 1

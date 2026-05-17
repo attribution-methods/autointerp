@@ -22,6 +22,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .flags import AblationFlags
+
 
 class StageStatus(str, Enum):
     PENDING = "pending"
@@ -131,6 +133,11 @@ class RunState(StateBaseModel):
     pending_provenance_tokens: dict[str, ProvenanceToken] = Field(default_factory=dict)
     provenance_tokens_consumed: int = 0
 
+    # Which discipline mechanisms are enforced for this run. Absent in
+    # pre-existing state.json files → defaults to all-on (the original
+    # scaffold), so old runs load and behave unchanged.
+    ablation_flags: AblationFlags = Field(default_factory=AblationFlags)
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
@@ -170,7 +177,13 @@ def write_state(path: Path, state: RunState) -> None:
         raise
 
 
-def initial_state(spec_id: str, spec_revision: int, n_stages: int, stage_names: list[str]) -> RunState:
+def initial_state(
+    spec_id: str,
+    spec_revision: int,
+    n_stages: int,
+    stage_names: list[str],
+    ablation_flags: AblationFlags | None = None,
+) -> RunState:
     """Build a fresh RunState with one StageRecord per spec stage, all PENDING."""
     if len(stage_names) != n_stages:
         raise ValueError(f"stage_names length {len(stage_names)} != n_stages {n_stages}")
@@ -184,10 +197,12 @@ def initial_state(spec_id: str, spec_revision: int, n_stages: int, stage_names: 
         run_started_at=now_iso(),
         current_stage_idx=0,
         stage_status=stage_status,
+        ablation_flags=ablation_flags or AblationFlags(),
     )
 
 
 __all__ = [
+    "AblationFlags",
     "RunState",
     "StageRecord",
     "StageStatus",

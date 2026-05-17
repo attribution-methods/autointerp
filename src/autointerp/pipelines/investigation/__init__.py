@@ -6,6 +6,7 @@ gated tool surface. See ``docs/investigation.md`` for the full design.
 
 from .artifacts import ArtifactGateError, ArtifactRef, commit_artifact
 from .criteria import CriterionGateError, evaluate_criterion
+from .flags import AblationFlags
 from .guards import GuardError, check_abort_predicates, enforce_budget
 from .metrics import REGISTRY as METRIC_REGISTRY
 from .metrics import MetricRegistryError, compute_metric
@@ -18,6 +19,7 @@ from .stages import StageGateError, advance_stage, current_stage_view
 from .state import RunState, StageStatus, TerminalState
 
 __all__ = [
+    "AblationFlags",
     "ArtifactGateError",
     "ArtifactRef",
     "CriterionGateError",

@@ -15,6 +15,7 @@ from typing import Any
 
 from autointerp.spec import InvestigationSpec, SpecStatus
 
+from .flags import AblationFlags
 from .report import write_report
 from .run_dir import RunHandle, init_run, load_run
 from .state import RunState, TerminalState, is_terminal_state, read_state
@@ -121,6 +122,88 @@ re-ground cheaply instead of re-reading `state.json` or the transcript.
 """
 
 
+# --- Inviolable-rule bodies (numbers applied dynamically) ------------------
+# Each rule announces one discipline mechanism. An off ablation flag removes
+# both the gate (in run_dir/artifacts/criteria) and its announced rule here
+# (decision D2). Rule "criterion_oneshot" is never ablated.
+_RULE_BODIES: dict[str, str] = {
+    "spec_readonly": (
+        "The spec is read-only. You may read it (`read_file spec.json`) but cannot\n"
+        "   edit it. Disagreements with the spec are resolved by `request_spec_revision`."
+    ),
+    "provenance": (
+        "`compute_metric` is the only path to a `MetricResult`. Its value cannot be\n"
+        "   edited before commit; the gate verifies this via a one-time provenance\n"
+        "   token."
+    ),
+    "criterion_oneshot": (
+        "`evaluate_criterion` runs once per criterion per spec revision. You cannot\n"
+        "   re-run a criterion to make it pass."
+    ),
+    "cross_split": (
+        "Cross-split contamination is mechanically blocked: a criterion with\n"
+        "   `on_split=heldout` only accepts MetricResults committed under split=heldout."
+    ),
+    "immutable": (
+        "`success_criteria`, `metrics`, `abort_if`, `dataset`, `contrast`, and\n"
+        "   `stages` are immutable for this run."
+    ),
+}
+
+# The exact 5-rule block as it appears verbatim in SYSTEM_PROMPT_HEADER.
+_OLD_RULES_BLOCK = (
+    f"1. {_RULE_BODIES['spec_readonly']}\n"
+    f"2. {_RULE_BODIES['provenance']}\n"
+    f"3. {_RULE_BODIES['criterion_oneshot']}\n"
+    f"4. {_RULE_BODIES['cross_split']}\n"
+    f"5. {_RULE_BODIES['immutable']}\n"
+)
+
+# Prose that only makes sense when the spec is frozen (flag A).
+_REVISION_BULLET = (
+    "\n- If results contradict the spec's hypothesis or methodology, do NOT silently\n"
+    "  reroute — call `request_spec_revision` with a clear `reason`."
+)
+_SPEC_JSON_FROZEN = "- `spec.json` — frozen approved spec (read-only)"
+_SPEC_JSON_WRITABLE = "- `spec.json` — approved spec (writable in this ablation run)"
+
+
+def build_header(flags: AblationFlags | None = None) -> str:
+    """Render the system-prompt header for a given ablation config.
+
+    All-on (the default) returns the canonical header verbatim, so C_full and
+    every existing test are byte-identical. A leave-one-out config drops the
+    disabled mechanism's inviolable rule (renumbering the survivors) and any
+    prose that announces a now-absent gate (decision D2).
+    """
+    flags = flags or AblationFlags()
+    if flags.all_on:
+        return SYSTEM_PROMPT_HEADER
+
+    active: list[str] = []
+    if flags.freeze_spec:
+        active.append(_RULE_BODIES["spec_readonly"])
+    if flags.provenance_metrics:
+        active.append(_RULE_BODIES["provenance"])
+    active.append(_RULE_BODIES["criterion_oneshot"])
+    if flags.split_disjoint:
+        active.append(_RULE_BODIES["cross_split"])
+    if flags.freeze_spec:
+        active.append(_RULE_BODIES["immutable"])
+    new_block = "".join(f"{i}. {body}\n" for i, body in enumerate(active, 1))
+
+    header = SYSTEM_PROMPT_HEADER.replace(_OLD_RULES_BLOCK, new_block, 1)
+    if header == SYSTEM_PROMPT_HEADER:  # replace must have matched
+        raise RuntimeError(
+            "build_header: inviolable-rule block not found verbatim in "
+            "SYSTEM_PROMPT_HEADER; the surgical anchor is stale."
+        )
+    if not flags.freeze_spec:
+        header = header.replace(_REVISION_BULLET, "", 1)
+        header = header.replace(_SPEC_JSON_FROZEN, _SPEC_JSON_WRITABLE, 1)
+    return header
+
+
 def render_spec_summary(spec: InvestigationSpec) -> str:
     lines: list[str] = []
     lines.append(f"## Spec: {spec.spec_id} (rev {spec.revision})")
@@ -167,9 +250,11 @@ def render_spec_summary(spec: InvestigationSpec) -> str:
     return "\n".join(lines)
 
 
-def build_system_prompt(spec: InvestigationSpec, run_id: str) -> str:
+def build_system_prompt(
+    spec: InvestigationSpec, run_id: str, flags: AblationFlags | None = None
+) -> str:
     return (
-        SYSTEM_PROMPT_HEADER
+        build_header(flags)
         + "\n\n"
         + f"# Run: {run_id}\n\n"
         + render_spec_summary(spec)
@@ -181,10 +266,13 @@ def prepare_run(
     *,
     runs_root: Path | None = None,
     resume: bool | None = None,
+    flags: AblationFlags | None = None,
 ) -> tuple[RunHandle, InvestigationSpec, RunState]:
     """Resolve the spec to either a fresh init_run or a resumed load_run.
 
     If ``resume`` is None: auto — resume if the run dir already exists.
+    ``flags`` selects the ablation config for a *fresh* run; on resume the
+    persisted config in state.json wins (a run's identity is fixed at init).
     """
     spec_path = Path(spec_path)
     spec = InvestigationSpec.model_validate_json(spec_path.read_text())
@@ -203,7 +291,7 @@ def prepare_run(
         return handle, spec, state
     if resume is True:
         raise FileNotFoundError(f"no run dir to resume at {root}")
-    handle = init_run(spec, runs_root=runs_root)
+    handle = init_run(spec, runs_root=runs_root, flags=flags)
     state = read_state(handle.state_path)
     return handle, spec, state
 
@@ -219,6 +307,7 @@ def finalize(handle: RunHandle) -> Path:
 
 __all__ = [
     "SYSTEM_PROMPT_HEADER",
+    "build_header",
     "build_system_prompt",
     "finalize",
     "is_terminal",

@@ -1,0 +1,127 @@
+[exit 1] cd /lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/a...
+Loading GPT-2-small model...
+
+Loading IOI dev dataset...
+Loaded 500 samples
+
+Preparing prompts...
+
+Caching clean activations...
+
+Computing baseline metrics...
+
+Baseline metrics:
+  Clean logit_diff:   2.9246
+  Corrupt logit_diff: 1.5259
+  Gap:                1.3987
+Testing joint recovery with 1 heads...
+  L9H9
+
+Top-1 heads joint recovery:
+  Patched logit_diff: 1.3846
+  Recovery:           -0.1011 (-10.1%)
+Testing joint recovery with 3 heads...
+  L9H9
+  L8H6
+  L8H10
+
+Top-3 heads joint recovery:
+  Patched logit_diff: 1.4115
+  Recovery:           -0.0818 (-8.2%)
+Testing joint recovery with 5 heads...
+  L9H9
+  L8H6
+  L8H10
+  L7H9
+  L10H0
+
+Top-5 heads joint recovery:
+  Patched logit_diff: 1.2461
+  Recovery:           -0.2000 (-20.0%)
+Testing joint recovery with 10 heads...
+  L9H9
+  L8H6
+  L8H10
+  L7H9
+  L10H0
+  L9H7
+  L7H3
+  L10H6
+  L10H10
+  L10H1
+
+Top-10 heads joint recovery:
+  Patched logit_diff: 0.6677
+  Recovery:           -0.6136 (-61.4%)
+Testing joint recovery with 15 heads...
+  L9H9
+  L8H6
+  L8H10
+  L7H9
+  L10H0
+  L9H7
+  L7H3
+  L10H6
+  L10H10
+  L10H1
+  ... and 5 more
+
+Top-15 heads joint recovery:
+  Patched logit_diff: 0.7512
+  Recovery:           -0.5539 (-55.4%)
+Testing joint recovery with 20 heads...
+  L9H9
+  L8H6
+  L8H10
+  L7H9
+  L10H0
+  L9H7
+  L7H3
+  L10H6
+  L10H10
+  L10H1
+  ... and 10 more
+
+Top-20 heads joint recovery:
+  Patched logit_diff: 0.7062
+  Recovery:           -0.5860 (-58.6%)
+Testing joint recovery with 30 heads...
+  L9H9
+  L8H6
+  L8H10
+  L7H9
+  L10H0
+  L9H7
+  L7H3
+  L10H6
+  L10H10
+  L10H1
+  ... and 20 more
+
+Top-30 heads joint recovery:
+  Patched logit_diff: 0.7337
+  Recovery:           -0.5664 (-56.6%)
+Traceback (most recent call last):
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_joint_recovery.py", line 187, in <module>
+    main()
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_joint_recovery.py", line 165, in main
+    json.dump({
+  File "/usr/lib/python3.10/json/__init__.py", line 179, in dump
+    for chunk in iterable:
+  File "/usr/lib/python3.10/json/encoder.py", line 431, in _iterencode
+    yield from _iterencode_dict(o, _current_indent_level)
+  File "/usr/lib/python3.10/json/encoder.py", line 405, in _iterencode_dict
+    yield from chunks
+  File "/usr/lib/python3.10/json/encoder.py", line 325, in _iterencode_list
+    yield from chunks
+  File "/usr/lib/python3.10/json/encoder.py", line 405, in _iterencode_dict
+    yield from chunks
+  File "/usr/lib/python3.10/json/encoder.py", line 325, in _iterencode_list
+    yield from chunks
+  File "/usr/lib/python3.10/json/encoder.py", line 325, in _iterencode_list
+    yield from chunks
+  File "/usr/lib/python3.10/json/encoder.py", line 438, in _iterencode
+    o = _default(o)
+  File "/usr/lib/python3.10/json/encoder.py", line 179, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+TypeError: Object of type int64 is not JSON serializable

@@ -1,0 +1,34 @@
+/home/ubuntu/.local/lib/python3.10/site-packages/matplotlib/projections/__init__.py:63: UserWarning: Unable to import Axes3D. This may be due to multiple versions of Matplotlib being installed (e.g. as a system package and as a pip package). As a result, the 3D projection is not available.
+  warnings.warn("Unable to import Axes3D. This may be due to multiple versions of "
+Loading GPT-2-small...
+Prompt: When Mary and John went to the store, John gave a drink to
+IO (correct): Mary, S (incorrect): John
+
+Tokens: ['When', 'ĠMary', 'Ġand', 'ĠJohn', 'Ġwent', 'Ġto', 'Ġthe', 'Ġstore', ',', 'ĠJohn', 'Ġgave', 'Ġa', 'Ġdrink', 'Ġto']
+
+IO logit: -81.000
+S logit: -83.000
+Logit diff (IO - S): 2.000
+
+================================================================================
+DIRECT LOGIT ATTRIBUTION BY LAYER
+================================================================================
+Layer    Attn Contrib    MLP Contrib     Total          
+--------------------------------------------------------------------------------
+0        -4.250          -4.922          -9.172         
+1        -2.766          0.301           -2.465         
+2        2.676           -6.393          -3.717         
+3        3.430           0.289           3.719          
+4        -3.180          0.469           -2.711         
+5        -5.094          -2.898          -7.992         
+6        -0.219          -1.262          -1.480         
+7        -6.594          -0.203          -6.797         
+8        0.310           -6.375          -6.065         
+9        -4.688          -9.031          -13.719        
+10       18.473          -35.469         -16.996        
+11       -76.125         -31.000         -107.125       
+
+Sum of contributions: -174.520
+Actual logit diff: 2.000
+Saved to scratch/layer_contributions.json
+Saved plot to scratch/layer_contributions.png

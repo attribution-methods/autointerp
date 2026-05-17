@@ -87,11 +87,16 @@ def _matches(
     metric: MetricName,
     split: str,
     custom_name: str | None = None,
+    enforce_split: bool = True,
 ) -> bool:
     md = payload.get("metadata") or {}
     expected = custom_name if metric == MetricName.CUSTOM else metric.value
     if md.get("metric_name") != expected:
         return False
+    if not enforce_split:
+        # Flag C off: split tags are still written but not used to match —
+        # discovery-set metrics may satisfy a heldout criterion.
+        return True
     prov = md.get("_provenance") or {}
     return prov.get("split") == split
 
@@ -136,7 +141,7 @@ def _resolve_metric_result(
                 f"criterion {criterion.criterion_id!r} requires "
                 f"{expected_metric!r}"
             )
-        if observed_split != criterion.on_split:
+        if handle.flags.split_disjoint and observed_split != criterion.on_split:
             raise CriterionGateError(
                 f"split disjointness violated: metric_result_ref is tagged "
                 f"split={observed_split!r} but criterion requires on_split="
@@ -158,6 +163,7 @@ def _resolve_metric_result(
             metric=criterion.metric,
             split=criterion.on_split,
             custom_name=custom_name,
+            enforce_split=handle.flags.split_disjoint,
         )
     ]
     if not candidates:

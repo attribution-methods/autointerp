@@ -1,0 +1,313 @@
+     1	"""Tool registry metadata for agent scaffolds."""
+     2	
+     3	from __future__ import annotations
+     4	
+     5	from dataclasses import dataclass
+     6	from typing import Dict, List
+     7	
+     8	
+     9	@dataclass(frozen=True)
+    10	class ToolSpec:
+    11	    name: str
+    12	    module: str
+    13	    function: str
+    14	    description: str
+    15	
+    16	
+    17	TOOLS: List[ToolSpec] = [
+    18	    ToolSpec(
+    19	        "sample",
+    20	        "autointerp.tools.blackbox",
+    21	        "sample",
+    22	        "Send chat prompts with optional prefill.",
+    23	    ),
+    24	    ToolSpec(
+    25	        "complete-text",
+    26	        "autointerp.tools.blackbox",
+    27	        "complete_text",
+    28	        "Run raw text completion.",
+    29	    ),
+    30	    ToolSpec(
+    31	        "sample-user-initial",
+    32	        "autointerp.tools.blackbox",
+    33	        "sample_user_initial",
+    34	        "Sample an initial user turn.",
+    35	    ),
+    36	    ToolSpec(
+    37	        "sample-user-followup",
+    38	        "autointerp.tools.blackbox",
+    39	        "sample_user_followup",
+    40	        "Sample a follow-up user turn.",
+    41	    ),
+    42	    ToolSpec(
+    43	        "extract-tagged-json",
+    44	        "autointerp.tools.blackbox",
+    45	        "extract_tagged_json",
+    46	        "Parse tagged JSON scenarios.",
+    47	    ),
+    48	    ToolSpec(
+    49	        "capture-activations",
+    50	        "autointerp.tools.activations",
+    51	        "capture_activations",
+    52	        "Extract activations at layers/components.",
+    53	    ),
+    54	    ToolSpec(
+    55	        "cache-components",
+    56	        "autointerp.tools.activations",
+    57	        "cache_components",
+    58	        "Cache multiple activation sites.",
+    59	    ),
+    60	    ToolSpec(
+    61	        "contrastive-direction",
+    62	        "autointerp.tools.vectors",
+    63	        "contrastive_direction",
+    64	        "Compute mean-difference directions.",
+    65	    ),
+    66	    ToolSpec(
+    67	        "baseline-subtracted-direction",
+    68	        "autointerp.tools.vectors",
+    69	        "baseline_subtracted_direction",
+    70	        "Compute baseline-subtracted directions.",
+    71	    ),
+    72	    ToolSpec(
+    73	        "batch-contrastive-directions",
+    74	        "autointerp.tools.vectors",
+    75	        "batch_contrastive_directions",
+    76	        "Compute many contrastive directions.",
+    77	    ),
+    78	    ToolSpec(
+    79	        "cosine-similarity",
+    80	        "autointerp.tools.vectors",
+    81	        "cosine_similarity",
+    82	        "Compare vector directions.",
+    83	    ),
+    84	    ToolSpec(
+    85	        "generate-with-steering",
+    86	        "autointerp.tools.generation",
+    87	        "generate_with_steering",
+    88	        "Apply activation steering during generation.",
+    89	    ),
+    90	    ToolSpec(
+    91	        "generate-with-multi-steering",
+    92	        "autointerp.tools.generation",
+    93	        "generate_with_multi_steering",
+    94	        "Apply multiple steering vectors.",
+    95	    ),
+    96	    ToolSpec(
+    97	        "logit-lens",
+    98	        "autointerp.tools.lenses",
+    99	        "logit_lens",
+   100	        "Decode intermediate token predictions.",
+   101	    ),
+   102	    ToolSpec(
+   103	        "direct-logit-attribution",
+   104	        "autointerp.tools.lenses",
+   105	        "direct_logit_attribution",
+   106	        "Score direct residual-to-logit contributions.",
+   107	    ),
+   108	    ToolSpec(
+   109	        "patch-generation",
+   110	        "autointerp.tools.patching",
+   111	        "patch_generation",
+   112	        "Patch activations and generate.",
+   113	    ),
+   114	    ToolSpec(
+   115	        "ablate-generation",
+   116	        "autointerp.tools.patching",
+   117	        "ablate_generation",
+   118	        "Ablate a layer/component during generation.",
+   119	    ),
+   120	    ToolSpec(
+   121	        "sweep-patch-sites",
+   122	        "autointerp.tools.patching",
+   123	        "sweep_patch_sites",
+   124	        "Sweep patch sites across layers/components.",
+   125	    ),
+   126	    ToolSpec(
+   127	        "cache-head-z",
+   128	        "autointerp.tools.head_patching",
+   129	        "cache_head_z",
+   130	        "Cache per-head pre-W_O activations (z) at chosen layers.",
+   131	    ),
+   132	    ToolSpec(
+   133	        "mean-head-z",
+   134	        "autointerp.tools.head_patching",
+   135	        "mean_head_z",
+   136	        "Average cached head z over the batch to build a mean-ablation baseline.",
+   137	    ),
+   138	    ToolSpec(
+   139	        "run-with-head-patches",
+   140	        "autointerp.tools.head_patching",
+   141	        "run_with_head_patches",
+   142	        "Forward pass with arbitrary (layer, head, position) z overrides.",
+   143	    ),
+   144	    ToolSpec(
+   145	        "mean-ablate-heads",
+   146	        "autointerp.tools.head_patching",
+   147	        "mean_ablate_heads",
+   148	        "Mean-ablate one or more (layer, head) sites and return logits.",
+   149	    ),
+   150	    ToolSpec(
+   151	        "head-patch-sweep",
+   152	        "autointerp.tools.head_patching",
+   153	        "head_patch_sweep",
+   154	        "Sweep clean->corrupt patching across (layer, head) pairs.",
+   155	    ),
+   156	    ToolSpec(
+   157	        "path-patch",
+   158	        "autointerp.tools.head_patching",
+   159	        "path_patch",
+   160	        "Single-step path patching: sender's direct effect with others frozen to corrupt.",
+   161	    ),
+   162	    ToolSpec(
+   163	        "logit-diff",
+   164	        "autointerp.tools.head_patching",
+   165	        "logit_diff",
+   166	        "Per-row logit(IO)-logit(S) metric for paired-token sweeps.",
+   167	    ),
+   168	    ToolSpec(
+   169	        "train-probe",
+   170	        "autointerp.tools.probes",
+   171	        "train_probe",
+   172	        "Train a linear or MLP probe.",
+   173	    ),
+   174	    ToolSpec(
+   175	        "gradient-attribution",
+   176	        "autointerp.tools.attribution",
+   177	        "next_token_gradient_x_activation",
+   178	        "Score token positions by gradient times activation.",
+   179	    ),
+   180	    ToolSpec(
+   181	        "attribution-patch-score",
+   182	        "autointerp.tools.attribution",
+   183	        "attribution_patch_score",
+   184	        "Estimate patching effects with first-order attribution.",
+   185	    ),
+   186	    ToolSpec(
+   187	        "rank-attributions",
+   188	        "autointerp.tools.attribution",
+   189	        "rank_attributions",
+   190	        "Rank attribution score maps.",
+   191	    ),
+   192	    ToolSpec(
+   193	        "top-sae-features",
+   194	        "autointerp.tools.sae",
+   195	        "top_features",
+   196	        "Rank SAE features by activation.",
+   197	    ),
+   198	    ToolSpec(
+   199	        "attach-sae-labels",
+   200	        "autointerp.tools.sae",
+   201	        "attach_labels",
+   202	        "Attach labels to SAE feature rows.",
+   203	    ),
+   204	    ToolSpec(
+   205	        "filter-semantic-features",
+   206	        "autointerp.tools.sae",
+   207	        "filter_semantic_features",
+   208	        "Drop low-semantic SAE features.",
+   209	    ),
+   210	    ToolSpec(
+   211	        "format-feature-cluster",
+   212	        "autointerp.tools.sae",
+   213	        "format_feature_cluster",
+   214	        "Format SAE feature clusters.",
+   215	    ),
+   216	    ToolSpec(
+   217	        "rank-circuit-sites",
+   218	        "autointerp.tools.circuits",
+   219	        "rank_sites",
+   220	        "Rank candidate circuit sites.",
+   221	    ),
+   222	    ToolSpec(
+   223	        "combine-circuit-scores",
+   224	        "autointerp.tools.circuits",
+   225	        "combine_scores",
+   226	        "Combine evidence scores across methods.",
+   227	    ),
+   228	    ToolSpec(
+   229	        "formula-score",
+   230	        "autointerp.tools.circuits",
+   231	        "formula_score",
+   232	        "Compute an aggregate circuit evidence score.",
+   233	    ),
+   234	    ToolSpec(
+   235	        "summarize-circuit",
+   236	        "autointerp.tools.circuits",
+   237	        "summarize_circuit",
+   238	        "Summarize ranked circuit sites.",
+   239	    ),
+   240	]
+   241	
+   242	SKILL_TO_TOOLS: Dict[str, List[str]] = {
+   243	    "black-box-auditing": [
+   244	        "sample",
+   245	        "complete-text",
+   246	        "sample-user-initial",
+   247	        "sample-user-followup",
+   248	        "extract-tagged-json",
+   249	    ],
+   250	    "activation-cache": ["capture-activations", "cache-components"],
+   251	    "contrastive-directions": [
+   252	        "contrastive-direction",
+   253	        "baseline-subtracted-direction",
+   254	        "batch-contrastive-directions",
+   255	        "cosine-similarity",
+   256	    ],
+   257	    "activation-steering": ["generate-with-steering", "generate-with-multi-steering"],
+   258	    "logit-lens": ["logit-lens", "direct-logit-attribution"],
+   259	    "tuned-lens": ["logit-lens"],
+   260	    "activation-patching": [
+   261	        "patch-generation",
+   262	        "ablate-generation",
+   263	        "sweep-patch-sites",
+   264	        "cache-head-z",
+   265	        "mean-head-z",
+   266	        "run-with-head-patches",
+   267	        "mean-ablate-heads",
+   268	        "head-patch-sweep",
+   269	        "path-patch",
+   270	        "logit-diff",
+   271	    ],
+   272	    "attribution-patching": ["attribution-patch-score", "rank-attributions"],
+   273	    "linear-probes": ["train-probe"],
+   274	    "gradient-attribution": ["gradient-attribution"],
+   275	    "sparse-autoencoders": [
+   276	        "top-sae-features",
+   277	        "attach-sae-labels",
+   278	        "filter-semantic-features",
+   279	        "format-feature-cluster",
+   280	    ],
+   281	    "attention-heads": [
+   282	        "capture-activations",
+   283	        "ablate-generation",
+   284	        "sweep-patch-sites",
+   285	        "cache-head-z",
+   286	        "mean-head-z",
+   287	        "run-with-head-patches",
+   288	        "mean-ablate-heads",
+   289	        "head-patch-sweep",
+   290	        "path-patch",
+   291	        "logit-diff",
+   292	    ],
+   293	    "qk-ov-decomposition": ["capture-activations", "direct-logit-attribution"],
+   294	    "mlp-neuron-analysis": [
+   295	        "capture-activations",
+   296	        "direct-logit-attribution",
+   297	        "ablate-generation",
+   298	    ],
+   299	    "circuit-tracing": [
+   300	        "rank-circuit-sites",
+   301	        "combine-circuit-scores",
+   302	        "formula-score",
+   303	        "summarize-circuit",
+   304	    ],
+   305	    "causal-validation": [
+   306	        "patch-generation",
+   307	        "ablate-generation",
+   308	        "sweep-patch-sites",
+   309	        "mean-ablate-heads",
+   310	        "path-patch",
+   311	    ],
+   312	    "activation-oracles": ["capture-activations", "sample", "extract-tagged-json"],
+   313	}

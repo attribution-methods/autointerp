@@ -69,6 +69,8 @@ class ToolRouter:
         # set this to RunHandle.writable_roots(); REPL/Stage 0 leave it None
         # (write anywhere). Off by default — opt in per-context.
         self.writable_roots: list[Path] | None = None
+        # Run directory for resolving relative paths in write_file.
+        self.run_dir: Path | None = None
         # Optional scratch dir for the bash watchdog to spool stdout/stderr.
         self.scratch_dir: Path | None = None
         for tool in create_builtin_tools(skill_registry, router=self):
@@ -144,7 +146,7 @@ def create_builtin_tools(
         _list_skills_tool(skill_registry),
         _read_skill_tool(skill_registry),
         _bash_tool(router),
-        _read_file_tool(),
+        _read_file_tool(router),
         _write_file_tool(router),
         _edit_file_tool(router),
         *create_stage0_tools(),
@@ -162,6 +164,28 @@ def _truncate(text: str, limit: int = MAX_OUTPUT_CHARS) -> str:
 
 def _resolved(path: str) -> str:
     return str(Path(path).resolve())
+
+
+def _resolve_agent_path(path: str, router: "ToolRouter | None") -> str:
+    """Resolve a possibly-relative agent path against run_dir or cwd.
+
+    Handles both run-dir-relative (``scripts/foo.py``) and repo-root-relative
+    (``active_runs/…/scripts/foo.py``) without doubling the prefix.
+    """
+    if Path(path).is_absolute() or router is None or router.run_dir is None:
+        return path
+    from_run = router.run_dir / path
+    from_cwd = Path.cwd() / path
+    if router.writable_roots is not None:
+        in_run = is_within(str(from_run), router.writable_roots)
+        in_cwd = is_within(str(from_cwd), router.writable_roots)
+        if in_cwd and not in_run:
+            return str(from_cwd)
+        if in_run:
+            return str(from_run)
+    if from_cwd.exists() and not from_run.exists():
+        return str(from_cwd)
+    return str(from_run)
 
 
 DEFAULT_STALL_SECONDS = 600  # kill on no-output stall (10 min). Stalled
@@ -310,23 +334,26 @@ def _run_bash_watched(
     return output or "(no output)", True
 
 
-async def _read_file(args: dict[str, Any]) -> tuple[str, bool]:
-    path = str(args.get("path", ""))
-    offset = max(int(args.get("offset") or 1), 1)
-    limit = int(args.get("limit") or 400)
-    if not path:
-        return "No path provided.", False
-    p = Path(path)
-    if not p.exists() or p.is_dir():
-        return f"File not found or not readable: {path}", False
-    text = p.read_text(errors="replace")
-    _files_read.add(_resolved(path))
-    lines = text.splitlines()
-    selected = lines[offset - 1 : offset - 1 + limit]
-    numbered = "\n".join(
-        f"{i:>6}\t{line[:4000]}" for i, line in enumerate(selected, start=offset)
-    )
-    return numbered, True
+def _read_file_handler(router: "ToolRouter | None" = None) -> ToolHandler:
+    async def handler(args: dict[str, Any]) -> tuple[str, bool]:
+        path = str(args.get("path", ""))
+        offset = max(int(args.get("offset") or 1), 1)
+        limit = int(args.get("limit") or 400)
+        if not path:
+            return "No path provided.", False
+        path = _resolve_agent_path(path, router)
+        p = Path(path)
+        if not p.exists() or p.is_dir():
+            return f"File not found or not readable: {path}", False
+        text = p.read_text(errors="replace")
+        _files_read.add(_resolved(path))
+        lines = text.splitlines()
+        selected = lines[offset - 1 : offset - 1 + limit]
+        numbered = "\n".join(
+            f"{i:>6}\t{line[:4000]}" for i, line in enumerate(selected, start=offset)
+        )
+        return numbered, True
+    return handler
 
 
 def _atomic_write(path: Path, content: str) -> None:
@@ -346,6 +373,7 @@ def _check_writable(router: "ToolRouter | None", path: str) -> str | None:
 
     None routers, or routers with no roots set, allow any path (Stage 0 / REPL
     behavior is unchanged). Investigation runs opt in by setting writable_roots.
+    Callers must resolve relative paths via ``_resolve_agent_path`` first.
     """
     safe = normalize_safe_path(path)
     if safe is None:
@@ -368,6 +396,7 @@ def _write_file_handler(router: "ToolRouter | None") -> ToolHandler:
         content = str(args.get("content", ""))
         if not path:
             return "No path provided.", False
+        path = _resolve_agent_path(path, router)
         err = _check_writable(router, path)
         if err is not None:
             return err, False
@@ -388,6 +417,7 @@ def _edit_file_handler(router: "ToolRouter | None") -> ToolHandler:
         replace_all = bool(args.get("replace_all", False))
         if not path or not old:
             return "path and old_str are required.", False
+        path = _resolve_agent_path(path, router)
         err = _check_writable(router, path)
         if err is not None:
             return err, False
@@ -512,7 +542,7 @@ def _bash_tool(router: "ToolRouter | None" = None) -> ToolSpec:
     )
 
 
-def _read_file_tool() -> ToolSpec:
+def _read_file_tool(router: "ToolRouter | None" = None) -> ToolSpec:
     return ToolSpec(
         name="read_file",
         description="Read a local file with line numbers.",
@@ -525,7 +555,7 @@ def _read_file_tool() -> ToolSpec:
             },
             "required": ["path"],
         },
-        handler=_read_file,
+        handler=_read_file_handler(router),
     )
 
 

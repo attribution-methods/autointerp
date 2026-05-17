@@ -1,0 +1,110 @@
+{
+  "spec_id": "eval-surprise-blind-v1",
+  "revision": 1,
+  "parent_spec_id": null,
+  "prior_results_ref": null,
+  "revision_reason": null,
+  "question": "How does the model internally represent 'surprise' — the property of a continuation being unexpected given its context — in a piece of text?",
+  "hypothesis": "If the model carries a representation of surprise, it should be recoverable by contrasting contexts whose continuation is surprising against matched contexts whose continuation is mundane, and it should be possible to read it out and to intervene on it. Whether such a representation exists, where in the network it lives, whether it is approximately linear, whether it is causal (steering along it changes behavior), and whether it is distinct from trivial lexical/length confounds are all unknown a priori and must be determined empirically from extraction, probing, and causal steering — not assumed.",
+  "phenomenon_id": "surprise_representation",
+  "behavior": {
+    "behavior_id": "surprise-vs-mundane-internal",
+    "description": "Given matched (surprising-continuation, mundane-continuation) text pairs, the model's internal activations differ in a way that tracks surprise rather than surface form. Operationalised as: a readout fit on one split separates surprising from mundane contexts on a disjoint split, and steering along the recovered representation causally shifts the model's behavior toward/away from treating a continuation as surprising.",
+    "risk_area": null,
+    "positive_examples": [],
+    "negative_examples": [],
+    "success_criteria": [],
+    "tags": ["white_box", "representation"],
+    "metadata": {}
+  },
+  "model": {
+    "model_id": "EleutherAI/pythia-1.4b",
+    "provider": "huggingface",
+    "revision": null,
+    "dtype": null,
+    "device": null,
+    "metadata": {"note": "DEFAULT target model for S3 — small, deterministic, clean white-box/SAE ecosystem; confirm/override before runs."}
+  },
+  "dataset": {
+    "dataset_id": "surprise-pairs-v1",
+    "source": "generated",
+    "n_samples": 600,
+    "split": "dev",
+    "seed": 7,
+    "generator_id": "surprise_pair_generator",
+    "notes": "Matched text pairs sharing a context, differing only in the continuation: a surprising/incoherent continuation vs a mundane/expected one (e.g. 'She poured the coffee into her ___' -> 'shoe' vs 'mug'). Pairs are length- and frequency-balanced where possible so a naive lexical classifier should NOT separate them. A 150-pair heldout split with disjoint contexts is reserved for validation; a separate lexical-control set swaps in rare-but-unsurprising words to test whether a candidate direction is really 'surprise' rather than 'rare token'.",
+    "metadata": {"heldout_n_samples": 150, "has_lexical_control_set": true}
+  },
+  "contrast": {
+    "contrast_id": "surprise-vs-mundane",
+    "positive_template": "{context} {surprising_continuation}",
+    "negative_template": "{context} {mundane_continuation}",
+    "pairing": "matched",
+    "metadata": {
+      "construction": "Identical context; only the final word/clause differs. Surprising = semantically incoherent or low-probability-given-context; mundane = expected. Matched for token length and unigram frequency band so the contrast isolates surprise, not surface statistics.",
+      "lexical_control": "A held-aside control set pairs the mundane continuation against a RARE but still unsurprising continuation, so a direction that only encodes token rarity will fail the control while a true surprise direction will not."
+    }
+  },
+  "stages": [
+    {
+      "stage": "black_box",
+      "pattern": "contrast_then_steer",
+      "tools": ["blackbox_probe"],
+      "metrics": ["logit_diff"],
+      "budget": {"max_tokens": null, "max_gpu_seconds": null, "max_samples": null, "max_tool_calls": null, "max_wallclock_seconds": null},
+      "notes": "Confirm there is a behavioral signature of surprise at all: measure a logit/log-prob gap between surprising and mundane continuations on dev. If the model does not distinguish them behaviorally there is nothing to localize — abort."
+    },
+    {
+      "stage": "activation_analysis",
+      "pattern": "contrast_then_steer",
+      "tools": ["contrastive_directions", "linear_probe"],
+      "metrics": ["accuracy"],
+      "budget": {"max_tokens": null, "max_gpu_seconds": null, "max_samples": null, "max_tool_calls": null, "max_wallclock_seconds": null},
+      "notes": "Extract a candidate representation by contrasting surprising vs mundane activations across layers/positions, and fit a simple readout. Report readout accuracy distinguishing the two classes on dev. Sweep layers — do not assume a layer. Record where (if anywhere) the representation is cleanest."
+    },
+    {
+      "stage": "intervention",
+      "pattern": "contrast_then_steer",
+      "tools": ["steering"],
+      "metrics": ["logit_diff"],
+      "budget": {"max_tokens": null, "max_gpu_seconds": null, "max_samples": null, "max_tool_calls": null, "max_wallclock_seconds": null},
+      "notes": "Test causality: steer the residual stream along the candidate representation and measure the change in the surprising-vs-mundane logit gap. A correlational readout is not sufficient — the claim requires that intervening on the representation changes behavior in the predicted direction."
+    },
+    {
+      "stage": "validation",
+      "pattern": "contrast_then_steer",
+      "tools": ["linear_probe", "steering"],
+      "metrics": ["accuracy", "faithfulness"],
+      "budget": {"max_tokens": null, "max_gpu_seconds": null, "max_samples": null, "max_tool_calls": null, "max_wallclock_seconds": null},
+      "notes": "On the heldout split with disjoint contexts, confirm the readout still separates the classes and steering still moves behavior. Crucially, run the lexical-control set: show the representation tracks surprise and not merely token rarity/length. Report heldout readout accuracy and a faithfulness-style check that the representation, not a confound, carries the effect."
+    }
+  ],
+  "success_criteria": [
+    {"criterion_id": "representation-detectable", "description": "A simple readout separates surprising from mundane contexts well above chance on dev", "metric": "accuracy", "comparator": ">=", "threshold": 0.70, "n_min": 200, "on_split": "dev", "metric_params": {}, "custom_metric_def": null},
+    {"criterion_id": "representation-causal", "description": "Steering along the candidate representation shifts the surprising-vs-mundane logit gap by a non-trivial amount (direction as predicted)", "metric": "logit_diff", "comparator": ">=", "threshold": 0.50, "n_min": 100, "on_split": "dev", "metric_params": {}, "custom_metric_def": null},
+    {"criterion_id": "generalizes-heldout", "description": "The readout still separates classes on the disjoint heldout split (not a dev/lexical artifact)", "metric": "accuracy", "comparator": ">=", "threshold": 0.65, "n_min": 150, "on_split": "heldout", "metric_params": {}, "custom_metric_def": null}
+  ],
+  "abort_if": [
+    "Black-box surprising-vs-mundane log-prob gap ~ 0 on dev — the model does not behaviorally distinguish surprise; there is nothing to localize",
+    "Readout accuracy at chance after a full layer sweep — no detectable representation; report a null result rather than manufacture one"
+  ],
+  "max_revisions": 5,
+  "budget": {"max_tokens": null, "max_gpu_seconds": 1200.0, "max_samples": null, "max_tool_calls": 40, "max_wallclock_seconds": 1800.0},
+  "risks": [
+    "A 'surprise' direction can be a lexical/length/frequency confound; the lexical-control set is load-bearing — a result without it is not a surprise representation claim",
+    "Steering can degrade fluency globally; the causal test must show a targeted shift in the surprise gap, not just a damaged model",
+    "Layer/position choice can manufacture an apparent direction; the layer sweep must be empirical and reported, not assumed"
+  ],
+  "status": "approved",
+  "critiques": [],
+  "approval": {
+    "approver": "user",
+    "approver_kind": "human",
+    "approved_at": "2026-05-16T00:00:00.000000Z",
+    "notes": "Scaffold-faithfulness eval stimulus S3. Blinded: the hypothesis names the method space (contrast, probe, steer, lexical control) but does not assert that a linear causal direction exists. Thresholds are placeholder methodology choices for review; target model is a default to confirm."
+  },
+  "metadata": {
+    "derived_reason": "Blinded so the agent must establish the representation empirically and rule out the lexical/template artifact rather than reading the answer off the spec. Pre-registered error category: artifact-conflation.",
+    "eval_stimulus": "S3"
+  }
+}

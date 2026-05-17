@@ -1,0 +1,24 @@
+# Investigation Spec (draft)
+
+**spec_id**: _(unset)_  *(required, unset)*
+**question**: _(unset)_  *(required, unset)*
+**hypothesis**: _(unset)_  *(required, unset)*
+**phenomenon_id**: _(unset)_  *(required, unset)*
+**behavior**: _(unset)_  *(required, unset)*
+**model**: _(unset)_  *(required, unset)*
+**dataset**: _(unset)_  *(required, unset)*
+**stages**: _(unset)_  *(required, unset)*
+**success_criteria**: _(unset)_  *(required, unset)*
+**abort_if**: _(unset, optional)_
+**approval**: _(unset, optional)_
+**budget**: _(unset, optional)_
+**contrast**: _(unset, optional)_
+**critiques**: _(unset, optional)_
+**max_revisions**: _(unset, optional)_
+**metadata**: _(unset, optional)_
+**parent_spec_id**: _(unset, optional)_
+**prior_results_ref**: _(unset, optional)_
+**revision**: _(unset, optional)_
+**revision_reason**: _(unset, optional)_
+**risks**: _(unset, optional)_
+**status**: _(unset, optional)_

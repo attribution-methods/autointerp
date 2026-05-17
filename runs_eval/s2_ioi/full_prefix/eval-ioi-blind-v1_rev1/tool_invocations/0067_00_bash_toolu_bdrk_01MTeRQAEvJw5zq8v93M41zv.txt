@@ -1,0 +1,60 @@
+        else [resolve_layer(int(l), handle.n_layers) for l in layers]
+    )
+    head_indices = list(heads) if heads is not None else list(range(handle.n_heads))
+
+    if clean_cache is None:
+        clean_cache = cache_head_z(handle, clean_prompts, layers=layer_indices)
+
+    inputs_clean = _tokenize_batch(handle, clean_prompts)
+    inputs_corrupt = _tokenize_batch(handle, corrupt_prompts)
+    with torch.no_grad():
+        clean_logits = handle.model(**inputs_clean, use_cache=False).logits[:, -1, :]
+        corrupt_logits = handle.model(**inputs_corrupt, use_cache=False).logits[:, -1, :]
+    clean_metric = float(metric(clean_logits).mean())
+    corrupt_metric = float(metric(corrupt_logits).mean())
+
+    effects = torch.zeros(len(layer_indices), len(head_indices))
+    recovery = torch.zeros_like(effects)
+    gap = clean_metric - corrupt_metric
+
+    for li, layer in enumerate(layer_indices):
+        z_layer = clean_cache[layer]  # [B, S, H, d_head]
+        for hi, head in enumerate(head_indices):
+            patch = HeadPatch(
+                layer=layer,
+                head=head,
+                source=z_layer[:, :, head, :],
+                positions=patch_positions,
+            )
+            patched_logits = run_with_head_patches(
+                handle, corrupt_prompts, [patch], return_logits_at=-1
+            )
+            m = float(metric(patched_logits).mean())
+            effects[li, hi] = m
+            recovery[li, hi] = (m - corrupt_metric) / gap if gap != 0 else 0.0
+
+    return {
+        "layers": layer_indices,
+        "heads": head_indices,
+        "clean_metric": clean_metric,
+        "corrupt_metric": corrupt_metric,
+        "patched_metric": effects,
+        "recovery": recovery,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Path patching (single-step, direct effect on logits)
+# ---------------------------------------------------------------------------
+
+
+def path_patch(
+    handle: ModelHandle,
+    clean_prompts: Sequence[str],
+    corrupt_prompts: Sequence[str],
+    sender: HeadSite,
+    metric: Callable[[torch.Tensor], torch.Tensor],
+    patch_positions: Optional[Sequence[int]] = None,
+    freeze_layers: Optional[Iterable[int]] = None,
+    clean_cache: Optional[Dict[int, torch.Tensor]] = None,
+    corrupt_cache: Optional[Dict[int, torch.Tensor]] = None,

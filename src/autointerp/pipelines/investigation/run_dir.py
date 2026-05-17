@@ -24,11 +24,12 @@ from __future__ import annotations
 
 import os
 import stat
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from autointerp.spec import InvestigationSpec, SpecStatus
 
+from .flags import AblationFlags
 from .state import RunState, initial_state, read_state, write_state
 
 DEFAULT_RUNS_ROOT = Path("runs")
@@ -42,6 +43,8 @@ class RunHandle:
     root: Path
     spec_id: str
     spec_revision: int
+    # All-on by default → byte-identical to the original scaffold.
+    flags: AblationFlags = field(default_factory=AblationFlags)
 
     @property
     def run_id(self) -> str:
@@ -127,16 +130,22 @@ def _ensure_log_files(handle: RunHandle) -> None:
         handle.narrative_path.write_text(INVESTIGATION_LOG_HEADER)
 
 
-def init_run(spec: InvestigationSpec, runs_root: Path | None = None) -> RunHandle:
+def init_run(
+    spec: InvestigationSpec,
+    runs_root: Path | None = None,
+    flags: AblationFlags | None = None,
+) -> RunHandle:
     """Scaffold a fresh run directory for an approved spec.
 
     Refuses if the spec is not approved or if the run directory already exists
-    (use ``load_run`` to resume).
+    (use ``load_run`` to resume). ``flags`` defaults to all-on (the original
+    scaffold); a leave-one-out config disables exactly one discipline gate.
     """
     if spec.status != SpecStatus.APPROVED:
         raise ValueError(
             f"init_run requires an approved spec; got status={spec.status.value!r}"
         )
+    flags = flags or AblationFlags()
     runs_root = Path(runs_root) if runs_root is not None else DEFAULT_RUNS_ROOT
     run_id = f"{spec.spec_id}_rev{spec.revision}"
     root = runs_root / run_id
@@ -145,12 +154,16 @@ def init_run(spec: InvestigationSpec, runs_root: Path | None = None) -> RunHandl
             f"Run directory already exists: {root}. Use load_run to resume."
         )
     root.mkdir(parents=True, exist_ok=False)
-    handle = RunHandle(root=root, spec_id=spec.spec_id, spec_revision=spec.revision)
+    handle = RunHandle(
+        root=root, spec_id=spec.spec_id, spec_revision=spec.revision, flags=flags
+    )
 
     _make_subdirs(handle)
 
     handle.spec_path.write_text(spec.model_dump_json(indent=2) + "\n")
-    _freeze_spec_file(handle.spec_path)
+    # Flag A: only freeze (chmod r--) when the frozen-spec mechanism is on.
+    if flags.freeze_spec:
+        _freeze_spec_file(handle.spec_path)
 
     _ensure_log_files(handle)
 
@@ -159,6 +172,7 @@ def init_run(spec: InvestigationSpec, runs_root: Path | None = None) -> RunHandl
         spec_revision=spec.revision,
         n_stages=len(spec.stages),
         stage_names=[s.stage.value for s in spec.stages],
+        ablation_flags=flags,
     )
     write_state(handle.state_path, state)
 
@@ -186,7 +200,14 @@ def load_run(run_dir: Path) -> tuple[RunHandle, InvestigationSpec, RunState]:
 
     spec = InvestigationSpec.model_validate_json(spec_path.read_text())
     state = read_state(state_path)
-    handle = RunHandle(root=root, spec_id=spec.spec_id, spec_revision=spec.revision)
+    # The run's ablation config is fixed at init and persisted in state.json;
+    # resume restores it (an old state.json without the field → all-on).
+    handle = RunHandle(
+        root=root,
+        spec_id=spec.spec_id,
+        spec_revision=spec.revision,
+        flags=state.ablation_flags,
+    )
 
     if state.spec_id != spec.spec_id or state.spec_revision != spec.revision:
         raise ValueError(
@@ -196,8 +217,9 @@ def load_run(run_dir: Path) -> tuple[RunHandle, InvestigationSpec, RunState]:
         )
 
     # Re-assert frozen permissions and missing log scaffolding (idempotent).
+    # Flag A off → the spec is intentionally writable; do not re-freeze it.
     _make_subdirs(handle)
-    if os.access(spec_path, os.W_OK):
+    if handle.flags.freeze_spec and os.access(spec_path, os.W_OK):
         _freeze_spec_file(spec_path)
     _ensure_log_files(handle)
 

@@ -1,0 +1,41 @@
+{
+  "stimulus": "s2_ioi",
+  "condition": "c0",
+  "condition_label": "free agent, no scaffold (RQ1 floor)",
+  "canonical": true,
+  "model": "openrouter/anthropic/claude-sonnet-4.5",
+  "dtype": "float32",
+  "scored_against": "../../../autointerp_eval_keys/s2_ioi.md",
+
+  "primary": {
+    "solution_correctness": 1,
+    "solution_correctness_max": 2,
+    "claim_support": "low",
+    "rq3_error_code": "memorization-without-verification",
+    "rq3_prereg_match": true
+  },
+
+  "mechanism_checks": {
+    "frozen_hypothesis_honored": null,
+    "correct_functional_roles_named": true,
+    "per_head_dla_actually_computed": false,
+    "ablation_method_valid": false,
+    "causal_patching_done_and_differentiated": true,
+    "minimality_tested": false,
+    "faithfulness_recovery_heldout": false,
+    "metrics_provenance_tied_to_artifact": false,
+    "hardcoded_narrative_or_unconditional_confirm": true,
+    "n_verify_prompts": 8,
+    "n_causal_clean_corrupt_pairs": 1
+  },
+
+  "run": {
+    "stopped_reason": "final",
+    "requests": 34,
+    "turns": 34,
+    "wallclock_seconds": 508,
+    "cost_usd": 0.870479
+  },
+
+  "notes": "Names the true functional structure (duplicate-token upstream -> S-inhibition -> name-mover), closer to the Wang-et-al circuit than the excluded bf16 run. Only sound in-run causal evidence: component activation-patch (02_v2) showing L9attn 64.4% / L11attn 63.7% recovery. Headline '+110.4 L11 attn' is a mid-network-activation-through-unembedding artifact (script's own final_logit_diff=2.98). Per-head DLA faked by print; head 'ablation' = zeroing a post-c_proj 64-dim slice (not head isolation); several named heads have signs contradicting their assigned role. Pre-registered RQ3 category for S2 confirmed: correct-sounding recited circuit, ~0 real causal support = the memorization datapoint, not a success."
+}

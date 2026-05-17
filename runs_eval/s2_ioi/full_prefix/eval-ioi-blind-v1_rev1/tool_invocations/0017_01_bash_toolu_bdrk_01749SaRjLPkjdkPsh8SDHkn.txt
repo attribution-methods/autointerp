@@ -1,0 +1,2 @@
+[exit 2] ls -la scripts/
+ls: cannot access 'scripts/': No such file or directory

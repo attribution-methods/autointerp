@@ -1,0 +1,87 @@
+Loading GPT-2-small...
+
+================================================================================
+DUPLICATE TOKEN HEAD HYPOTHESIS
+================================================================================
+Some heads might attend to the duplicate occurrence of S (the subject)
+This helps the model identify which name appears twice
+
+================================================================================
+ABBA: When Mary and John went to the store, John gave a drink to
+S duplicate: John at positions 3 and 9
+IO unique: Mary at position 1
+
+Attention from S_second (pos 9) to S_first (pos 3):
+Layer    Head     Attn        
+----------------------------------------
+5        5        0.0012      
+5        9        0.0435      
+7        3        0.0068      
+7        9        0.0062      
+7        10       0.0036      
+8        10       0.0063      
+8        11       0.0052      
+9        9        0.0179      
+10       0        0.0283      
+10       7        0.0152      
+
+================================================================================
+BABA: When John and Mary went to the store, Mary gave a drink to
+S duplicate: Mary at positions 3 and 9
+IO unique: John at position 1
+
+Attention from S_second (pos 9) to S_first (pos 3):
+Layer    Head     Attn        
+----------------------------------------
+5        5        0.0004      
+5        9        0.0069      
+7        3        0.0099      
+7        9        0.0040      
+7        10       0.0064      
+8        10       0.0089      
+8        11       0.0082      
+9        9        0.0094      
+10       0        0.0393      
+10       7        0.0094      
+
+================================================================================
+ANALYSIS
+================================================================================
+Looking for heads where S_second strongly attends to S_first
+These 'duplicate token heads' help detect which name appears twice
+
+Heads with strong duplicate token attention: []
+
+================================================================================
+S-INHIBITION HYPOTHESIS
+================================================================================
+Some heads might suppress S to prevent it from being predicted
+
+ABBA: When Mary and John went to the store, John gave a drink to
+
+L11H0 (positive contributor) attention from final:
+  -> S second (pos 9): 0.2285
+  -> S first (pos 3): 0.1055
+
+L11H0 attends to S positions but contributes POSITIVELY to IO
+This suggests it's learning 'attend to subject, output opposite name'
+
+================================================================================
+SUMMARY OF CIRCUIT COMPONENTS
+================================================================================
+1. NAME MOVER HEADS (e.g., L9H6):
+   - Attend to first occurrence of IO name
+   - Move IO information to final position
+
+2. DUPLICATE TOKEN HEADS (middle layers):
+   - Detect which name appears twice (the subject)
+   - Help distinguish IO from S
+
+3. S-INHIBITION / NAME SELECTION HEADS (L11H0, L11H8, etc.):
+   - Attend to subject positions
+   - But promote IO in output (inverse logic)
+   - Implement 'output the OTHER name' logic
+
+4. NEGATIVE HEADS (L8H3, L10H2):
+   - Attend to S and try to promote it
+   - Get overridden by later positive heads

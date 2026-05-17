@@ -63,6 +63,33 @@ result = path_patch(handle, clean_prompts, corrupt_prompts,
                     clean_cache=clean_cache, corrupt_cache=corrupt_cache)
 ```
 
+### Circuit faithfulness (complement ablation)
+
+Faithfulness is a different experiment from recovery. Recovery patches circuit
+heads INTO a corrupted run. Faithfulness mean-ablates every head NOT in the
+circuit (the complement) from a clean run — testing whether the circuit alone
+sustains the behavior.
+
+```python
+# Given: circuit_heads = [(8,6), (8,10), (9,9), ...] from your localization
+# Build the complement: every (layer, head) NOT in the circuit.
+n_layers = handle.config.num_hidden_layers
+n_heads = handle.config.num_attention_heads
+all_heads = [(l, h) for l in range(n_layers) for h in range(n_heads)]
+complement = [site for site in all_heads if site not in circuit_heads]
+
+# Mean-ablate the complement on clean prompts.
+# mean_z should be computed from the same distribution (clean prompts).
+circuit_only_logits = mean_ablate_heads(handle, clean_prompts, complement, mean_z)
+
+# Measure: how much logit_diff survives with only the circuit active?
+circuit_metric = logit_diff(circuit_only_logits, target_ids, contrast_ids).mean().item()
+full_metric = logit_diff(clean_logits, target_ids, contrast_ids).mean().item()
+corrupt_metric = logit_diff(corrupt_logits, target_ids, contrast_ids).mean().item()
+
+# faithfulness = (circuit_metric - corrupt_metric) / (full_metric - corrupt_metric)
+```
+
 ### When to use which granularity
 
 - **Whole-layer / residual** patching is fast and useful for a coarse first

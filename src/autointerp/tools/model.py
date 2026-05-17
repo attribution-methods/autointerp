@@ -64,7 +64,7 @@ class ModelHandle:
     model: Any
     tokenizer: Any
     device: str = "cuda"
-    dtype: torch.dtype = torch.bfloat16
+    dtype: torch.dtype = torch.float32
     model_type: str = "unknown"
 
     @property
@@ -219,7 +219,7 @@ class ModelHandle:
 def load_model(
     model_name: str,
     device: str = "cuda",
-    dtype: torch.dtype = torch.bfloat16,
+    dtype: torch.dtype = torch.float32,
     quantization: Optional[str] = None,
     trust_remote_code: bool = True,
 ) -> ModelHandle:

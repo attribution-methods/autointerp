@@ -1,0 +1,40 @@
+  row["kl_to_final"] = float(F.kl_div(layer_log_probs, final_probs, reduction="sum"))
+/home/ubuntu/.local/lib/python3.10/site-packages/numpy/_core/fromnumeric.py:3860: RuntimeWarning: Mean of empty slice.
+  return _methods._mean(a, axis=axis, dtype=dtype,
+/home/ubuntu/.local/lib/python3.10/site-packages/numpy/_core/_methods.py:145: RuntimeWarning: invalid value encountered in scalar divide
+  ret = ret.dtype.type(ret / rcount)
+Loading GPT-2-small model...
+Model has 12 layers, 12 heads per layer
+
+Loading IOI dev dataset...
+Loaded 500 samples
+Running logit lens on 50 samples...
+  Processed 10/50
+  Processed 20/50
+  Processed 30/50
+  Processed 40/50
+  Processed 50/50
+
+============================================================
+LOGIT LENS RESULTS (END position)
+============================================================
+Layer | Mean KL to Final | Mean IO Rank (when in top-10)
+------------------------------------------------------------
+    0 |          28.9999 |                  N/A
+    1 |          26.1387 |                  N/A
+    2 |          27.3459 |                  N/A
+    3 |          30.7780 |                  N/A
+    4 |          38.0798 |                  N/A
+    5 |          40.8302 |                  N/A
+    6 |          50.7254 |                  N/A
+    7 |          57.8620 |                  N/A
+    8 |          75.6897 |                  N/A
+    9 |          75.0373 |                  7.5
+   10 |         143.9653 |                  N/A
+   11 |         560.0107 |                  N/A
+============================================================
+
+Detailed results saved to scratch/stage1_logit_lens.json
+
+Key observations:
+  - IO information fully emerges only in final layers

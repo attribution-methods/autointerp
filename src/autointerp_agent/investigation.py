@@ -15,7 +15,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from autointerp.pipelines.investigation import RunHandle, write_report
+from autointerp.pipelines.investigation import AblationFlags, RunHandle, write_report
 from autointerp.pipelines.investigation.main import build_system_prompt, prepare_run
 from autointerp.pipelines.investigation.observer import RunObserver
 from autointerp.pipelines.investigation.state import read_state
@@ -43,6 +43,17 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Require an existing run dir (refuse to init)")
     parser.add_argument("--no-resume", action="store_true",
                         help="Refuse to resume; require a fresh run dir")
+    parser.add_argument(
+        "--ablation", default="full",
+        help="Discipline ablation: 'full' (default, all gates on) or "
+             "comma-separated OFF codes — A=frozen-spec, B=provenance-metrics, "
+             "C=split-disjointness. e.g. 'A' or 'A,C'.",
+    )
+    parser.add_argument(
+        "--wallclock", type=int, default=0,
+        help="Hard wallclock kill in seconds (0 = disabled, default). The "
+             "eval driver passes 1800 for D3 parity with the C0 harness.",
+    )
     parser.add_argument("--quiet", action="store_true",
                         help="Disable live console streaming of agent turns and tool calls")
     parser.add_argument("--verbose", action="store_true",
@@ -64,17 +75,26 @@ async def async_main(argv: list[str] | None = None) -> int:
     else:
         resume = None
 
+    try:
+        flags = AblationFlags.parse(args.ablation)
+    except ValueError as exc:
+        console.print(f"[red]invalid --ablation: {exc}[/red]")
+        return 2
+
     handle, spec, state = prepare_run(
-        args.spec, runs_root=Path(args.runs_root), resume=resume
+        args.spec, runs_root=Path(args.runs_root), resume=resume, flags=flags
     )
-    console.print(f"[bold]Run[/bold]: {handle.run_id}  → {handle.root}")
+    console.print(
+        f"[bold]Run[/bold]: {handle.run_id}  → {handle.root}  "
+        f"[ablation: {handle.flags.label()}]"
+    )
     if state.terminal_state is not None:
         console.print(f"[yellow]Run already terminal:[/yellow] {state.terminal_state.value}")
         return 0
 
     config = _load_cli_config(args)
     config = config.model_copy(
-        update={"system_prompt": build_system_prompt(spec, handle.run_id)}
+        update={"system_prompt": build_system_prompt(spec, handle.run_id, handle.flags)}
     )
     registry = SkillRegistry.from_dir(config.skills_dir)
     context = ContextManager(
@@ -100,14 +120,25 @@ async def async_main(argv: list[str] | None = None) -> int:
         # Range-restrict write_file/edit_file to the agent-writable roots.
         # commit_artifact remains the only path into typed artifact dirs.
         router.writable_roots = handle.writable_roots()
+        router.run_dir = handle.root
         router.scratch_dir = handle.scratch_dir
         for tool in create_investigation_tools(handle):
             router.register_tool(tool)
         try:
-            answer = await run_agent_turn(
+            turn = run_agent_turn(
                 args.prompt, config, context, router,
                 observer=observer, cost_tracker=cost_tracker,
             )
+            if args.wallclock and args.wallclock > 0:
+                answer = await asyncio.wait_for(turn, timeout=args.wallclock)
+            else:
+                answer = await turn
+        except asyncio.TimeoutError:
+            answer = (
+                f"[run killed: exceeded {args.wallclock}s wallclock cap] "
+                "state.json/transcript are intact for scoring."
+            )
+            console.print(f"[red]{answer}[/red]")
         finally:
             # Always persist the cost snapshot — partial runs are still billable.
             cost_tracker.write(cost_path)

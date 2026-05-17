@@ -1,0 +1,3 @@
+Mean logit_diff: 2.9713321228027345
+Std: 1.182588995139825
+Saved summary
