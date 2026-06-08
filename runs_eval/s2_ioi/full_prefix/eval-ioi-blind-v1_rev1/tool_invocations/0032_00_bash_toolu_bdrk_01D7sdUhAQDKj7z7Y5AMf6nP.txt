@@ -1,0 +1,25 @@
+# Investigation Log
+
+Agent narrative notes for this run.
+
+# Stage 0: Black-Box IOI Evaluation
+
+## Objective
+Confirm GPT-2-small has a strong IOI behavioral signal by measuring accuracy and logit_diff.
+
+## Methods
+- Generated 500 IOI samples (balanced ABBA/BABA templates, seed=42)
+- ABBA: "When A and B went to park, A gave a book to" → Answer: B (IO)
+- BABA: "When A and B went to park, B gave a book to" → Answer: A (IO)
+- Measured logit(IO) - logit(S) at final token position
+
+## Results
+- **Accuracy: 1.00 (500/500)** ✓
+- **Mean logit_diff: 2.97 ± 1.18** ✓
+- Min: 0.09, Max: 6.33
+
+## Success Criterion
+- behavioral-sanity: accuracy >= 0.95 on dev split → **PASSED**
+
+## Next Steps
+Proceed to Stage 1 (localization) with logit lens and activation patching.

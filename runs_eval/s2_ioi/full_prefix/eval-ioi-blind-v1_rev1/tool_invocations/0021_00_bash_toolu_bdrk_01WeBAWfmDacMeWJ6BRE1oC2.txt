@@ -1,0 +1,17 @@
+Stage 0: Black-box IOI evaluation (FIXED)
+============================================================
+Generated 500 samples
+Loading GPT-2 small...
+Model: gpt2 (layers=12)
+Computing logit_diff...
+
+RESULTS
+============================================================
+Accuracy: 1.0000 (500/500)
+Mean logit_diff: 2.9713 ± 1.1826
+Min: 0.0873, Max: 6.3323
+
+✓ Accuracy >= 0.95 - behavioral sanity check PASSES
+✓ Logit diff 2.97 >= 2.0 - strong signal
+
+Done!

@@ -32,3 +32,35 @@ benchmark harness. For white-box follow-up, add:
 - `FeatureFinding` rows for SAE/probe/logit-lens evidence;
 - `InterventionResult` rows for patching, ablation, or steering checks.
 
+## Productionized path: the investigation pipeline
+
+The example above is a single-script MVP. The productionized version of the
+same flow is the **investigation pipeline**
+(`src/autointerp/pipelines/investigation/`), which runs an agent through an
+approved `InvestigationSpec` under a gated tool surface that enforces
+pre-registration:
+
+```bash
+python -m autointerp_agent.investigation \
+  --spec outputs/specs/<spec_id>_rev<n>.json
+```
+
+The pipeline produces the same artifact types — `PromptBatch`,
+`ActivationCacheRef`, `CandidateSite`, `FeatureFinding`,
+`InterventionResult`, `ValidationResult`, `MetricResult`,
+`InvestigationReport` — but each one is committed through `commit_artifact`,
+split-tagged, and recorded in a durable run directory at
+`runs/<spec_id>_rev<n>/`.
+
+See [investigation.md](investigation.md) for the gate APIs, run-dir layout,
+state schema, and how the `compute_metric` → provenance-token →
+`commit_artifact("MetricResult", ...)` flow closes the
+"agent-makes-up-a-number" hole.
+
+Every run captures a full debugging transcript on disk:
+``assistant_turns.jsonl`` (every LLM message), ``tool_invocations.jsonl``
+(every tool call), ``tool_invocations/<iter>_<idx>_<tool>_<id>.txt`` (full
+untruncated output bodies), ``log.jsonl`` (gated calls only), plus
+``INVESTIGATION_LOG.md`` and ``scripts/`` for the agent's own notes and
+code. A run can be replayed end-to-end from these alone.
+

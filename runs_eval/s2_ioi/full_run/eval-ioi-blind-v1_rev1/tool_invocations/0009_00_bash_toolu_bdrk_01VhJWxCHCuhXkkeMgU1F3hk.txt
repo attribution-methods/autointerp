@@ -1,0 +1,20 @@
+Sample 250: BABA
+  Prompt: When Mary and Emma went to the park, Emma gave a letter to
+  IO:  Mary, S:  Emma
+
+Sample 251: BABA
+  Prompt: When James and Joseph went to the restaurant, Joseph gave a gift to
+  IO:  James, S:  Joseph
+
+Sample 252: BABA
+  Prompt: When Tom and Joseph went to the beach, Joseph gave a watch to
+  IO:  Tom, S:  Joseph
+
+Sample 253: BABA
+  Prompt: When Kate and Michael went to the park, Michael gave a card to
+  IO:  Kate, S:  Michael
+
+Sample 254: BABA
+  Prompt: When Kate and Anna went to the school, Anna gave a key to
+  IO:  Kate, S:  Anna
+

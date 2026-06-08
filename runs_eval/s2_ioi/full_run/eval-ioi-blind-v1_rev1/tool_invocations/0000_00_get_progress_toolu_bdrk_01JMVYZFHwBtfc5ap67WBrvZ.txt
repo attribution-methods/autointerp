@@ -1,0 +1,21 @@
+# Investigation progress — eval-ioi-blind-v1_rev1
+
+Status: in_progress
+Stage: 1/5 — black_box
+Updated: 2026-05-17T18:28:58.099530Z
+
+## Stages
+- [ ] 0 black_box — pending
+- [ ] 1 localization — pending
+- [ ] 2 activation_analysis — pending
+- [ ] 3 intervention — pending
+- [ ] 4 validation — pending
+
+## Criteria
+- pending      behavioral-sanity — GPT-2-small correctly prefers IO over S (logit_diff > 0) on at least 95% of dev samples
+- pending      localization-recovery — Top-K attention heads identified by activation patching recover at least 0.85 of the clean-corrupt logit_diff gap
+- pending      circuit-generalization — The candidate circuit recovers at least 0.85 of the clean-corrupt logit_diff gap on the heldout split (disjoint name pairs not used during localization)
+- pending      circuit-minimality — Every head in the final circuit causes a recovery drop >= 0.05 when removed on heldout
+
+## Budget
+tool_calls=0 bash_calls=0 gpu_seconds=0.0 wallclock=0.0s samples=0

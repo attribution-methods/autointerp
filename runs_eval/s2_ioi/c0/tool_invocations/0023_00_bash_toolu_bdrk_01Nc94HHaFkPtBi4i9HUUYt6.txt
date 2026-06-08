@@ -1,0 +1,106 @@
+Loading GPT-2-small...
+
+================================================================================
+S-INHIBITION ANALYSIS
+================================================================================
+Prompt: When John and Mary went to the store, Mary gave a drink to
+IO position ('John'): 1
+S1 position ('Mary'): 3
+S2 position ('Mary'): 9
+
+================================================================================
+HEADS ATTENDING TO S2 FROM FINAL POSITION
+================================================================================
+L 7H 9: 0.314
+L 8H 5: 0.296
+L 8H 6: 0.523
+L 8H10: 0.369
+L 9H 8: 0.205
+L11H10: 0.347
+
+================================================================================
+CHECKING NEGATIVE CONTRIBUTIONS FOR S2-ATTENDING HEADS
+================================================================================
+
+L 7H 9 (attn to S2: 0.314):
+  Effect on 'Mary' logit: -0.471 (was -83.61, now -84.08)
+  Effect on 'John' logit: -0.500 (was -80.63, now -81.13)
+  Effect on logit diff (A-B): -0.029
+
+L 8H 5 (attn to S2: 0.296):
+  Effect on 'Mary' logit: +0.184 (was -83.61, now -83.43)
+  Effect on 'John' logit: +0.200 (was -80.63, now -80.43)
+  Effect on logit diff (A-B): +0.017
+  → INHIBITION: Removing this head increases Mary's logit (head was suppressing it)
+
+L 8H 6 (attn to S2: 0.523):
+  Effect on 'Mary' logit: +0.375 (was -83.61, now -83.23)
+  Effect on 'John' logit: +0.297 (was -80.63, now -80.33)
+  Effect on logit diff (A-B): -0.078
+  → INHIBITION: Removing this head increases Mary's logit (head was suppressing it)
+
+L 8H10 (attn to S2: 0.369):
+  Effect on 'Mary' logit: -0.086 (was -83.61, now -83.70)
+  Effect on 'John' logit: -0.228 (was -80.63, now -80.86)
+  Effect on logit diff (A-B): -0.142
+
+L 9H 8 (attn to S2: 0.205):
+  Effect on 'Mary' logit: -1.067 (was -83.61, now -84.68)
+  Effect on 'John' logit: -0.972 (was -80.63, now -81.60)
+  Effect on logit diff (A-B): +0.096
+
+L11H10 (attn to S2: 0.347):
+  Effect on 'Mary' logit: -0.924 (was -83.61, now -84.53)
+  Effect on 'John' logit: -0.881 (was -80.63, now -81.51)
+  Effect on logit diff (A-B): +0.043
+
+================================================================================
+DUPLICATE TOKEN HEADS (S2 attending to S1)
+================================================================================
+L 0H 1: S2→S1 attention = 0.537
+L 0H 5: S2→S1 attention = 0.514
+L 1H11: S2→S1 attention = 0.591
+L 3H 0: S2→S1 attention = 0.554
+L 5H10: S2→S1 attention = 0.337
+
+================================================================================
+NAME MOVER HEADS (Final position attending to IO)
+================================================================================
+L 9H 6: Final→IO attention = 0.336
+L 9H 9: Final→IO attention = 0.634
+L10H 6: Final→IO attention = 0.601
+L10H 7: Final→IO attention = 0.540
+L11H 1: Final→IO attention = 0.314
+
+================================================================================
+EFFECT OF NAME MOVER HEADS ON OUTPUT
+================================================================================
+
+L 9H 6 (attn to IO: 0.336):
+  Original logit diff (A-B): 2.982
+  Ablated logit diff (A-B): 3.037
+  Effect: -0.055
+
+L 9H 9 (attn to IO: 0.634):
+  Original logit diff (A-B): 2.982
+  Ablated logit diff (A-B): 3.063
+  Effect: -0.081
+
+L10H 6 (attn to IO: 0.601):
+  Original logit diff (A-B): 2.982
+  Ablated logit diff (A-B): 3.015
+  Effect: -0.033
+
+L10H 7 (attn to IO: 0.540):
+  Original logit diff (A-B): 2.982
+  Ablated logit diff (A-B): 2.846
+  Effect: +0.136
+  → NAME MOVER: This head promotes IO over S
+
+L11H 1 (attn to IO: 0.314):
+  Original logit diff (A-B): 2.982
+  Ablated logit diff (A-B): 2.950
+  Effect: +0.032
+  → NAME MOVER: This head promotes IO over S
+
+Analysis complete!

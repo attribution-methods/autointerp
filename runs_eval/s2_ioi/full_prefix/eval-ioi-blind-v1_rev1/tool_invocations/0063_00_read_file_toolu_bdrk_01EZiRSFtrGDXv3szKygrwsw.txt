@@ -1,0 +1,100 @@
+     1	"""Granular attention-head patching, ablation, and path patching.
+     2	
+     3	The helpers in :mod:`patching` operate at residual / whole-layer / whole-attention
+     4	granularity. This module adds the head-level primitives:
+     5	
+     6	- :func:`cache_head_z` captures per-head pre-output-projection activations
+     7	  ``z`` (the head outputs before ``W_O``) at chosen layers.
+     8	- :func:`run_with_head_patches` runs a forward pass while overriding ``z`` at
+     9	  arbitrary ``(layer, head, position)`` sites.
+    10	- :func:`mean_ablate_heads` ablates heads by replacing their ``z`` with a
+    11	  precomputed dataset mean (the standard ablation baseline).
+    12	- :func:`head_patch_sweep` runs a ``(layer, head)`` sweep that patches the
+    13	  clean head ``z`` into a corrupt forward pass and returns a ``[L, H]``
+    14	  effect matrix.
+    15	- :func:`path_patch` performs single-step path patching: a sender head's
+    16	  ``z`` is set to its clean value while every other head is frozen to its
+    17	  corrupt value, isolating the sender's direct effect on the model logits.
+    18	- :func:`logit_diff` is a small batched metric over paired target/contrast
+    19	  token ids, used by patching sweeps.
+    20	
+    21	These helpers are model-family-agnostic: they hook the attention output
+    22	projection (``c_proj`` for GPT-2 family, ``o_proj`` for Llama/Qwen/Mistral/
+    23	Gemma), whose input is the per-position concatenation of head outputs.
+    24	"""
+    25	
+    26	from __future__ import annotations
+    27	
+    28	from contextlib import contextmanager
+    29	from dataclasses import dataclass
+    30	from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+    31	
+    32	import torch
+    33	
+    34	from .activations import component_module, resolve_layer
+    35	from .model import ModelHandle
+    36	
+    37	HeadSite = Tuple[int, int]  # (layer, head)
+    38	HeadPosSite = Tuple[int, int, int]  # (layer, head, position)
+    39	
+    40	
+    41	# ---------------------------------------------------------------------------
+    42	# Module discovery
+    43	# ---------------------------------------------------------------------------
+    44	
+    45	
+    46	def attention_output_projection(handle: ModelHandle, layer_idx: int) -> torch.nn.Module:
+    47	    """Return the attention output projection ``W_O`` module for ``layer_idx``.
+    48	
+    49	    Its *input* is the per-position concatenation of head outputs, shape
+    50	    ``[batch, seq, n_heads * d_head]``. We hook this rather than the full
+    51	    attention block because it is the cleanest, family-independent place to
+    52	    intervene at head granularity.
+    53	    """
+    54	    attn = component_module(handle, layer_idx, "attn")
+    55	    for name in ("o_proj", "c_proj", "out_proj", "dense"):
+    56	        proj = getattr(attn, name, None)
+    57	        if proj is not None:
+    58	            return proj
+    59	    raise ValueError(f"No attention output projection found at layer {layer_idx}")
+    60	
+    61	
+    62	def _head_dim(handle: ModelHandle) -> int:
+    63	    config = handle.model.config
+    64	    for name in ("head_dim", "head_size"):
+    65	        if hasattr(config, name):
+    66	            return int(getattr(config, name))
+    67	    return handle.d_model // handle.n_heads
+    68	
+    69	
+    70	# ---------------------------------------------------------------------------
+    71	# Hook installation
+    72	# ---------------------------------------------------------------------------
+    73	
+    74	
+    75	@dataclass
+    76	class _HookHandle:
+    77	    handle: Any
+    78	
+    79	    def remove(self) -> None:
+    80	        self.handle.remove()
+    81	
+    82	
+    83	@contextmanager
+    84	def _install_pre_hook(module: torch.nn.Module, fn: Callable[[Any, Tuple], Optional[Tuple]]):
+    85	    handle = module.register_forward_pre_hook(fn)
+    86	    try:
+    87	        yield
+    88	    finally:
+    89	        handle.remove()
+    90	
+    91	
+    92	def _reshape_to_heads(z_flat: torch.Tensor, n_heads: int, d_head: int) -> torch.Tensor:
+    93	    return z_flat.view(*z_flat.shape[:-1], n_heads, d_head)
+    94	
+    95	
+    96	def _reshape_from_heads(z_heads: torch.Tensor) -> torch.Tensor:
+    97	    return z_heads.reshape(*z_heads.shape[:-2], -1)
+    98	
+    99	
+   100	# ---------------------------------------------------------------------------

@@ -1,0 +1,9 @@
+- [completed] Create script to load GPT-2, IOI dataset, and compute logit_diff and accuracy
+- [completed] Run black box evaluation on 500 dev samples
+- [completed] Commit accuracy and logit_diff metrics
+- [completed] Evaluate behavioral-sanity criterion
+- [completed] Advance to Stage 1
+- [in_progress] Run logit lens analysis across all 12 layers
+- [pending] Perform activation patching across all (layer, head) pairs
+- [pending] Identify top heads by patch_effect_recovery
+- [pending] Commit Stage 1 metrics and evaluate criterion

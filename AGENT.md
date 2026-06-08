@@ -26,6 +26,30 @@ Skills are not a replacement for tools, APIs, or libraries. Treat them as the la
 
 You are an automated interpretability agent. Your task is to explain a model behavior, hidden behavior, capability, or failure mode using the available black-box and white-box tools. Prefer simple probes first, then use activation-level methods when they can answer a specific question. Do not treat a visualization or correlation as causal evidence until it survives a targeted intervention. Maintain a short research log with hypotheses, evidence, uncertainty, and next actions.
 
+## Stages of the system
+
+The agent operates in two discrete modes, each with its own CLI and tool
+surface. They are bridged by the `InvestigationSpec` artifact:
+
+1. **Stage 0 — conversational spec design.** Build a pre-registered,
+   falsifiable `InvestigationSpec` with the user. Tools:
+   `describe_spec`/`update_spec`/`show_spec`/`validate_spec`/`finalize_spec`
+   and the metric reference tools. Output: an approved spec at
+   `outputs/specs/<spec_id>_rev<n>.json`. See [docs/stage0.md](docs/stage0.md).
+
+2. **Investigation pipeline — execute the approved spec.** A coding agent
+   walks `spec.stages` in order under a gated tool surface. Free-form
+   `bash`/`read_file`/`write_file`/`edit_file` for actually running
+   experiments; gated Tier-2 tools (`commit_artifact`, `compute_metric`,
+   `evaluate_criterion`, `advance_stage`, `current_stage`,
+   `request_spec_revision`, `get_state`, `get_budget`) make
+   pre-registration mechanically enforceable. Every run captures a full
+   debugging transcript on disk (`assistant_turns.jsonl`,
+   `tool_invocations.jsonl` with full output bodies, plus the gated
+   `log.jsonl` audit). CLI:
+   `python -m autointerp_agent.investigation --spec <path>`. See
+   [docs/investigation.md](docs/investigation.md).
+
 ## Skill Selection
 
 Use `black-box-auditing` for API-only investigation, `activation-cache` before any repeated white-box analysis, and `causal-validation` before final claims. Use method-specific skills when a concrete question points to that method, such as `logit-lens` for intermediate token predictions or `activation-patching` for localizing a causal site.

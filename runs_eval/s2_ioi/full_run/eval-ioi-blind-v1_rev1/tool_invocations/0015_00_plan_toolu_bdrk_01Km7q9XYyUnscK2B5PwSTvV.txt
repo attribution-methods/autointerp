@@ -1,0 +1,4 @@
+- [completed] Create script to load IOI dataset and run GPT-2-small inference
+- [completed] Compute accuracy and logit_diff metrics on dev split
+- [in_progress] Commit metrics and evaluate behavioral-sanity criterion
+- [pending] Advance to Stage 1 (localization)

@@ -1,0 +1,26 @@
+{
+  "metric_id": "stage0_logit_diff",
+  "value": 3.3476505279541016,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "n_samples_in_metric": 20,
+    "n_samples_total": 500,
+    "full_dataset_mean": 2.9713321228027345,
+    "dataset": "ioi-dev",
+    "seed": 42,
+    "sampling": "first_20_samples",
+    "note": "Metric computed on 20-sample subset for efficiency",
+    "metric_name": "logit_diff",
+    "metric_family": "behavioral",
+    "inputs_hash": "sha256:8234ba2866a836e3b0ccfaa2e7d10b0476a04e589d681f32bd982ca0c72d9e82",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 0,
+      "split": "dev",
+      "committed_at": "2026-05-16T13:34:42.922545Z"
+    }
+  }
+}

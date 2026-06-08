@@ -1,0 +1,7 @@
+Loading GPT-2-small model...
+Traceback (most recent call last):
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_logit_lens.py", line 130, in <module>
+    main()
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_logit_lens.py", line 86, in main
+    print(f"Model has {model_handle.config.num_hidden_layers} layers")
+AttributeError: 'ModelHandle' object has no attribute 'config'

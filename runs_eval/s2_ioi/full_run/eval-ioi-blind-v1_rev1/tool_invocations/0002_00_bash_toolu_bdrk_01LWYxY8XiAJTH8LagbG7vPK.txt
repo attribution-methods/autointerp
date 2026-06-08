@@ -1,0 +1,11 @@
+[exit 1] cd /lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/a...
+Loading GPT-2-small model...
+Loading IOI dev dataset...
+Traceback (most recent call last):
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage0_black_box.py", line 138, in <module>
+    main()
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage0_black_box.py", line 97, in main
+    samples = load_ioi_dataset("dev")
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage0_black_box.py", line 23, in load_ioi_dataset
+    with open(dataset_path, 'r') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'datasets/ioi-abba-baba-gpt2-v1/dev.jsonl'

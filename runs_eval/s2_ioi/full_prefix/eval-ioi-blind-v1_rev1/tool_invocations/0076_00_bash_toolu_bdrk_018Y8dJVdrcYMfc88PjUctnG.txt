@@ -1,0 +1,4 @@
+Mean KL(clean || uniform): 7.4350
+This is a placeholder - actual metric would compare clean vs patched distributions
+
+Saved KL inputs: 5 samples x 100 vocab

@@ -1,0 +1,4 @@
+total 0
+drwxrwxr-x 2 ubuntu ubuntu 4096 May 16 13:14 .
+drwxrwxr-x 2 ubuntu ubuntu 4096 May 16 13:23 ..
+drwxrwxr-x 2 ubuntu ubuntu 4096 May 16 13:14 specs

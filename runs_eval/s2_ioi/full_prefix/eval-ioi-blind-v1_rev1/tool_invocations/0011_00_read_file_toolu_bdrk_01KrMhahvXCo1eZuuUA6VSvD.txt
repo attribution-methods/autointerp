@@ -1,0 +1,400 @@
+     1	"""Conversational Stage 0 tools.
+     2	
+     3	These let the agent build an `InvestigationSpec` incrementally across turns,
+     4	retrieve phenomenon priors, validate the draft, and finalize with an Approval.
+     5	"""
+     6	
+     7	from __future__ import annotations
+     8	
+     9	import json
+    10	from datetime import datetime, timezone
+    11	from pathlib import Path
+    12	from typing import Any
+    13	
+    14	import yaml
+    15	
+    16	from autointerp.spec import (
+    17	    METRIC_META,
+    18	    TOOL_META,
+    19	    CustomMetricDef,
+    20	    InvestigationSpec,
+    21	    MetricFamily,
+    22	    MetricName,
+    23	    SpecStatus,
+    24	)
+    25	from autointerp.spec_describe import describe_spec_markdown
+    26	from autointerp.spec_partial import (
+    27	    PartialSpec,
+    28	    UnknownSpecField,
+    29	    make_approval,
+    30	)
+    31	
+    32	from autointerp.pipelines.investigation.metrics import REGISTRY as _METRIC_REGISTRY
+    33	
+    34	from .tools import ToolSpec
+    35	
+    36	
+    37	def _unregistered_metric_refs(spec: InvestigationSpec) -> list[str]:
+    38	    """Return locations referencing a MetricName with no compute fn registered.
+    39	
+    40	    A metric is acceptable if (a) it is ``MetricName.CUSTOM`` (and the criterion
+    41	    supplies a ``custom_metric_def``, validated elsewhere) or (b) it appears in
+    42	    the runtime ``REGISTRY``. Anything else — typically an enum value declared
+    43	    without a registered implementation — would fail at runtime when the
+    44	    pipeline tries to evaluate it. Catch it at finalize time so the agent has
+    45	    to revise the spec before approval.
+    46	    """
+    47	    bad: list[str] = []
+    48	    registered = set(_METRIC_REGISTRY.keys()) | {MetricName.CUSTOM}
+    49	    for i, stage in enumerate(spec.stages):
+    50	        for j, m in enumerate(stage.metrics):
+    51	            if m not in registered:
+    52	                bad.append(
+    53	                    f"stages[{i}].metrics[{j}]={m.value!r} — not in metric "
+    54	                    f"registry. Use a registered metric or define a custom one."
+    55	                )
+    56	    for i, crit in enumerate(spec.success_criteria):
+    57	        if crit.metric not in registered:
+    58	            bad.append(
+    59	                f"success_criteria[{i}] (id={crit.criterion_id!r}).metric="
+    60	                f"{crit.metric.value!r} — not in metric registry. Either pick "
+    61	                f"a registered metric or set metric='custom' with a "
+    62	                f"custom_metric_def."
+    63	            )
+    64	    return bad
+    65	
+    66	def _render_custom_metrics_section(data: dict[str, Any]) -> str:
+    67	    """Pretty-print every CustomMetricDef referenced in success_criteria.
+    68	
+    69	    The full source code is shown so the human reviewer can read it before
+    70	    approving. Once approved, source_hash is fixed and the runtime rejects
+    71	    any later change.
+    72	    """
+    73	    crits = data.get("success_criteria") or []
+    74	    if not isinstance(crits, list):
+    75	        return ""
+    76	    seen: dict[str, dict[str, Any]] = {}
+    77	    for c in crits:
+    78	        defn = c.get("custom_metric_def") if isinstance(c, dict) else None
+    79	        if isinstance(defn, dict) and defn.get("name"):
+    80	            seen.setdefault(defn["name"], defn)
+    81	    if not seen:
+    82	        return ""
+    83	    out = ["\n\n## Custom metrics — review the source code\n"]
+    84	    for name, defn in seen.items():
+    85	        out.append(f"### {name}")
+    86	        out.append(f"- description: {defn.get('description','')}")
+    87	        out.append(f"- family: {defn.get('family','?')}")
+    88	        out.append(f"- value_range: {defn.get('value_range','?')}")
+    89	        out.append(f"- direction: {defn.get('direction','?')}")
+    90	        out.append(f"- requires_inputs: {defn.get('requires_inputs','?')}")
+    91	        if defn.get("source_hash"):
+    92	            out.append(f"- source_hash: {defn['source_hash'][:16]}…")
+    93	        out.append("\n```python")
+    94	        out.append(defn.get("source_code", "<missing>"))
+    95	        out.append("```\n")
+    96	    return "\n".join(out)
+    97	
+    98	
+    99	PRIORS_DIR = Path(__file__).resolve().parents[2] / "priors"
+   100	METRICS_DIR = Path(__file__).resolve().parents[2] / "metrics"
+   101	SPEC_OUTPUT_DIR = Path("outputs") / "specs"
+   102	DRAFT_PATH = SPEC_OUTPUT_DIR / "_draft.json"
+   103	
+   104	_partial = PartialSpec()
+   105	_pending_finalize: dict[str, Any] = {}
+   106	
+   107	
+   108	def _snapshot_draft() -> None:
+   109	    """Persist the in-memory partial spec to disk so it survives a restart."""
+   110	    if not _partial.data:
+   111	        return
+   112	    SPEC_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+   113	    DRAFT_PATH.write_text(json.dumps(_partial.data, indent=2, default=str) + "\n")
+   114	
+   115	
+   116	def _load_draft_if_present() -> bool:
+   117	    """Restore the partial spec from disk if a draft exists. Returns whether
+   118	    anything was loaded. Idempotent — does nothing once `_partial` is populated."""
+   119	    if _partial.data:
+   120	        return False
+   121	    if not DRAFT_PATH.exists():
+   122	        return False
+   123	    try:
+   124	        _partial.data.update(json.loads(DRAFT_PATH.read_text()))
+   125	    except json.JSONDecodeError:
+   126	        return False
+   127	    return True
+   128	
+   129	
+   130	def _clear_draft() -> None:
+   131	    if DRAFT_PATH.exists():
+   132	        DRAFT_PATH.unlink()
+   133	
+   134	
+   135	async def _retrieve_prior(args: dict[str, Any]) -> tuple[str, bool]:
+   136	    phenomenon = str(args.get("phenomenon_id", "")).strip()
+   137	    if not phenomenon:
+   138	        return "phenomenon_id is required.", False
+   139	    path = PRIORS_DIR / f"{phenomenon}.yaml"
+   140	    if not path.exists():
+   141	        available = sorted(p.stem for p in PRIORS_DIR.glob("*.yaml"))
+   142	        return (
+   143	            f"No prior for {phenomenon!r}. Available: {available or '(none)'}. "
+   144	            "You may proceed without one (set phenomenon_id='custom' in update_spec).",
+   145	            False,
+   146	        )
+   147	    prior = yaml.safe_load(path.read_text()) or {}
+   148	    diff = _partial.merge_prior(prior)
+   149	    if not diff:
+   150	        return f"Prior {phenomenon!r} loaded but all fields were already set.", True
+   151	    return (
+   152	        f"Loaded prior {phenomenon!r}. Filled fields: {sorted(diff.keys())}. "
+   153	        "Existing fields were not overwritten.",
+   154	        True,
+   155	    )
+   156	
+   157	
+   158	async def _update_spec(args: dict[str, Any]) -> tuple[str, bool]:
+   159	    _load_draft_if_present()
+   160	    patch = args.get("patch")
+   161	    if not isinstance(patch, dict) or not patch:
+   162	        return "patch must be a non-empty object of fields to set.", False
+   163	    try:
+   164	        diff = _partial.patch(patch)
+   165	    except UnknownSpecField as exc:
+   166	        return str(exc), False
+   167	    if not diff:
+   168	        return "No changes (values matched current draft).", True
+   169	    _snapshot_draft()
+   170	    return (
+   171	        "Updated (draft auto-saved to outputs/specs/_draft.json):\n"
+   172	        + json.dumps(diff, indent=2, default=str),
+   173	        True,
+   174	    )
+   175	
+   176	
+   177	async def _remove_spec_fields(args: dict[str, Any]) -> tuple[str, bool]:
+   178	    _load_draft_if_present()
+   179	    keys = args.get("keys")
+   180	    if not isinstance(keys, list) or not keys:
+   181	        return "keys must be a non-empty list of top-level field names to remove.", False
+   182	    bad_types = [k for k in keys if not isinstance(k, str)]
+   183	    if bad_types:
+   184	        return f"keys must be strings; got non-strings: {bad_types}", False
+   185	    removed = _partial.remove(keys)
+   186	    if not removed:
+   187	        return f"No matching keys to remove. Current keys: {sorted(_partial.data.keys())}", True
+   188	    _snapshot_draft()
+   189	    return (
+   190	        "Removed (draft auto-saved):\n" + json.dumps(removed, indent=2, default=str),
+   191	        True,
+   192	    )
+   193	
+   194	
+   195	async def _show_spec(_args: dict[str, Any]) -> tuple[str, bool]:
+   196	    _load_draft_if_present()
+   197	    return _partial.as_markdown(), True
+   198	
+   199	
+   200	async def _validate_spec(_args: dict[str, Any]) -> tuple[str, bool]:
+   201	    _load_draft_if_present()
+   202	    from pydantic import ValidationError
+   203	
+   204	    missing = _partial.missing_required()
+   205	    errors: list[str] = []
+   206	    if missing:
+   207	        errors.append(f"missing required fields: {', '.join(missing)}")
+   208	    try:
+   209	        _partial.try_build(status=SpecStatus.DRAFT)
+   210	    except ValidationError as exc:
+   211	        for err in exc.errors()[:25]:
+   212	            loc = ".".join(str(p) for p in err.get("loc", ()))
+   213	            errors.append(f"{loc}: {err.get('msg', '')}")
+   214	        if exc.error_count() > 25:
+   215	            errors.append(f"... and {exc.error_count() - 25} more")
+   216	    except Exception as exc:
+   217	        errors.append(str(exc))
+   218	    if not errors:
+   219	        return "OK — spec is structurally valid.", True
+   220	    return "Errors (must fix):\n- " + "\n- ".join(errors), True
+   221	
+   222	
+   223	async def _describe_spec(_args: dict[str, Any]) -> tuple[str, bool]:
+   224	    return describe_spec_markdown(), True
+   225	
+   226	
+   227	async def _finalize_spec(args: dict[str, Any]) -> tuple[str, bool]:
+   228	    _load_draft_if_present()
+   229	    approver = str(args.get("approver", "")).strip()
+   230	    kind = str(args.get("approver_kind", "human")).strip()
+   231	    user_confirmation = bool(args.get("user_confirmed", False))
+   232	    notes = args.get("notes")
+   233	
+   234	    if not approver:
+   235	        return "approver is required (e.g. user email or agent id).", False
+   236	    if kind not in {"human", "agent"}:
+   237	        return "approver_kind must be 'human' or 'agent'.", False
+   238	
+   239	    try:
+   240	        _preview = _partial.try_build(status=SpecStatus.AWAITING_APPROVAL)
+   241	    except Exception as exc:
+   242	        return f"Cannot finalize — spec has structural errors:\n{exc}", False
+   243	    bad_refs = _unregistered_metric_refs(_preview)
+   244	    if bad_refs:
+   245	        return (
+   246	            "Cannot finalize — the spec references metrics that are not in the "
+   247	            "runtime registry. Fix each reference (via update_spec) before "
+   248	            "calling finalize_spec again:\n- " + "\n- ".join(bad_refs),
+   249	            False,
+   250	        )
+   251	
+   252	    rendered = _partial.as_markdown() + _render_custom_metrics_section(_partial.data)
+   253	
+   254	    if not user_confirmation:
+   255	        _pending_finalize.update({"approver": approver, "kind": kind, "notes": notes})
+   256	        return (
+   257	            "Show the rendered spec below to the user and ask for approval.\n\n"
+   258	            + rendered,
+   259	            True,
+   260	        )
+   261	
+   262	    try:
+   263	        spec = _partial.try_build(status=SpecStatus.AWAITING_APPROVAL)
+   264	    except Exception as exc:
+   265	        return f"Cannot finalize — spec has structural errors:\n{exc}", False
+   266	
+   267	    approval = make_approval(approver=approver, kind=kind, notes=notes)
+   268	    finalized = spec.model_copy(
+   269	        update={"status": SpecStatus.APPROVED, "approval": approval}
+   270	    )
+   271	    SPEC_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+   272	    out_path = SPEC_OUTPUT_DIR / f"{finalized.spec_id}_rev{finalized.revision}.json"
+   273	    out_path.write_text(finalized.model_dump_json(indent=2) + "\n")
+   274	    _pending_finalize.clear()
+   275	    _clear_draft()
+   276	    return (
+   277	        f"Approved. Wrote {out_path}. Stage 1 may now run against spec_id "
+   278	        f"{finalized.spec_id} (rev {finalized.revision}).",
+   279	        True,
+   280	    )
+   281	
+   282	
+   283	def _retrieve_prior_tool() -> ToolSpec:
+   284	    return ToolSpec(
+   285	        name="retrieve_prior",
+   286	        description=(
+   287	            "Load a phenomenon prior from priors/<id>.yaml into the draft spec. "
+   288	            "Existing fields are not overwritten. Call this first when the user "
+   289	            "names a known phenomenon (e.g. 'ioi', 'induction')."
+   290	        ),
+   291	        parameters={
+   292	            "type": "object",
+   293	            "properties": {"phenomenon_id": {"type": "string"}},
+   294	            "required": ["phenomenon_id"],
+   295	        },
+   296	        handler=_retrieve_prior,
+   297	    )
+   298	
+   299	
+   300	def _update_spec_tool() -> ToolSpec:
+   301	    return ToolSpec(
+   302	        name="update_spec",
+   303	        description="Patch top-level fields in the draft InvestigationSpec. Unknown keys are rejected.",
+   304	        parameters={
+   305	            "type": "object",
+   306	            "properties": {"patch": {"type": "object", "additionalProperties": True}},
+   307	            "required": ["patch"],
+   308	        },
+   309	        handler=_update_spec,
+   310	    )
+   311	
+   312	
+   313	def _remove_spec_fields_tool() -> ToolSpec:
+   314	    return ToolSpec(
+   315	        name="remove_spec_fields",
+   316	        description="Delete top-level keys from the draft.",
+   317	        parameters={
+   318	            "type": "object",
+   319	            "properties": {"keys": {"type": "array", "items": {"type": "string"}}},
+   320	            "required": ["keys"],
+   321	        },
+   322	        handler=_remove_spec_fields,
+   323	    )
+   324	
+   325	
+   326	def _show_spec_tool() -> ToolSpec:
+   327	    return ToolSpec(
+   328	        name="show_spec",
+   329	        description="Render the full InvestigationSpec shape with current values; unset fields show as _(unset)_.",
+   330	        parameters={"type": "object", "properties": {}},
+   331	        handler=_show_spec,
+   332	    )
+   333	
+   334	
+   335	def _validate_spec_tool() -> ToolSpec:
+   336	    return ToolSpec(
+   337	        name="validate_spec",
+   338	        description="Run deterministic checks on the draft (schema, metric ranges, tool deps, split disjointness, budget).",
+   339	        parameters={"type": "object", "properties": {}},
+   340	        handler=_validate_spec,
+   341	    )
+   342	
+   343	
+   344	def _describe_spec_tool() -> ToolSpec:
+   345	    return ToolSpec(
+   346	        name="describe_spec",
+   347	        description="Return the InvestigationSpec schema reference: fields, types, required/optional, enum values.",
+   348	        parameters={"type": "object", "properties": {}},
+   349	        handler=_describe_spec,
+   350	    )
+   351	
+   352	
+   353	def _finalize_spec_tool() -> ToolSpec:
+   354	    return ToolSpec(
+   355	        name="finalize_spec",
+   356	        description="Two-phase approval. Phase 1 renders the spec for the user; phase 2 (user_confirmed=true) writes it.",
+   357	        parameters={
+   358	            "type": "object",
+   359	            "properties": {
+   360	                "approver": {"type": "string"},
+   361	                "approver_kind": {"type": "string", "enum": ["human", "agent"]},
+   362	                "user_confirmed": {"type": "boolean"},
+   363	                "notes": {"type": "string"},
+   364	            },
+   365	            "required": ["approver"],
+   366	        },
+   367	        handler=_finalize_spec,
+   368	    )
+   369	
+   370	
+   371	def create_stage0_tools(include_priors: bool = False) -> list[ToolSpec]:
+   372	    _load_draft_if_present()
+   373	    tools = [
+   374	        _describe_spec_tool(),
+   375	        _update_spec_tool(),
+   376	        _remove_spec_fields_tool(),
+   377	        _show_spec_tool(),
+   378	        _validate_spec_tool(),
+   379	        _finalize_spec_tool(),
+   380	        _list_metrics_tool(),
+   381	        _read_metric_tool(),
+   382	        _propose_custom_metric_tool(),
+   383	    ]
+   384	    if include_priors:
+   385	        tools.insert(0, _retrieve_prior_tool())
+   386	    return tools
+   387	
+   388	
+   389	async def _propose_custom_metric(args: dict[str, Any]) -> tuple[str, bool]:
+   390	    """Validate a candidate CustomMetricDef and echo it back for the planner
+   391	    to embed in a CUSTOM criterion via update_spec."""
+   392	    payload = dict(args)
+   393	    payload.pop("source_hash", None)  # always recomputed by the validator
+   394	    try:
+   395	        defn = CustomMetricDef.model_validate(payload)
+   396	    except Exception as exc:
+   397	        return f"Rejected — {exc}", False
+   398	    rendered = (
+   399	        f"Validated custom metric '{defn.name}' (sha256={defn.source_hash[:12]}…).\n"
+   400	        f"  family:           {defn.family.value}\n"

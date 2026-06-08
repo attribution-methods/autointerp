@@ -1,0 +1,51 @@
+Loading GPT-2-small...
+
+================================================================================
+BASELINE LOGIT DIFFERENCES
+================================================================================
+Clean prompt: When John and Mary went to the store, Mary gave a drink to
+Clean logit diff (A - B): 2.982
+
+Corrupt prompt: When Mary and John went to the store, Mary gave a drink to
+Corrupt logit diff (A - B): 1.789
+
+Difference: 1.193
+
+================================================================================
+ACTIVATION PATCHING SWEEP
+================================================================================
+
+Patching attention outputs...
+Layer  9, attn : Recovery =  64.4%, Logit diff = 2.557
+Layer 11, attn : Recovery =  63.7%, Logit diff = 2.549
+
+Patching MLP outputs...
+Layer  6, mlp  : Recovery =  12.7%, Logit diff = 1.941
+Layer  8, mlp  : Recovery =  40.3%, Logit diff = 2.270
+Layer 10, mlp  : Recovery =  21.9%, Logit diff = 2.050
+
+================================================================================
+TOP RECOVERING COMPONENTS
+================================================================================
+Layer  9, attn : Recovery =  64.4%
+Layer 11, attn : Recovery =  63.7%
+Layer  8, mlp  : Recovery =  40.3%
+Layer 10, mlp  : Recovery =  21.9%
+Layer  6, mlp  : Recovery =  12.7%
+Layer  2, attn : Recovery =   5.0%
+Layer  0, mlp  : Recovery =   4.1%
+Layer  4, attn : Recovery =   1.6%
+Layer  7, mlp  : Recovery =  -7.4%
+Layer  1, attn : Recovery = -11.2%
+Layer  9, mlp  : Recovery = -11.4%
+Layer  3, attn : Recovery = -15.4%
+Layer  4, mlp  : Recovery = -15.8%
+Layer  2, mlp  : Recovery = -18.8%
+Layer 10, attn : Recovery = -19.0%
+Layer  6, attn : Recovery = -20.2%
+Layer  1, mlp  : Recovery = -20.8%
+Layer  8, attn : Recovery = -28.2%
+Layer  5, mlp  : Recovery = -32.4%
+Layer  7, attn : Recovery = -32.8%
+
+Results saved to scratch/activation_patching.json

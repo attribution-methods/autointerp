@@ -1,0 +1,2 @@
+Saved logit_diff inputs for 500 samples
+Mean logit_diff: 2.9713

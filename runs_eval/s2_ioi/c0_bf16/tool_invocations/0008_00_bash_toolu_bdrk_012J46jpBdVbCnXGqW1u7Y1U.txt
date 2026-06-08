@@ -1,0 +1,85 @@
+Loading GPT-2-small...
+
+================================================================================
+VERIFYING IOI PHENOMENON
+================================================================================
+
+ABBA #1:
+  Prompt: When Mary and John went to the store, John gave a drink to
+  IO (Mary): -81.000
+  S (John): -83.000
+  Difference (IO - S): 2.000
+  ✓ IO preferred
+
+ABBA #2:
+  Prompt: When Sarah and Tom went to the park, Tom gave a gift to
+  IO (Sarah): -86.500
+  S (Tom): -88.500
+  Difference (IO - S): 2.000
+  ✓ IO preferred
+
+ABBA #3:
+  Prompt: When Alice and Bob went to the mall, Bob gave a book to
+  IO (Alice): -81.500
+  S (Bob): -85.000
+  Difference (IO - S): 3.500
+  ✓ IO preferred
+
+ABBA #4:
+  Prompt: When Emma and David went to the beach, David gave a ball to
+  IO (Emma): -80.000
+  S (David): -85.000
+  Difference (IO - S): 5.000
+  ✓ IO preferred
+
+ABBA #5:
+  Prompt: When Lisa and Mike went to the restaurant, Mike gave a menu to
+  IO (Lisa): -86.000
+  S (Mike): -89.500
+  Difference (IO - S): 3.500
+  ✓ IO preferred
+
+BABA #1:
+  Prompt: When John and Mary went to the store, Mary gave a drink to
+  IO (Mary): -84.500
+  S (John): -81.500
+  Difference (IO - S): -3.000
+  ✗ S preferred
+
+BABA #2:
+  Prompt: When Tom and Sarah went to the park, Sarah gave a gift to
+  IO (Sarah): -81.500
+  S (Tom): -78.000
+  Difference (IO - S): -3.500
+  ✗ S preferred
+
+BABA #3:
+  Prompt: When Bob and Alice went to the mall, Alice gave a book to
+  IO (Alice): -81.000
+  S (Bob): -78.500
+  Difference (IO - S): -2.500
+  ✗ S preferred
+
+BABA #4:
+  Prompt: When David and Emma went to the beach, Emma gave a ball to
+  IO (Emma): -81.000
+  S (David): -78.000
+  Difference (IO - S): -3.000
+  ✗ S preferred
+
+BABA #5:
+  Prompt: When Mike and Lisa went to the restaurant, Lisa gave a menu to
+  IO (Lisa): -85.500
+  S (Mike): -82.500
+  Difference (IO - S): -3.000
+  ✗ S preferred
+
+================================================================================
+SUMMARY
+================================================================================
+ABBA templates: mean diff = 3.200, correct = 5/5
+BABA templates: mean diff = -3.000, correct = 0/5
+All templates:  mean diff = 0.100, correct = 5/10
+✗ IOI phenomenon not strong
+
+Saved examples to scratch/ioi_examples.json

@@ -1,0 +1,25 @@
+Loading GPT-2-small model...
+
+Loading IOI dev dataset...
+Loaded 500 samples
+
+Preparing prompts...
+
+Caching clean activations...
+
+Computing baseline metrics...
+
+Baseline metrics:
+  Clean logit_diff:   2.9246
+  Corrupt logit_diff: 1.5259
+  Gap:                1.3987
+Traceback (most recent call last):
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_joint_recovery.py", line 184, in <module>
+    main()
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_joint_recovery.py", line 141, in main
+    patched_metric = test_joint_recovery(
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_joint_recovery.py", line 60, in test_joint_recovery
+    patches = [HeadPatch(layer=layer, head=head, position=-1) 
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_joint_recovery.py", line 60, in <listcomp>
+    patches = [HeadPatch(layer=layer, head=head, position=-1) 
+TypeError: HeadPatch.__init__() got an unexpected keyword argument 'position'

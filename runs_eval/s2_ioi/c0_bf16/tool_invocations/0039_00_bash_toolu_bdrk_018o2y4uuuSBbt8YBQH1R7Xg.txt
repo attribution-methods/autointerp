@@ -1,0 +1,25 @@
+Loading GPT-2-small...
+Baseline logit diff (IO - S): 2.000
+
+================================================================================
+MLP ABLATION EXPERIMENTS
+================================================================================
+Layer  8 MLP ablated: 1.000 (Δ=-1.000)
+Layer  9 MLP ablated: 1.500 (Δ=-0.500)
+Layer 10 MLP ablated: 1.000 (Δ=-1.000)
+Layer 11 MLP ablated: 2.000 (Δ=+0.000)
+
+================================================================================
+COMBINED ABLATIONS
+================================================================================
+Ablate L11 (attention only):  1.750
+Ablate L11 (attn + MLP):      4.000
+Combined effect:              +2.000
+
+================================================================================
+SUMMARY
+================================================================================
+MLPs in later layers (especially L10-11) also contribute to IOI
+The circuit involves BOTH attention and MLP components
+This is consistent with the direct logit attribution showing
+negative MLP contributions that get overridden

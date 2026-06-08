@@ -1,0 +1,9 @@
+total 15
+drwxrwxr-x 2 ubuntu ubuntu 4096 May 16 13:14 .
+drwxrwxr-x 2 ubuntu ubuntu 4096 May 16 13:14 ..
+-rw-rw-r-- 1 ubuntu ubuntu    0 May 16 13:14 __init__.py
+drwxrwxr-x 2 ubuntu ubuntu 4096 May 16 13:23 __pycache__
+-rw-rw-r-- 1 ubuntu ubuntu 2197 May 16 13:14 age.py
+-rw-rw-r-- 1 ubuntu ubuntu 6961 May 16 13:14 cost.py
+-rw-rw-r-- 1 ubuntu ubuntu 1031 May 16 13:14 ids.py
+-rw-rw-r-- 1 ubuntu ubuntu 3092 May 16 13:14 paths.py
