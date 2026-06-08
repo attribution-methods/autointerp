@@ -240,4 +240,9 @@ SKILL_TO_TOOLS: Dict[str, List[str]] = {
     ],
     "causal-validation": ["patch-generation", "ablate-generation", "sweep-patch-sites"],
     "activation-oracles": ["capture-activations", "sample", "extract-tagged-json"],
+    "natural-language-autoencoders": [
+        "capture-activations",
+        "cache-components",
+        "cosine-similarity",
+    ],
 }

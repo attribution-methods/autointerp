@@ -19,5 +19,21 @@ The first toolkit pass includes these skills:
 - `circuit-tracing`: graph-style circuit discovery and formula ranking.
 - `causal-validation`: ablations, swaps, counterfactual prompts, held-out validation.
 - `activation-oracles`: natural-language activation verbalizers and evidence filtering.
+- `natural-language-autoencoders`: AV/AR residual-stream activation verbalization, reconstruction scoring, and hypothesis validation.
 
 Add a new skill when a method has distinct triggering conditions, failure modes, or procedures. Add a new tool when the operation needs deterministic code or repeated execution.
+
+## Adding A Skill
+
+1. Create `skills/<skill-name>/SKILL.md` with YAML frontmatter. The
+   frontmatter `name` must exactly match the folder name, and `description`
+   should be long enough for the agent to decide when to use the skill.
+2. Add `skills/<skill-name>/agents/openai.yaml` with a display name and short
+   interface description.
+3. Update this index with a one-line summary.
+4. If the skill corresponds to existing deterministic helper functions, add a
+   `SKILL_TO_TOOLS` entry in `src/autointerp/tools/registry.py`. Add new tool
+   code only when the operation needs repeatable execution, data validation, or
+   heavy computation.
+5. Run `python scripts/validate_skills.py` and the local tests before opening a
+   PR.
