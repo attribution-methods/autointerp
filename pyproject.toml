@@ -19,12 +19,13 @@ dependencies = [
   "prompt-toolkit>=3.0.0",
   "python-dotenv>=1.0.0",
   "litellm>=1.70.0",
+  "fastmcp>=2.0.0",
 ]
 
 [project.optional-dependencies]
-mcp = [
-  "fastmcp>=2.0.0",
-]
+# Back-compat alias: fastmcp moved into the core dependencies, so
+# `pip install -e ".[mcp]"` from older docs/scripts keeps working as a no-op.
+mcp = []
 mechinterp = [
   "numpy>=1.26.0",
   "torch>=2.2.0",
@@ -43,11 +44,11 @@ dev = [
   "mypy>=1.9.0",
 ]
 all = [
-  "autointerp[mcp,mechinterp,dev]",
+  "autointerp[mechinterp,dev]",
 ]
 
 [project.scripts]
-autointerp = "autointerp_agent.app:main"
+autointerp = "autointerp_agent.entry:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
