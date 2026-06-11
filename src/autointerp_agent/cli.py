@@ -4,14 +4,22 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import sys
 from pathlib import Path
 
-from prompt_toolkit import PromptSession
 from rich.console import Console
 
 from .agent_loop import run_agent_turn
-from .config import DEFAULT_CONFIG_PATH, AgentConfig, load_config
+from .config import (
+    DEFAULT_CONFIG_PATH,
+    AgentConfig,
+    env_default_model,
+    load_config,
+    load_env_files,
+)
 from .context import ContextManager
+from .model_select import ensure_model_ready, format_llm_error
+from .repl import is_first_run, mark_first_run_complete, print_banner, run_spec_repl
 from .skills import SkillRegistry
 from .tools import ToolRouter
 
@@ -36,8 +44,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-turns",
         type=int,
-        default=30,
-        help="Cap on user/agent turns in interactive mode (default: 30; 0 = unlimited)",
+        default=0,
+        help="Optional cap on interactive turns (default: unlimited — you are "
+             "the limit; live cost shows in the input box status bar)",
+    )
+    parser.add_argument(
+        "-c",
+        "--continue",
+        dest="continue_session",
+        action="store_true",
+        help="Pick a previous session in this project and resume it "
+             "(conversation, draft plan, turns, and cost are restored)",
     )
     return parser
 
@@ -79,6 +96,23 @@ async def async_main(argv: list[str] | None = None) -> int | str:
             console.print(line)
         return 0
 
+    interactive = args.prompt is None
+    if interactive:
+        print_banner(console, config=config, registry=registry, first_run=is_first_run())
+    ready = await ensure_model_ready(config, console, interactive=sys.stdin.isatty())
+    if ready is None:
+        return 1
+    config = ready
+    session_store = None
+    resume_payload = None
+    if interactive:
+        mark_first_run_complete()
+        from .sessions import SessionStore, pick_session
+
+        session_store = SessionStore()
+        if args.continue_session and sys.stdin.isatty():
+            resume_payload = await pick_session(session_store, console)
+
     context = ContextManager(
         skill_registry=registry,
         default_skill_names=config.default_skills,
@@ -98,47 +132,27 @@ async def async_main(argv: list[str] | None = None) -> int | str:
         },
     ) as router:
         if args.prompt:
-            answer = await run_agent_turn(args.prompt, config, context, router)
+            try:
+                answer = await run_agent_turn(args.prompt, config, context, router)
+            except Exception as exc:  # noqa: BLE001 — print, don't traceback
+                console.print(f"[red]{format_llm_error(exc)}[/red]")
+                return 1
             console.print(answer)
             new_specs = _snapshot_specs() - specs_before
             if new_specs:
                 finalized_spec = str(sorted(new_specs)[-1])
         else:
-            session = PromptSession()
-            cap = args.max_turns if args.max_turns and args.max_turns > 0 else None
-            cap_msg = f"max {cap} turns" if cap else "no turn cap"
-            console.print(
-                f"[bold]Autointerp[/bold] interactive mode ({cap_msg}). Ctrl-D to exit. "
-                "Approving a spec via [bold]finalize_spec[/bold] auto-launches "
-                "the investigation."
+            finalized_spec = await run_spec_repl(
+                config=config,
+                context=context,
+                router=router,
+                console=console,
+                registry=registry,
+                spec_dir=_SPEC_DIR,
+                max_turns=args.max_turns,
+                session_store=session_store,
+                resume_payload=resume_payload,
             )
-            turn = 0
-            while True:
-                try:
-                    prompt = await session.prompt_async("autointerp> ")
-                except (EOFError, KeyboardInterrupt):
-                    console.print()
-                    return 0
-                prompt = prompt.strip()
-                if not prompt:
-                    continue
-                turn += 1
-                answer = await run_agent_turn(prompt, config, context, router)
-                console.print(answer)
-                new_specs = _snapshot_specs() - specs_before
-                if new_specs:
-                    finalized_spec = str(sorted(new_specs)[-1])
-                    break
-                if cap and turn >= cap:
-                    console.print(
-                        f"[yellow]Turn cap reached ({turn}/{cap}). "
-                        f"Run `autointerp --max-turns N` to extend, or Ctrl-D to exit.[/yellow]"
-                    )
-                    return 0
-                if cap and turn == max(1, int(cap * 0.8)):
-                    console.print(
-                        f"[dim]({turn}/{cap} turns used)[/dim]"
-                    )
 
     # Returning a string signals main() to invoke the pipeline. We must NOT
     # call investigation_main here: it does its own asyncio.run, and nesting
@@ -150,8 +164,13 @@ async def async_main(argv: list[str] | None = None) -> int | str:
 
 
 def _load_cli_config(args: argparse.Namespace) -> AgentConfig:
+    load_env_files()  # credentials/.env load even when no config file exists
     config_path = Path(args.config)
-    config = load_config(config_path) if config_path.exists() else AgentConfig()
+    config = (
+        load_config(config_path)
+        if config_path.exists()
+        else AgentConfig(model_name=env_default_model())
+    )
     updates = {}
     if args.model:
         updates["model_name"] = args.model
@@ -167,7 +186,13 @@ def _load_cli_config(args: argparse.Namespace) -> AgentConfig:
 
 
 def main(argv: list[str] | None = None) -> int:
-    result = asyncio.run(async_main(argv))
+    try:
+        result = asyncio.run(async_main(argv))
+    except KeyboardInterrupt:
+        # Ctrl-C outside the prompt/turn handlers (e.g. during startup or
+        # setup): exit quietly with the conventional code, never a traceback.
+        print()
+        return 130
     if isinstance(result, str):
         return _auto_launch_pipeline(result, Console())
     return result
