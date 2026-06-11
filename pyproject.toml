@@ -60,6 +60,11 @@ include = ["autointerp*", "autointerp_agent*"]
 autointerp = ["py.typed"]
 autointerp_agent = ["py.typed"]
 
+[tool.pytest.ini_options]
+# Only the real suite — runs_eval/ archives contain test_*.py files written
+# by the agent under test, which bare collection would otherwise pick up.
+testpaths = ["tests"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
