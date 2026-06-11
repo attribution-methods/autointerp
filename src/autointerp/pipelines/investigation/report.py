@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel
+
 from autointerp import schemas as S
 from autointerp.spec import InvestigationSpec
 
@@ -18,7 +20,7 @@ from .run_dir import RunHandle
 from .state import Verdict, read_state
 
 
-def _load_all(dir_: Path, glob: str, cls: type) -> list[Any]:
+def _load_all(dir_: Path, glob: str, cls: type[BaseModel]) -> list[Any]:
     if not dir_.is_dir():
         return []
     out: list[Any] = []

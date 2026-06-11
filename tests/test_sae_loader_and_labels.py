@@ -8,14 +8,12 @@ caching) without GPU or external deps.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 
 from autointerp.tools import sae_labels, sae_loader
-
 
 # ---- sae_loader -------------------------------------------------------------
 

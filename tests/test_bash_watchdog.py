@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-import pytest
-
 from autointerp_agent.skills import SkillRegistry
 from autointerp_agent.tools import ToolRouter, _run_bash_watched
 

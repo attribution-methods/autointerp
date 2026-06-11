@@ -40,8 +40,10 @@ mechinterp = [
 ]
 dev = [
   "pytest>=8.0.0",
-  "ruff>=0.4.0",
-  "mypy>=1.9.0",
+  # Pinned to minor series so CI results are reproducible — unpinned
+  # linters made CI red the day stricter releases shipped.
+  "ruff>=0.15,<0.16",
+  "mypy>=2.1,<2.2",
 ]
 all = [
   "autointerp[mechinterp,dev]",
@@ -61,6 +63,9 @@ autointerp_agent = ["py.typed"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+# runs_eval/ holds archived evaluation runs — including scripts written by
+# the agent under test. They are data artifacts, not source; never lint them.
+extend-exclude = ["runs_eval"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

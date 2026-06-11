@@ -25,7 +25,6 @@ from autointerp.pipelines.investigation.main import (
     build_header,
     build_system_prompt,
 )
-from autointerp.pipelines.investigation.state import read_state
 from autointerp.schemas import BehaviorSpec
 from autointerp.spec import (
     Approval,

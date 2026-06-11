@@ -115,7 +115,9 @@ def _artifact_id(kind: str, model: BaseModel) -> str:
     return str(raw)
 
 
-def _resolve_path(handle: RunHandle, kind: str, artifact_id: str, stage_idx: int, stage_name: str) -> tuple[Path, str]:
+def _resolve_path(
+    handle: RunHandle, kind: str, artifact_id: str, stage_idx: int, stage_name: str
+) -> tuple[Path, str]:
     _cls, _id_field, subdir = ARTIFACT_KINDS[kind]
     safe_id = artifact_id.replace("/", "_")
     if subdir == "prompt_batches":
@@ -152,7 +154,9 @@ def _resolve_split(kind: str, model: BaseModel, split_arg: str | None) -> str:
     return split_arg
 
 
-def _stamp_provenance(model: BaseModel, *, stage_idx: int, split: str, committed_at: str) -> BaseModel:
+def _stamp_provenance(
+    model: BaseModel, *, stage_idx: int, split: str, committed_at: str
+) -> BaseModel:
     """Set metadata['_provenance']. Returns a new model copy (validate_assignment safe)."""
     md = dict(getattr(model, "metadata", {}) or {})
     if "_provenance" in md:

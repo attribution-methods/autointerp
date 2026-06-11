@@ -9,6 +9,10 @@ import re
 import threading
 from typing import Any, Awaitable, Callable, Protocol, runtime_checkable
 
+from .config import AgentConfig
+from .context import ContextManager
+from .tools import ToolRouter
+
 # Pattern for tool-call XML syntax leaking into assistant text content.
 # Anthropic's models occasionally regress to the legacy <invoke>/<parameter>
 # XML format inside content blocks instead of using structured tool_use blocks.
@@ -22,10 +26,6 @@ _LEAKED_TOOL_XML = re.compile(
     re.IGNORECASE,
 )
 _MAX_LEAKED_XML_RETRIES = 3
-
-from .config import AgentConfig
-from .context import ContextManager
-from .tools import ToolRouter
 
 # Resolved lazily on the first agent turn: `import litellm` reads thousands
 # of module files (~12s on network filesystems) and must never delay CLI

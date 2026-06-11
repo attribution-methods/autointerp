@@ -83,9 +83,9 @@ def main():
     
     print(f"Generated {len(dev_samples)} dev samples")
     print(f"Generated {len(heldout_samples)} heldout samples")
-    print(f"\nExample dev sample:")
+    print("\nExample dev sample:")
     print(json.dumps(dev_samples[0], indent=2))
-    print(f"\nExample heldout sample:")
+    print("\nExample heldout sample:")
     print(json.dumps(heldout_samples[0], indent=2))
 
 if __name__ == "__main__":

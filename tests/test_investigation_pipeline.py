@@ -40,10 +40,9 @@ from autointerp.pipelines.investigation.state import (
     read_state,
 )
 from autointerp.schemas import (
-    BehaviorSpec,
     BehavioralFinding,
+    BehaviorSpec,
     ChatMessage,
-    EvidenceStrength,
     PromptBatch,
     PromptCase,
 )
@@ -442,7 +441,9 @@ def test_advance_final_stage_rolls_back_on_unevaluated(tmp_path: Path) -> None:
 
 def test_request_spec_revision(tmp_path: Path) -> None:
     handle = init_run(_spec(), runs_root=tmp_path)
-    req = request_spec_revision(handle, reason="hypothesis no longer fits", prior_results_ref="run.json")
+    req = request_spec_revision(
+        handle, reason="hypothesis no longer fits", prior_results_ref="run.json"
+    )
     assert req.reason.startswith("hypothesis")
     state = read_state(handle.state_path)
     assert state.terminal_state is TerminalState.REVISION_REQUESTED

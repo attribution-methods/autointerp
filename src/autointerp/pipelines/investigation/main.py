@@ -20,7 +20,6 @@ from .report import write_report
 from .run_dir import RunHandle, init_run, load_run
 from .state import RunState, TerminalState, is_terminal_state, read_state
 
-
 SYSTEM_PROMPT_HEADER = """\
 You are the autointerp investigation agent. The user has approved an
 InvestigationSpec; you are executing it.

@@ -218,7 +218,10 @@ def evaluate_criterion(
     forcing a PASS/FAIL the evidence cannot support.
     """
     state = read_state(handle.state_path)
-    if state.terminal_state is not None and state.terminal_state is not TerminalState.CRITERION_FAILED:
+    if (
+        state.terminal_state is not None
+        and state.terminal_state is not TerminalState.CRITERION_FAILED
+    ):
         # CRITERION_FAILED is the one terminal state where re-evaluating cached
         # results is still meaningful (so the agent can read what failed). All
         # other terminal states refuse new evaluations.

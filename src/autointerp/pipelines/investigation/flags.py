@@ -70,7 +70,6 @@ class AblationFlags(BaseModel):
         s = spec.strip().lower()
         if s in ("", "full", "all", "all-on"):
             return cls()
-        codes = {a: c for a, c in _FLAG_CODES}
         off = {tok.strip().upper() for tok in spec.split(",") if tok.strip()}
         unknown = off - {c for _, c in _FLAG_CODES}
         if unknown:

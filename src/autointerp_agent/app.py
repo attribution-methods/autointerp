@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import re
 import sys
 import time
 from pathlib import Path
@@ -90,7 +89,9 @@ def cmd_investigate(argv: list[str]) -> int:
     else:
         path = _stage0_to_spec(args)
         if path is None:
-            console.print("[yellow]Stage 0 ended without a finalized spec — nothing to run.[/yellow]")
+            console.print(
+                "[yellow]Stage 0 ended without a finalized spec — nothing to run.[/yellow]"
+            )
             return 1
         console.print(f"[bold]Spec finalized:[/bold] {path}")
         spec_path = path
@@ -363,9 +364,11 @@ def _runs_show(run_dir: Path) -> int:
         }
         for cid, c in crits.items():
             mark = _VERDICT_MARK.get(c.get("verdict"), "[dim]?[/dim]")
+            value = c.get("value")
+            observed = f"{value:.4g}" if isinstance(value, (int, float)) else str(value)
             table.add_row(
                 cid, str(c.get("metric")), str(c.get("comparator")),
-                f"{c.get('threshold')}", f"{c.get('value'):.4g}" if isinstance(c.get('value'), (int, float)) else str(c.get('value')),
+                f"{c.get('threshold')}", observed,
                 mark,
             )
         console.print(table)
@@ -443,7 +446,10 @@ def _print_stream_line(console: Console, kind: str, line: str) -> None:
     else:
         text = (r.get("text") or "").strip()
         if text:
-            console.print(f"[bold cyan]assistant[/bold cyan] it{r.get('iteration',0):03d}: {text[:200]}")
+            console.print(
+                f"[bold cyan]assistant[/bold cyan] it{r.get('iteration',0):03d}: "
+                f"{text[:200]}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -497,7 +503,7 @@ def cmd_validate(argv: list[str]) -> int:
             f"(custom: {custom_names})"
         )
     else:
-        console.print(f"[green]✓[/green] all criterion metrics are registered")
+        console.print("[green]✓[/green] all criterion metrics are registered")
 
     if args.load_model:
         from autointerp.tools.model import load_model
@@ -506,7 +512,7 @@ def cmd_validate(argv: list[str]) -> int:
         except Exception as exc:
             console.print(f"[red]✗[/red] model load failed: {exc}")
             return 1
-        console.print(f"[green]✓[/green] model loads")
+        console.print("[green]✓[/green] model loads")
 
     console.print("\n[bold green]Spec is runnable.[/bold green]")
     return 0

@@ -27,7 +27,6 @@ from typing import Any
 from .run_dir import RunHandle
 from .state import now_iso
 
-
 _PREVIEW_CHARS = 400  # full preview length for jsonl artifacts
 _CONSOLE_PREVIEW_CHARS = 110  # tighter preview for live console
 _ASSISTANT_CONSOLE_CHARS = 180  # assistant reasoning shown on console

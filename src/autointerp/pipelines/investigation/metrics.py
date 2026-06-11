@@ -30,7 +30,6 @@ from autointerp.spec import METRIC_META, CustomMetricDef, InvestigationSpec, Met
 from .run_dir import RunHandle
 from .state import ProvenanceToken, now_iso, read_state, write_state
 
-
 # ---- error types -----------------------------------------------------------
 
 
@@ -91,7 +90,7 @@ def _accuracy(inputs: dict[str, Any]) -> float:
         )
     if not preds:
         raise MetricRegistryError("accuracy: predictions list is empty")
-    correct = sum(1 for p, l in zip(preds, labels) if p == l)
+    correct = sum(1 for pred, label in zip(preds, labels) if pred == label)
     return correct / len(preds)
 
 
@@ -291,12 +290,12 @@ def _auroc(inputs: dict[str, Any]) -> float:
             f"({len(scores)} scores)"
         )
     labels: list[int] = []
-    for i, l in enumerate(raw_labels):
-        if l in (0, 1, True, False):
-            labels.append(int(bool(l)))
+    for i, label in enumerate(raw_labels):
+        if label in (0, 1, True, False):
+            labels.append(int(bool(label)))
         else:
             raise MetricRegistryError(
-                f"auroc.labels[{i}] = {l!r} is not 0/1 (or boolean)"
+                f"auroc.labels[{i}] = {label!r} is not 0/1 (or boolean)"
             )
     n_pos = sum(labels)
     n_neg = len(labels) - n_pos
@@ -319,7 +318,7 @@ def _auroc(inputs: dict[str, Any]) -> float:
             ranks[order[k]] = avg_rank
         i = j + 1
 
-    sum_pos_ranks = sum(r for r, l in zip(ranks, labels) if l == 1)
+    sum_pos_ranks = sum(rank for rank, label in zip(ranks, labels) if label == 1)
     auc = (sum_pos_ranks - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg)
     return float(auc)
 
@@ -723,12 +722,13 @@ def compute_metric(
         # Drop the lookup-only key so it isn't part of the inputs hash.
         inputs = {k: v for k, v in inputs.items() if k != "__custom_name__"}
     else:
-        impl = REGISTRY.get(metric)
-        if impl is None:
+        registered = REGISTRY.get(metric)
+        if registered is None:
             raise MetricRegistryError(
                 f"no canonical implementation for {metric.value!r}; "
                 f"registered: {[m.value for m in REGISTRY]}"
             )
+        impl = registered
 
     from .guards import GuardError, enforce_budget
 
@@ -773,7 +773,11 @@ def compute_metric(
         )
     if was_clipped:
         md["unclipped_value"] = raw_value
-        md["clipped_to_range"] = list(METRIC_META[metric].value_range) if custom_def is None else list(custom_def.value_range)
+        md["clipped_to_range"] = (
+            list(METRIC_META[metric].value_range)
+            if custom_def is None
+            else list(custom_def.value_range)
+        )
 
     passed = _evaluate_threshold(clipped_value, threshold, comparator)
 

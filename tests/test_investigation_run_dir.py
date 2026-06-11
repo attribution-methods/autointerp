@@ -14,7 +14,6 @@ from autointerp.pipelines.investigation.state import (
     BudgetConsumed,
     CriterionRecord,
     ProvenanceToken,
-    RunState,
     StageStatus,
     TerminalState,
     Verdict,
@@ -23,6 +22,7 @@ from autointerp.pipelines.investigation.state import (
     read_state,
     write_state,
 )
+from autointerp.schemas import BehaviorSpec
 from autointerp.spec import (
     Approval,
     Budget,
@@ -38,7 +38,6 @@ from autointerp.spec import (
     StageSpec,
     ToolName,
 )
-from autointerp.schemas import BehaviorSpec
 
 
 def _make_approved_spec() -> InvestigationSpec:
