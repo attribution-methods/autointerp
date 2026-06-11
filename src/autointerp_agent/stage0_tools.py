@@ -13,9 +13,9 @@ from typing import Any
 
 import yaml
 
+from autointerp.pipelines.investigation.metrics import REGISTRY as _METRIC_REGISTRY
 from autointerp.spec import (
     METRIC_META,
-    TOOL_META,
     CustomMetricDef,
     InvestigationSpec,
     MetricFamily,
@@ -28,8 +28,6 @@ from autointerp.spec_partial import (
     UnknownSpecField,
     make_approval,
 )
-
-from autointerp.pipelines.investigation.metrics import REGISTRY as _METRIC_REGISTRY
 
 from .tools import ToolSpec
 
@@ -300,7 +298,10 @@ def _retrieve_prior_tool() -> ToolSpec:
 def _update_spec_tool() -> ToolSpec:
     return ToolSpec(
         name="update_spec",
-        description="Patch top-level fields in the draft InvestigationSpec. Unknown keys are rejected.",
+        description=(
+            "Patch top-level fields in the draft InvestigationSpec. "
+            "Unknown keys are rejected."
+        ),
         parameters={
             "type": "object",
             "properties": {"patch": {"type": "object", "additionalProperties": True}},
@@ -326,7 +327,10 @@ def _remove_spec_fields_tool() -> ToolSpec:
 def _show_spec_tool() -> ToolSpec:
     return ToolSpec(
         name="show_spec",
-        description="Render the full InvestigationSpec shape with current values; unset fields show as _(unset)_.",
+        description=(
+            "Render the full InvestigationSpec shape with current values; "
+            "unset fields show as _(unset)_."
+        ),
         parameters={"type": "object", "properties": {}},
         handler=_show_spec,
     )
@@ -335,7 +339,10 @@ def _show_spec_tool() -> ToolSpec:
 def _validate_spec_tool() -> ToolSpec:
     return ToolSpec(
         name="validate_spec",
-        description="Run deterministic checks on the draft (schema, metric ranges, tool deps, split disjointness, budget).",
+        description=(
+            "Run deterministic checks on the draft (schema, metric ranges, "
+            "tool deps, split disjointness, budget)."
+        ),
         parameters={"type": "object", "properties": {}},
         handler=_validate_spec,
     )
@@ -344,7 +351,10 @@ def _validate_spec_tool() -> ToolSpec:
 def _describe_spec_tool() -> ToolSpec:
     return ToolSpec(
         name="describe_spec",
-        description="Return the InvestigationSpec schema reference: fields, types, required/optional, enum values.",
+        description=(
+            "Return the InvestigationSpec schema reference: fields, types, "
+            "required/optional, enum values."
+        ),
         parameters={"type": "object", "properties": {}},
         handler=_describe_spec,
     )
@@ -353,7 +363,10 @@ def _describe_spec_tool() -> ToolSpec:
 def _finalize_spec_tool() -> ToolSpec:
     return ToolSpec(
         name="finalize_spec",
-        description="Two-phase approval. Phase 1 renders the spec for the user; phase 2 (user_confirmed=true) writes it.",
+        description=(
+            "Two-phase approval. Phase 1 renders the spec for the user; "
+            "phase 2 (user_confirmed=true) writes it."
+        ),
         parameters={
             "type": "object",
             "properties": {

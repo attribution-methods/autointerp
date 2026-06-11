@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 import re
+import threading
 from typing import Any, Awaitable, Callable, Protocol, runtime_checkable
+
+from .config import AgentConfig
+from .context import ContextManager
+from .tools import ToolRouter
 
 # Pattern for tool-call XML syntax leaking into assistant text content.
 # Anthropic's models occasionally regress to the legacy <invoke>/<parameter>
@@ -21,11 +27,70 @@ _LEAKED_TOOL_XML = re.compile(
 )
 _MAX_LEAKED_XML_RETRIES = 3
 
-from litellm import acompletion
+# Resolved lazily on the first agent turn: `import litellm` reads thousands
+# of module files (~12s on network filesystems) and must never delay CLI
+# startup or the banner. Tests may pre-assign a fake here — any non-None
+# value is used as-is.
+acompletion = None
 
-from .config import AgentConfig
-from .context import ContextManager
-from .tools import ToolRouter
+_warm_thread: threading.Thread | None = None
+
+
+def _import_llm_runtime() -> Any:
+    """Blocking: import litellm and pre-load its token encodings.
+
+    Runs in a worker thread (never on the event loop — it would freeze every
+    concurrent UI task, e.g. the elapsed-time ticker, for the duration).
+    """
+    from litellm import acompletion as _acompletion
+
+    try:
+        import litellm
+
+        # Errors are rendered by format_llm_error — keep litellm's
+        # "Give Feedback / Get Help" banners out of the shell.
+        litellm.suppress_debug_info = True
+        # First token count lazily loads tiktoken encodings (can hit the
+        # network/disk for seconds) — pay it here, off the hot path.
+        litellm.token_counter(model="gpt-4o", text="warm")
+    except Exception:  # noqa: BLE001 — warming is best-effort
+        pass
+    return _acompletion
+
+
+def warm_llm_runtime() -> None:
+    """Begin importing litellm in a daemon thread (idempotent).
+
+    Called when an interactive session opens: the user spends longer reading
+    the banner and typing than the import takes, so the first turn starts
+    warm instead of stalling.
+    """
+    global _warm_thread
+    if acompletion is not None:
+        return
+    if _warm_thread is not None and _warm_thread.is_alive():
+        return
+
+    def _job() -> None:
+        global acompletion
+        try:
+            result = _import_llm_runtime()
+            if acompletion is None:
+                acompletion = result
+        except Exception:  # noqa: BLE001 — the first _call_llm will surface it
+            pass
+
+    _warm_thread = threading.Thread(target=_job, daemon=True, name="litellm-warm")
+    _warm_thread.start()
+
+
+async def _call_llm(**kwargs: Any) -> Any:
+    global acompletion
+    if acompletion is None:
+        # Worker thread, not the loop: if the background warm-up is already
+        # mid-import this just blocks on the import lock over there.
+        acompletion = await asyncio.to_thread(_import_llm_runtime)
+    return await acompletion(**kwargs)
 
 
 @runtime_checkable
@@ -84,7 +149,7 @@ async def run_agent_turn(
     leaked_xml_retries = 0
     for iteration in range(config.max_iterations):
         await _emit(observer, "on_iteration_start", iteration)
-        response = await acompletion(
+        response = await _call_llm(
             model=config.model_name,
             messages=context.llm_messages(),
             tools=context.tools_with_caching(tool_router.get_tool_specs_for_llm()),

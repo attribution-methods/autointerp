@@ -188,7 +188,8 @@ def initial_state(
     if len(stage_names) != n_stages:
         raise ValueError(f"stage_names length {len(stage_names)} != n_stages {n_stages}")
     stage_status = {
-        str(i): StageRecord(stage=stage_names[i], status=StageStatus.PENDING) for i in range(n_stages)
+        str(i): StageRecord(stage=stage_names[i], status=StageStatus.PENDING)
+        for i in range(n_stages)
     }
     return RunState(
         spec_id=spec_id,

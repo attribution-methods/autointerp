@@ -3,13 +3,16 @@ Stage 0: Black-box behavioral measurement on IOI task.
 Measures accuracy and logit_diff on dev split.
 """
 import sys
+
 sys.path.insert(0, "src")
 
 import json
-import torch
+
 import numpy as np
+import torch
+
 from autointerp.tools.model import load_model
-from datasets import load_dataset
+
 
 def main():
     print("Loading GPT-2-small...")
@@ -77,7 +80,7 @@ def main():
     std_logit_diff = np.std(logit_diffs)
     
     print(f"\n{'='*60}")
-    print(f"STAGE 0 BEHAVIORAL RESULTS")
+    print("STAGE 0 BEHAVIORAL RESULTS")
     print(f"{'='*60}")
     print(f"Samples: {len(dev_samples)}")
     print(f"Accuracy (logit(IO) > logit(S)): {accuracy:.4f} ({accuracy_count}/{len(dev_samples)})")

@@ -6,9 +6,8 @@ the metric values locally using the canonical formulas and then
 commit the artifacts with the computed values and inputs hashes.
 """
 
-import json
 import hashlib
-import sys
+import json
 
 # Load results
 results = json.load(open('scratch/stage0_results.json'))
@@ -28,7 +27,7 @@ logit_diff_inputs = {
 def compute_accuracy(inputs):
     preds = inputs["predictions"]
     labels = inputs["labels"]
-    correct = sum(1 for p, l in zip(preds, labels) if p == l)
+    correct = sum(1 for pred, label in zip(preds, labels) if pred == label)
     return correct / len(preds)
 
 def compute_logit_diff(inputs):
@@ -50,7 +49,7 @@ accuracy_hash = hash_inputs(accuracy_inputs)
 logit_diff_hash = hash_inputs(logit_diff_inputs)
 
 # Output for review
-print(f"Computed Metrics:")
+print("Computed Metrics:")
 print(f"  accuracy: {accuracy_value:.6f}")
 print(f"  accuracy_hash: {accuracy_hash}")
 print(f"  logit_diff: {logit_diff_value:.6f}")
@@ -75,4 +74,4 @@ metric_results = {
 with open('scratch/stage0_metrics_to_commit.json', 'w') as f:
     json.dump(metric_results, f, indent=2)
 
-print(f"\nSaved to scratch/stage0_metrics_to_commit.json")
+print("\nSaved to scratch/stage0_metrics_to_commit.json")

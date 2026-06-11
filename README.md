@@ -24,14 +24,18 @@ results), see [QUICKSTART.md](QUICKSTART.md). For the IOI run report, see
 ```bash
 git clone https://github.com/attribution-methods/autointerp.git
 cd autointerp
-python -m pip install -e ".[mcp]"
+python -m pip install -e .
 ```
 
-Install the heavier white-box analysis dependencies when you want local model
-loading, activation hooks, probes, SAEs, or steering:
+That's everything needed for spec design, API/black-box investigations, and
+inspecting runs. One optional extra exists, `mechinterp`, for **local
+white-box model work** (loading models, activation hooks, patching, probes,
+SAEs, steering). It's opt-in because it pulls in torch — several GB of CUDA
+wheels — which you don't want on laptops, in CI, or on GPU boxes that
+already ship a system torch matched to their driver:
 
 ```bash
-python -m pip install -e ".[mcp,mechinterp]"
+python -m pip install -e ".[mechinterp]"   # add local/white-box model support
 ```
 
 Set an LLM API key for agent mode:
@@ -40,7 +44,33 @@ Set an LLM API key for agent mode:
 export ANTHROPIC_API_KEY=...
 # or
 export OPENAI_API_KEY=...
+# or
+export OPENROUTER_API_KEY=...
 ```
+
+No key exported? Just run `autointerp`: when the configured model's provider
+has no key in the environment, the CLI opens an interactive setup — pick a
+provider (arrow keys), paste the key (masked), then pick from a **model list
+fetched live from the provider's `/models` endpoint** (so it always shows
+what your key can actually call; offline it falls back to litellm's bundled
+registry, then a minimal built-in list). The agent sends tool definitions on
+every call, so the OpenRouter list is filtered to tool-capable models and
+the validation ping exercises tool calling — models that can't drive the
+agent fail at setup, not mid-session. The choice is validated, then offered
+for saving (key + `AUTOINTERP_MODEL`) to either
+`~/.autointerp/credentials` (recommended — applies in any directory, file
+mode 0600) or a project-local gitignored `.env`. Precedence follows the
+usual CLI convention:
+
+```text
+process env (export …)  >  ./.env (project)  >  ~/.autointerp/credentials (user)
+```
+
+Inside any interactive session, `/model` re-opens the picker to switch
+model, provider, or key mid-conversation — if a key already exists you can
+keep it or replace it (`/help` lists all commands). `--model` still
+overrides per invocation, and a free-text "custom" entry accepts any
+litellm model string.
 
 ## Quick Start
 
@@ -74,6 +104,40 @@ Start an interactive session:
 autointerp
 ```
 
+The interactive shell opens with a welcome banner (model, key status,
+skills, version) and behaves like a modern agent CLI: a bordered input with
+slash-command autocompletion (type `/`), cross-session history and a status
+bar with live token/cost totals, tool-call indicators with a spinner while
+the agent works, markdown-rendered answers, and Ctrl-C interrupting the
+current turn instead of the session. First launch runs a one-time setup
+(provider → key → live model list) persisted to `.env` + `~/.autointerp/`;
+after that it never re-runs.
+
+Session commands (autocomplete after typing `/`):
+
+- `/model` — switch model / provider / API key mid-session (live model
+  list from the provider, validated before switching)
+- `/litrev [topic]` — side-channel **arXiv literature review**: a panel of
+  linked papers with 3–4 sentence summaries, also saved as markdown to
+  `outputs/litrev/`. The topic defaults to the draft spec's question (or
+  your last message). Results never enter the agent's context — mention a
+  paper yourself if you want the agent to use it.
+- `/cost` — per-model token and dollar breakdown for the session
+- `/status` — model, key, turns, context size, draft-spec state
+- `/skills`, `/clear`, `/help`, `/exit`
+
+`autointerp` always starts a **fresh** session (a stray draft plan from an
+interrupted session is archived, never silently resumed). Resume explicitly:
+
+```bash
+autointerp --continue    # arrow-key picker over this project's sessions
+```
+
+Every session is saved per project under `~/.autointerp/sessions/` after
+each turn — conversation, draft plan, turn count, and cost. Resuming
+restores the agent's full context and shows a "session resumed" panel;
+`/clear` rotates to a new session in place (the old one stays resumable).
+
 ### Stage 0 — design an investigation conversationally
 
 The agent enters Stage 0 spec-mode when you open with a research question.
@@ -86,6 +150,12 @@ finalize on your approval. The approved spec is written to
 autointerp --model anthropic/claude-sonnet-4-6
 > how does the model perform indirect object identification?
 ```
+
+Validation includes model/method coherence: a spec whose stages declare
+white-box tools (lenses, activation patching, SAEs, probes, steering, …)
+is mechanically rejected if it targets a known closed-weights API model
+(GPT-4/5, o-series, Claude, Gemini, …) — those support black-box stages
+only, since every other tool loads the model's weights locally.
 
 See [docs/stage0.md](docs/stage0.md) for the full design (closed
 vocabularies, validation layers, approval flow, revision DAG).

@@ -126,7 +126,7 @@ def cache_head_z(
     if layers is None:
         layer_indices = list(range(handle.n_layers))
     else:
-        layer_indices = [resolve_layer(int(l), handle.n_layers) for l in layers]
+        layer_indices = [resolve_layer(int(layer), handle.n_layers) for layer in layers]
     n_heads = handle.n_heads
     d_head = _head_dim(handle)
 
@@ -318,7 +318,7 @@ def head_patch_sweep(
     layer_indices = (
         list(range(handle.n_layers))
         if layers is None
-        else [resolve_layer(int(l), handle.n_layers) for l in layers]
+        else [resolve_layer(int(layer), handle.n_layers) for layer in layers]
     )
     head_indices = list(heads) if heads is not None else list(range(handle.n_heads))
 
@@ -397,8 +397,12 @@ def path_patch(
     """
     sender_layer, sender_head = sender
     if freeze_layers is None:
-        freeze_layers = [l for l in range(handle.n_layers) if l != sender_layer]
-    freeze_layers = [resolve_layer(int(l), handle.n_layers) for l in freeze_layers]
+        freeze_layers = [
+            layer for layer in range(handle.n_layers) if layer != sender_layer
+        ]
+    freeze_layers = [
+        resolve_layer(int(layer), handle.n_layers) for layer in freeze_layers
+    ]
 
     needed = sorted(set([sender_layer, *freeze_layers]))
     if clean_cache is None:

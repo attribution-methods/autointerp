@@ -10,8 +10,10 @@ behavior.
 ```bash
 git clone https://github.com/attribution-methods/autointerp.git
 cd autointerp
-python -m pip install -e ".[mcp,mechinterp]"
-export ANTHROPIC_API_KEY=...
+python -m pip install -e ".[mechinterp]"   # extra = local model loading (torch)
+export ANTHROPIC_API_KEY=...   # optional — skip it and `autointerp` will
+                               # walk you through model + key setup and can
+                               # save both to .env (see /model, /help)
 ```
 
 You'll need a GPU for any run that loads a real model (GPT-2-small needs

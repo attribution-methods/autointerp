@@ -23,6 +23,7 @@ from autointerp.pipelines.investigation.state import (
 from autointerp.schemas import (
     ActivationCacheRef,
     BehavioralFinding,
+    BehaviorSpec,
     ChatMessage,
     EvidenceStrength,
     MetricResult,
@@ -30,6 +31,7 @@ from autointerp.schemas import (
     PromptBatch,
     PromptCase,
 )
+from autointerp.schemas import ModelRef as SchemaModelRef
 from autointerp.spec import (
     Approval,
     Budget,
@@ -44,8 +46,6 @@ from autointerp.spec import (
     StageSpec,
     ToolName,
 )
-from autointerp.schemas import BehaviorSpec
-from autointerp.schemas import ModelRef as SchemaModelRef
 
 
 def _approved_spec() -> InvestigationSpec:
@@ -107,7 +107,9 @@ def _make_prompt_batch(batch_id: str = "b1", split: str = "dev") -> PromptBatch:
     )
 
 
-def _seed_token(handle, *, token: str, metric: str, metric_id: str, value: float, stage_idx: int = 0):
+def _seed_token(
+    handle, *, token: str, metric: str, metric_id: str, value: float, stage_idx: int = 0
+):
     state = read_state(handle.state_path)
     state.pending_provenance_tokens[token] = ProvenanceToken(
         metric=metric,

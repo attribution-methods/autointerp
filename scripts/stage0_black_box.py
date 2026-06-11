@@ -4,10 +4,11 @@ Stage 0: Black-box behavioral sanity check.
 Compute accuracy and logit_diff for clean IOI prompts.
 """
 
-import torch
 import json
-from transformers import AutoTokenizer, AutoModelForCausalLM
 from pathlib import Path
+
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # IOI dataset constants (from Wang et al. 2022 / priors)
 NAMES = [' John', ' Mary', ' Tom', ' Sarah', ' James', ' Kate', ' Robert', ' Lisa',
@@ -119,7 +120,7 @@ def main():
     accuracy = sum(accuracies) / len(accuracies)
     mean_logit_diff = sum(logit_diffs) / len(logit_diffs)
     
-    print(f"\n=== Stage 0 Results ===")
+    print("\n=== Stage 0 Results ===")
     print(f"Accuracy: {accuracy:.4f}")
     print(f"Mean IO logit: {sum(io_logits_list) / len(io_logits_list):.4f}")
     print(f"Mean S logit: {sum(s_logits_list) / len(s_logits_list):.4f}")

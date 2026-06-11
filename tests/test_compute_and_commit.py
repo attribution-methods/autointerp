@@ -7,8 +7,6 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pytest
-
 from autointerp.pipelines.investigation import init_run
 from autointerp.pipelines.investigation.metrics import compute_and_commit_metric
 from autointerp.pipelines.investigation.tools import create_investigation_tools
@@ -129,7 +127,7 @@ def test_compute_and_commit_failed_criterion_terminates_run(tmp_path: Path) -> N
     )
     assert out["criterion_record"]["verdict"] == "fail"
     # The criterion gate flips the run to CRITERION_FAILED.
-    from autointerp.pipelines.investigation.state import read_state, TerminalState
+    from autointerp.pipelines.investigation.state import TerminalState, read_state
 
     state = read_state(handle.state_path)
     assert state.terminal_state is TerminalState.CRITERION_FAILED

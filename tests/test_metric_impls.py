@@ -13,7 +13,6 @@ from autointerp.pipelines.investigation.metrics import (
 )
 from autointerp.spec import MetricName
 
-
 # ---- AUROC -----------------------------------------------------------------
 
 
@@ -142,7 +141,8 @@ def _sufficiency(inputs: dict) -> float:
 
 
 def test_sufficiency_basic() -> None:
-    assert _sufficiency({"full_model_metric": 1.0, "only_component_metric": 0.4}) == pytest.approx(0.4)
+    inputs = {"full_model_metric": 1.0, "only_component_metric": 0.4}
+    assert _sufficiency(inputs) == pytest.approx(0.4)
 
 
 def test_sufficiency_rejects_zero_full() -> None:

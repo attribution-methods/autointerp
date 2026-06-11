@@ -24,7 +24,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
 from rich.console import Console
 
 from autointerp.pipelines.investigation.main import SYSTEM_PROMPT_HEADER
@@ -32,7 +31,7 @@ from autointerp.pipelines.investigation.observer import RunObserver
 from autointerp.utils.cost import CostTracker
 
 from .agent_loop import run_agent_turn
-from .config import DEFAULT_MODEL, AgentConfig
+from .config import DEFAULT_MODEL, AgentConfig, load_env_files
 from .context import ContextManager
 from .skills import SkillRegistry
 from .tools import ToolRouter
@@ -164,9 +163,10 @@ async def run_free_agent(
     """Run one C0 investigation. Returns a small result dict; full transcript
     lands in ``run_dir`` in the same schema as a scaffolded run."""
     _ensure_working_copy_on_path()
-    # The investigation CLI loads .env via load_config; the C0 harness has no
-    # config file, so load it here too (ANTHROPIC_API_KEY lives in repo .env).
-    load_dotenv(override=False)
+    # The investigation CLI loads env files via load_config; the C0 harness
+    # has no config file, so load them here too (repo .env, then the
+    # user-level ~/.autointerp/credentials).
+    load_env_files()
     run_dir = Path(run_dir)
     scripts_dir = run_dir / "scripts"
     scratch_dir = run_dir / "scratch"

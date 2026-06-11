@@ -12,7 +12,7 @@ with open('scratch/accuracy_inputs_final.json', 'r') as f:
     accuracy_inputs = json.load(f)
 
 # Verify counts
-print(f"Accuracy inputs loaded:", file=sys.stderr)
+print("Accuracy inputs loaded:", file=sys.stderr)
 print(f"  Predictions: {len(accuracy_inputs['predictions'])}", file=sys.stderr)
 print(f"  Labels: {len(accuracy_inputs['labels'])}", file=sys.stderr)
 

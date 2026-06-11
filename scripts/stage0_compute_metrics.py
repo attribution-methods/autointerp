@@ -4,8 +4,8 @@ Stage 0: Compute and commit the accuracy and logit_diff metrics.
 """
 
 import json
-import sys
 import os
+import sys
 
 # Add the src directory to path if needed
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -29,7 +29,7 @@ def compute_accuracy(inputs):
     """From metrics.py: Mean(predictions[i] == labels[i])"""
     preds = inputs["predictions"]
     labels = inputs["labels"]
-    correct = sum(1 for p, l in zip(preds, labels) if p == l)
+    correct = sum(1 for pred, label in zip(preds, labels) if pred == label)
     return correct / len(preds)
 
 def compute_logit_diff(inputs):
@@ -41,7 +41,7 @@ def compute_logit_diff(inputs):
 accuracy_value = compute_accuracy(accuracy_inputs)
 logit_diff_value = compute_logit_diff(logit_diff_inputs)
 
-print(f"Computed Metrics:")
+print("Computed Metrics:")
 print(f"  accuracy: {accuracy_value:.6f}")
 print(f"  logit_diff: {logit_diff_value:.6f}")
 
@@ -56,4 +56,4 @@ metrics_summary = {
 with open('scratch/stage0_metrics_computed.json', 'w') as f:
     json.dump(metrics_summary, f, indent=2)
 
-print(f"\nSaved to scratch/stage0_metrics_computed.json")
+print("\nSaved to scratch/stage0_metrics_computed.json")

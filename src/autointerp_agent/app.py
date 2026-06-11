@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import re
 import sys
 import time
 from pathlib import Path
@@ -56,8 +55,9 @@ def _add_investigate_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--model", help="Override model name")
     parser.add_argument("--max-iterations", type=int, default=500,
                         help="Investigation iteration cap (default: 500)")
-    parser.add_argument("--max-turns", type=int, default=30,
-                        help="Stage 0 conversation turn cap (default: 30; 0 = unlimited)")
+    parser.add_argument("--max-turns", type=int, default=0,
+                        help="Optional Stage 0 conversation turn cap "
+                             "(default: unlimited)")
     parser.add_argument("--auto-approve", dest="auto_approve",
                         action=argparse.BooleanOptionalAction, default=True,
                         help="Auto-approve risky tools (default: on for non-interactive runs)")
@@ -89,7 +89,9 @@ def cmd_investigate(argv: list[str]) -> int:
     else:
         path = _stage0_to_spec(args)
         if path is None:
-            console.print("[yellow]Stage 0 ended without a finalized spec — nothing to run.[/yellow]")
+            console.print(
+                "[yellow]Stage 0 ended without a finalized spec — nothing to run.[/yellow]"
+            )
             return 1
         console.print(f"[bold]Spec finalized:[/bold] {path}")
         spec_path = path
@@ -169,17 +171,22 @@ def _stage0_to_spec(args: argparse.Namespace) -> Optional[str]:
     the session (the ``finalize_spec`` tool writes there on approval). The
     user drives the conversation; this function returns once a spec lands.
     """
-    from .agent_loop import run_agent_turn
     from .cli import _load_cli_config
     from .context import ContextManager
+    from .model_select import ensure_model_ready
+    from .repl import (
+        is_first_run,
+        mark_first_run_complete,
+        print_banner,
+        run_spec_repl,
+    )
+    from .sessions import SessionStore
     from .skills import SkillRegistry
     from .stage0_tools import create_stage0_tools
     from .tools import ToolRouter
-    from prompt_toolkit import PromptSession
 
     spec_dir = Path("outputs/specs")
     spec_dir.mkdir(parents=True, exist_ok=True)
-    before = _snapshot_specs(spec_dir)
 
     cli_args = argparse.Namespace(
         config=args.config, model=args.model, max_iterations=None,
@@ -195,59 +202,34 @@ def _stage0_to_spec(args: argparse.Namespace) -> Optional[str]:
     )
 
     console = Console()
-    cap = args.max_turns if args.max_turns and args.max_turns > 0 else None
-    cap_msg = f"max {cap} turns" if cap else "no turn cap"
-    console.print(
-        f"[bold]Stage 0[/bold] — design the investigation spec ({cap_msg}). "
-        "Approve via [bold]finalize_spec[/bold]; this CLI then auto-launches "
-        "the investigation on the approved spec."
-    )
+    print_banner(console, config=config, registry=registry, first_run=is_first_run())
 
     async def _loop() -> Optional[str]:
+        cfg = await ensure_model_ready(
+            config, console, interactive=sys.stdin.isatty()
+        )
+        if cfg is None:
+            return None
+        mark_first_run_complete()
+        context.model_name = cfg.model_name
         async with ToolRouter(
-            skill_registry=registry, auto_approve=config.auto_approve,
+            skill_registry=registry, auto_approve=cfg.auto_approve,
         ) as router:
             for tool in create_stage0_tools():
                 router.register_tool(tool)
-            session = PromptSession()
-            initial = args.question.strip() if args.question else None
-            turn = 0
-            while True:
-                if initial:
-                    prompt = initial
-                    initial = None
-                else:
-                    try:
-                        prompt = await session.prompt_async("autointerp> ")
-                    except (EOFError, KeyboardInterrupt):
-                        console.print()
-                        return None
-                    prompt = prompt.strip()
-                    if not prompt:
-                        continue
-                turn += 1
-                answer = await run_agent_turn(prompt, config, context, router)
-                console.print(answer)
-                new_specs = _snapshot_specs(spec_dir) - before
-                if new_specs:
-                    return str(sorted(new_specs)[-1])
-                if cap and turn >= cap:
-                    console.print(
-                        f"[yellow]Stage 0 turn cap reached ({turn}/{cap}) "
-                        f"without an approved spec. Re-run with "
-                        f"`--max-turns N` to extend.[/yellow]"
-                    )
-                    return None
-                if cap and turn == max(1, int(cap * 0.8)):
-                    console.print(f"[dim]({turn}/{cap} turns used)[/dim]")
+            return await run_spec_repl(
+                config=cfg,
+                context=context,
+                router=router,
+                console=console,
+                registry=registry,
+                spec_dir=spec_dir,
+                initial_prompt=args.question,
+                max_turns=args.max_turns,
+                session_store=SessionStore(),
+            )
 
     return asyncio.run(_loop())
-
-
-def _snapshot_specs(spec_dir: Path) -> set[Path]:
-    if not spec_dir.exists():
-        return set()
-    return {p for p in spec_dir.glob("*_rev*.json") if not p.name.startswith("_")}
 
 
 def _run_pipeline(args: argparse.Namespace, *, spec_path: str) -> int:
@@ -382,9 +364,11 @@ def _runs_show(run_dir: Path) -> int:
         }
         for cid, c in crits.items():
             mark = _VERDICT_MARK.get(c.get("verdict"), "[dim]?[/dim]")
+            value = c.get("value")
+            observed = f"{value:.4g}" if isinstance(value, (int, float)) else str(value)
             table.add_row(
                 cid, str(c.get("metric")), str(c.get("comparator")),
-                f"{c.get('threshold')}", f"{c.get('value'):.4g}" if isinstance(c.get('value'), (int, float)) else str(c.get('value')),
+                f"{c.get('threshold')}", observed,
                 mark,
             )
         console.print(table)
@@ -462,7 +446,10 @@ def _print_stream_line(console: Console, kind: str, line: str) -> None:
     else:
         text = (r.get("text") or "").strip()
         if text:
-            console.print(f"[bold cyan]assistant[/bold cyan] it{r.get('iteration',0):03d}: {text[:200]}")
+            console.print(
+                f"[bold cyan]assistant[/bold cyan] it{r.get('iteration',0):03d}: "
+                f"{text[:200]}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -516,7 +503,7 @@ def cmd_validate(argv: list[str]) -> int:
             f"(custom: {custom_names})"
         )
     else:
-        console.print(f"[green]✓[/green] all criterion metrics are registered")
+        console.print("[green]✓[/green] all criterion metrics are registered")
 
     if args.load_model:
         from autointerp.tools.model import load_model
@@ -525,7 +512,7 @@ def cmd_validate(argv: list[str]) -> int:
         except Exception as exc:
             console.print(f"[red]✗[/red] model load failed: {exc}")
             return 1
-        console.print(f"[green]✓[/green] model loads")
+        console.print("[green]✓[/green] model loads")
 
     console.print("\n[bold green]Spec is runnable.[/bold green]")
     return 0
@@ -588,12 +575,16 @@ def main(argv: list[str] | None = None) -> int:
         argv = sys.argv[1:]
     if argv and argv[0] in SUBCOMMANDS:
         sub, rest = argv[0], argv[1:]
-        if sub == "investigate":
-            return cmd_investigate(rest)
-        if sub == "runs":
-            return cmd_runs(rest)
-        if sub == "validate":
-            return cmd_validate(rest)
+        try:
+            if sub == "investigate":
+                return cmd_investigate(rest)
+            if sub == "runs":
+                return cmd_runs(rest)
+            if sub == "validate":
+                return cmd_validate(rest)
+        except KeyboardInterrupt:
+            print()
+            return 130
     if argv and argv[0] in {"-h", "--help", "help"}:
         # Only print the top-level help when there's no other flag stream that
         # the legacy CLI also recognizes (e.g. --list-skills is legacy-only).
@@ -601,8 +592,15 @@ def main(argv: list[str] | None = None) -> int:
             print(TOP_LEVEL_HELP)
             return 0
     # Back-compat: fall through to legacy CLI (interactive Stage 0 / headless).
-    from .cli import main as legacy_main
-    return legacy_main(argv)
+    # The import is inside the guard: it pulls in litellm (slow), and a
+    # Ctrl-C there must not traceback.
+    try:
+        from .cli import main as legacy_main
+
+        return legacy_main(argv)
+    except KeyboardInterrupt:
+        print()
+        return 130
 
 
 if __name__ == "__main__":

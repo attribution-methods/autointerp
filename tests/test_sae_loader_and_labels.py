@@ -8,14 +8,17 @@ caching) without GPU or external deps.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 
-from autointerp.tools import sae_labels, sae_loader
+# autointerp.tools imports torch at package level — a mechinterp-extra
+# dependency that CI (core install) intentionally lacks. Skip there; run
+# wherever torch exists.
+pytest.importorskip("torch")
 
+from autointerp.tools import sae_labels, sae_loader  # noqa: E402
 
 # ---- sae_loader -------------------------------------------------------------
 

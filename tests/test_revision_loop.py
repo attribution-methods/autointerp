@@ -7,12 +7,10 @@ indirectly by the existing entrypoint tests + tested manually.
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 from autointerp.pipelines.investigation import init_run
-from autointerp.pipelines.investigation.criteria import evaluate_criterion
 from autointerp.pipelines.investigation.metrics import compute_and_commit_metric
 from autointerp.pipelines.investigation.revision import request_spec_revision
 from autointerp.pipelines.investigation.state import read_state

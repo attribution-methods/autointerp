@@ -30,7 +30,6 @@ from .state import (
     write_state,
 )
 
-
 # Maps spec ToolName values to skill directory names under skills/. Some tools
 # share a skill (e.g. path_patching reuses activation-patching's workflow); a
 # missing entry falls back to the tool name with underscores → hyphens.

@@ -154,20 +154,23 @@ async def _drive_observer(obs: RunObserver) -> None:
 
 def test_run_agent_turn_emits_to_observer(tmp_path: Path) -> None:
     """Drive the agent_loop with a fake LLM and verify all hooks fire."""
+    import autointerp_agent.agent_loop as al
     from autointerp_agent.agent_loop import run_agent_turn
     from autointerp_agent.config import AgentConfig
     from autointerp_agent.context import ContextManager
     from autointerp_agent.skills import SkillRegistry
     from autointerp_agent.tools import ToolRouter, ToolSpec
-    import autointerp_agent.agent_loop as al
 
-    handle = init_run(_spec(), runs_root=tmp_path)
+    init_run(_spec(), runs_root=tmp_path)
 
     events: list[tuple] = []
 
     class _Recorder:
         def on_iteration_start(self, i): events.append(("start", i))
-        def on_assistant(self, i, m): events.append(("assistant", i, m.get("content"), len(m.get("tool_calls") or [])))
+        def on_assistant(self, i, m):
+            events.append(
+                ("assistant", i, m.get("content"), len(m.get("tool_calls") or []))
+            )
         def on_tool_call(self, i, idx, cid, n, a, o, ok):
             events.append(("tool", i, idx, n, ok, o))
         def on_final(self, i, t): events.append(("final", i, t))
@@ -251,12 +254,12 @@ def test_run_agent_turn_emits_to_observer(tmp_path: Path) -> None:
 
 def test_run_agent_turn_observer_failure_does_not_break_loop(tmp_path: Path) -> None:
     """A buggy observer must not crash the agent loop."""
+    import autointerp_agent.agent_loop as al
     from autointerp_agent.agent_loop import run_agent_turn
     from autointerp_agent.config import AgentConfig
     from autointerp_agent.context import ContextManager
     from autointerp_agent.skills import SkillRegistry
     from autointerp_agent.tools import ToolRouter
-    import autointerp_agent.agent_loop as al
 
     class _Bad:
         def on_iteration_start(self, i):

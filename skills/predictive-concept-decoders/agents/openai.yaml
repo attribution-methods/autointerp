@@ -1,0 +1,3 @@
+interface:
+  display_name: "Predictive Concept Decoders"
+  short_description: "Use PCDs to query and audit sparse concept bottleneck decoders over activations"

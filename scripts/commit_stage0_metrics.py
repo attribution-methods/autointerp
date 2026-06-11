@@ -1,6 +1,7 @@
 """Commit Stage 0 metrics using the framework's compute_metric."""
 import json
 import sys
+
 sys.path.insert(0, "src")
 
 def main():

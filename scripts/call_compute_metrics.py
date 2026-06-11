@@ -4,7 +4,6 @@ Helper script to extract metric inputs and display them for the compute_metric c
 """
 
 import json
-import sys
 
 # Load results
 results = json.load(open('scratch/stage0_results.json'))
@@ -27,6 +26,6 @@ print(json.dumps(accuracy_inputs))
 print("\n=== LOGIT_DIFF INPUTS ===")
 print(json.dumps(logit_diff_inputs))
 
-print(f"\n=== STATS ===")
+print("\n=== STATS ===")
 print(f"Accuracy inputs: {len(accuracy_inputs['predictions'])} samples")
 print(f"Logit_diff inputs: {len(logit_diff_inputs['target_logits'])} samples")

@@ -38,7 +38,10 @@ def request_spec_revision(
     if state.spec_revision_requested is not None:
         return state.spec_revision_requested
 
-    if state.terminal_state is not None and state.terminal_state is not TerminalState.CRITERION_FAILED:
+    if (
+        state.terminal_state is not None
+        and state.terminal_state is not TerminalState.CRITERION_FAILED
+    ):
         raise RevisionGateError(
             f"run is in terminal state {state.terminal_state.value!r}; "
             "request_spec_revision is only valid before terminal or after CRITERION_FAILED"
