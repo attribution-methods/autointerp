@@ -6,6 +6,7 @@ from autointerp_agent.tools import ToolRouter
 def test_skill_registry_loads():
     registry = SkillRegistry.from_dir("skills")
     assert "logit-lens" in registry.skills
+    assert "natural-language-autoencoders" in registry.skills
     assert "predictive-concept-decoders" in registry.skills
     assert len(registry.skills) >= 10
 

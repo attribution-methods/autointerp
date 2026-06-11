@@ -310,4 +310,9 @@ SKILL_TO_TOOLS: Dict[str, List[str]] = {
         "path-patch",
     ],
     "activation-oracles": ["capture-activations", "sample", "extract-tagged-json"],
+    "natural-language-autoencoders": [
+        "capture-activations",
+        "cache-components",
+        "cosine-similarity",
+    ],
 }
