@@ -8,6 +8,7 @@ its parent and the prior results that motivated the change.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from enum import Enum
 from typing import Any, Literal
@@ -313,6 +314,22 @@ TOOL_META: dict[ToolName, ToolMeta] = {
         one_line="Decompose head circuits into QK (where to attend) and OV (what to write).",
     ),
 }
+
+
+# Closed-weights API-only model families. Every tool except blackbox_probe
+# needs locally loadable weights, so pairing one of these with a white-box
+# stage is provably incoherent. Curated denylist: unknown ids pass (a string
+# cannot prove openness), but these families never ship open weights.
+_API_ONLY_MODEL_RE = re.compile(
+    r"^(gpt-3\.5|gpt-[45]|o[134](?![A-Za-z0-9])|chatgpt|claude|gemini|grok|davinci)",
+    re.IGNORECASE,
+)
+
+
+def is_api_only_model(model_id: str) -> bool:
+    """True if the id names a known closed-weights (API-only) model family."""
+    segments = [model_id] + model_id.split("/")
+    return any(_API_ONLY_MODEL_RE.match(seg.strip()) for seg in segments if seg)
 
 
 class PatternId(str, Enum):
@@ -629,6 +646,30 @@ class InvestigationSpec(StrictBaseModel):
         seen = [s.stage for s in self.stages]
         if len(seen) != len(set(seen)):
             raise ValueError("stages must be unique by InvestigationStage")
+        return self
+
+    @model_validator(mode="after")
+    def _whitebox_tools_require_open_weights(self) -> "InvestigationSpec":
+        """White-box tools load the model locally; API-only models cannot.
+
+        blackbox_probe is the only tool that works over an API. Anything
+        else (lenses, patching, SAEs, probes, steering, head analysis)
+        needs weights, so a known closed-weights model id is rejected.
+        """
+        whitebox = sorted({
+            tool.value
+            for stage in self.stages
+            for tool in stage.tools
+            if tool != ToolName.BLACKBOX_PROBE
+        })
+        if whitebox and is_api_only_model(self.model.model_id):
+            raise ValueError(
+                f"model {self.model.model_id!r} is an API-only (closed-weights) "
+                f"family, but the stages declare white-box tools {whitebox} "
+                "that require loading the model locally. Pick an open-weights "
+                "model (e.g. gpt2, EleutherAI/pythia-*, Qwen/Llama/Gemma "
+                "families) or restrict every stage to blackbox_probe."
+            )
         return self
 
     @model_validator(mode="after")
