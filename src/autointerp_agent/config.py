@@ -19,6 +19,26 @@ from pydantic import BaseModel, Field
 DEFAULT_MODEL = "anthropic/claude-sonnet-4-5"
 DEFAULT_CONFIG_PATH = Path("configs/agent.yaml")
 
+# Per-user state lives here (credentials, prompt history, first-run marker).
+USER_DIR = Path.home() / ".autointerp"
+USER_ENV_PATH = USER_DIR / "credentials"
+
+
+def load_env_files(
+    project_env: Path | None = None, user_env: Path | None = None
+) -> None:
+    """Load env files with standard CLI precedence.
+
+    Process environment > project ``.env`` > user ``~/.autointerp/credentials``.
+    ``override=False`` makes first-loaded win and never clobbers real env
+    vars, so loading project first then user implements the precedence.
+    """
+    if project_env is not None:
+        load_dotenv(project_env, override=False)
+    else:
+        load_dotenv(override=False)
+    load_dotenv(user_env or USER_ENV_PATH, override=False)
+
 
 class MCPServerConfig(BaseModel):
     """A minimal MCP server config compatible with FastMCP's shape."""
@@ -78,10 +98,20 @@ def _substitute_env(value: Any) -> Any:
     return value
 
 
+def env_default_model() -> str:
+    """The model to use when no config file is present.
+
+    Honors ``AUTOINTERP_MODEL`` (set by the setup flow's save step) the same
+    way ``configs/agent.yaml`` does via ``${AUTOINTERP_MODEL:-...}``, so a
+    saved model choice applies from any working directory.
+    """
+    return os.environ.get("AUTOINTERP_MODEL", DEFAULT_MODEL)
+
+
 def load_config(config_path: str | Path = DEFAULT_CONFIG_PATH) -> AgentConfig:
     """Load config from YAML/JSON plus environment defaults."""
 
-    load_dotenv(override=False)
+    load_env_files()
     raw = _substitute_env(_load_structured_file(Path(config_path)))
     if "model" in raw and "model_name" not in raw:
         raw["model_name"] = raw.pop("model")

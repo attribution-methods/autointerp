@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import sys
 from pathlib import Path
 
 from rich.console import Console
@@ -23,8 +24,15 @@ from autointerp.pipelines.investigation.tools import create_investigation_tools
 from autointerp.utils.cost import CostTracker
 
 from .agent_loop import run_agent_turn
-from .config import DEFAULT_CONFIG_PATH, AgentConfig, load_config
+from .config import (
+    DEFAULT_CONFIG_PATH,
+    AgentConfig,
+    env_default_model,
+    load_config,
+    load_env_files,
+)
 from .context import ContextManager
+from .model_select import ensure_model_ready, format_llm_error
 from .skills import SkillRegistry
 from .tools import ToolRouter
 
@@ -81,6 +89,14 @@ async def async_main(argv: list[str] | None = None) -> int:
         console.print(f"[red]invalid --ablation: {exc}[/red]")
         return 2
 
+    config = _load_cli_config(args)
+    ready = await ensure_model_ready(
+        config, console, interactive=sys.stdin.isatty() and not args.quiet
+    )
+    if ready is None:
+        return 2
+    config = ready
+
     handle, spec, state = prepare_run(
         args.spec, runs_root=Path(args.runs_root), resume=resume, flags=flags
     )
@@ -92,7 +108,6 @@ async def async_main(argv: list[str] | None = None) -> int:
         console.print(f"[yellow]Run already terminal:[/yellow] {state.terminal_state.value}")
         return 0
 
-    config = _load_cli_config(args)
     config = config.model_copy(
         update={"system_prompt": build_system_prompt(spec, handle.run_id, handle.flags)}
     )
@@ -139,6 +154,13 @@ async def async_main(argv: list[str] | None = None) -> int:
                 "state.json/transcript are intact for scoring."
             )
             console.print(f"[red]{answer}[/red]")
+        except Exception as exc:  # noqa: BLE001 — leave the run resumable
+            answer = (
+                f"[turn errored: {format_llm_error(exc)}] "
+                "Run dir and state.json are intact; re-run with the same "
+                "--spec to resume."
+            )
+            console.print(f"[red]{answer}[/red]")
         finally:
             # Always persist the cost snapshot — partial runs are still billable.
             cost_tracker.write(cost_path)
@@ -156,8 +178,13 @@ async def async_main(argv: list[str] | None = None) -> int:
 
 
 def _load_cli_config(args: argparse.Namespace) -> AgentConfig:
+    load_env_files()  # credentials/.env load even when no config file exists
     config_path = Path(args.config)
-    config = load_config(config_path) if config_path.exists() else AgentConfig()
+    config = (
+        load_config(config_path)
+        if config_path.exists()
+        else AgentConfig(model_name=env_default_model())
+    )
     updates: dict = {}
     if args.model:
         updates["model_name"] = args.model
