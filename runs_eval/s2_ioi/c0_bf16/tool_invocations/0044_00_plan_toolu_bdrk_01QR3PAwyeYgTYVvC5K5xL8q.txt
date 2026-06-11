@@ -1,0 +1,6 @@
+- [completed] Set up IOI dataset and verify the phenomenon exists in GPT-2-small
+- [completed] Perform activation patching to identify important layers and components
+- [completed] Analyze attention patterns in key layers
+- [completed] Examine MLP and attention head contributions via direct logit attribution
+- [completed] Investigate information flow and circuit structure
+- [completed] Synthesize findings into mechanistic explanation

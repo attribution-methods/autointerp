@@ -1,0 +1,60 @@
+Loaded 500 clean samples
+Generating corrupted (ABC) samples...
+Generated 500 corrupted samples
+Example clean:     When Anna and Grace went to the park, Grace gave a gift to
+Example corrupted: When Anna and Sarah went to the park, Grace gave a gift to
+
+Loading GPT-2...
+Model: gpt2, layers=12, heads=12
+
+============================================================
+PART 1: LOGIT LENS ANALYSIS
+============================================================
+Logit lens:   0%|          | 0/20 [00:00<?, ?it/s]Logit lens: 100%|██████████| 20/20 [00:00<00:00, 463459.01it/s]
+Logit lens: analyzed 20 samples
+
+============================================================
+PART 2: HEAD-LEVEL ACTIVATION PATCHING
+============================================================
+Patching 50 samples...
+Clean prompts: 50
+Corrupt prompts: 50
+Caching clean activations...
+Clean cache: 12 layers
+Caching corrupt activations...
+Corrupt cache: 12 layers
+Running head patch sweep...
+Sweeping 12 layers x 12 heads = 144 sites
+
+Recovery shape: torch.Size([12, 12])
+
+Top 20 heads by recovery:
+  L9H9: 0.4350
+  L8H6: 0.4054
+  L8H10: 0.2600
+  L7H9: 0.2078
+  L10H0: 0.1173
+  L9H7: 0.0918
+  L7H3: 0.0846
+  L10H1: 0.0621
+  L10H6: 0.0562
+  L10H10: 0.0522
+  L9H3: 0.0257
+  L9H8: 0.0237
+  L6H1: 0.0198
+  L9H2: 0.0140
+  L6H0: 0.0109
+  L10H11: 0.0091
+  L9H5: 0.0084
+  L10H9: 0.0080
+  L4H6: 0.0043
+  L5H2: 0.0039
+
+Saved sweep results to scratch/stage1_head_patch_sweep.json
+
+Recovery statistics:
+  Mean: 0.0018
+  Max:  0.4350
+  Top head: L9H9 = 0.4350
+
+Done!

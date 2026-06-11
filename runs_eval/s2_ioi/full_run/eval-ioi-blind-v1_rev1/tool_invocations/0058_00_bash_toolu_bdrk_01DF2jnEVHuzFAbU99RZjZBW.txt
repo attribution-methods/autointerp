@@ -1,0 +1,9 @@
+(handle: 'ModelHandle', prompts: 'Sequence[str]', patches: 'Sequence[HeadPatch]', return_logits_at: 'Optional[int]' = -1) -> 'torch.Tensor'
+
+Docstring:
+Run a forward pass with the given head patches applied.
+
+    Returns the logits tensor. With ``return_logits_at`` set (default ``-1``)
+    only the logits at that token position are returned, shape ``[batch,
+    vocab]``. Pass ``None`` to get the full ``[batch, seq, vocab]`` tensor.
+    

@@ -1,0 +1,21 @@
+# Investigation progress — eval-ioi-blind-v1_rev1
+
+Status: in_progress
+Stage: 1/5 — black_box
+Updated: 2026-05-16T13:34:45.711475Z
+
+## Stages
+- [>] 0 black_box — in_progress (2 artifacts)
+- [ ] 1 localization — pending
+- [ ] 2 activation_analysis — pending
+- [ ] 3 intervention — pending
+- [ ] 4 validation — pending
+
+## Criteria
+- PASS         behavioral-sanity — accuracy >= 0.95 (observed 1.0)
+- pending      localization-recovery — Top-K attention heads identified by activation patching recover at least 0.85 of the clean-corrupt logit_diff gap
+- pending      circuit-faithfulness — Candidate IOI circuit achieves faithfulness >= 0.85 on the heldout split
+- pending      circuit-minimality — Every head in the final circuit causes a faithfulness drop >= 0.05 when removed (minimality)
+
+## Budget
+tool_calls=5 bash_calls=0 gpu_seconds=0.0 wallclock=0.0s samples=0

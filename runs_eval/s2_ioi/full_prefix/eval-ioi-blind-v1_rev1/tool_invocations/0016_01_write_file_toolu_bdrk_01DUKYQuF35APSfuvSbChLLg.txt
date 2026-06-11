@@ -1,0 +1,1 @@
+Refused unsafe path: 'scripts/stage0_black_box.py'

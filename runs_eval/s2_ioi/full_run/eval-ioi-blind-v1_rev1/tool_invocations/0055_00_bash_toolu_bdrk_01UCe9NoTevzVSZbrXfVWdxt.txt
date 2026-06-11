@@ -1,0 +1,25 @@
+Loading GPT-2-small model...
+
+Loading IOI dev dataset...
+Loaded 500 samples
+
+Preparing prompts...
+
+Caching clean activations...
+
+Computing baseline metrics...
+
+Baseline metrics:
+  Clean logit_diff:   2.9246
+  Corrupt logit_diff: 1.5259
+  Gap:                1.3987
+Testing joint recovery with 1 heads...
+  L9H9
+Traceback (most recent call last):
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_joint_recovery.py", line 186, in <module>
+    main()
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_joint_recovery.py", line 143, in main
+    patched_metric = test_joint_recovery(
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_joint_recovery.py", line 82, in test_joint_recovery
+    patched_metric = logit_diff(logits[:, -1, :], target_ids_dev, contrast_ids_dev).mean().item()
+IndexError: too many indices for tensor of dimension 2

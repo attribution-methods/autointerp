@@ -1,0 +1,11 @@
+/lambda/nfs/test-filesystem/fadi/attribution-methods/autointerp/runs_eval/s2_ioi/c0
+total 17
+drwxrwxr-x 2 ubuntu ubuntu 4096 May 16 12:42 .
+drwxrwxr-x 2 ubuntu ubuntu 4096 May 16 12:42 ..
+-rw-rw-r-- 1 ubuntu ubuntu 6601 May 16 12:42 assistant_turns.jsonl
+-rw-rw-r-- 1 ubuntu ubuntu    0 May 16 12:42 driver.log
+drwxrwxr-x 2 ubuntu ubuntu 4096 May 16 12:42 scratch
+drwxrwxr-x 2 ubuntu ubuntu 4096 May 16 12:42 scripts
+-rw-rw-r-- 1 ubuntu ubuntu 2585 May 16 12:42 system_prompt.txt
+drwxrwxr-x 2 ubuntu ubuntu 4096 May 16 12:42 tool_invocations
+-rw-rw-r-- 1 ubuntu ubuntu 6740 May 16 12:42 tool_invocations.jsonl

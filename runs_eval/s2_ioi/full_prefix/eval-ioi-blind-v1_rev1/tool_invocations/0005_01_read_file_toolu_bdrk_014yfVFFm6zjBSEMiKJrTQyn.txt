@@ -1,0 +1,100 @@
+     1	{
+     2	  "spec_id": "eval-ioi-blind-v1",
+     3	  "revision": 1,
+     4	  "parent_spec_id": null,
+     5	  "prior_results_ref": null,
+     6	  "revision_reason": null,
+     7	  "question": "How does GPT-2-small mechanistically implement indirect object identification (IOI)?",
+     8	  "hypothesis": "GPT-2-small implements IOI through an attention-head circuit that, at the END position, attends from the prediction site to the indirect-object name token and copies its embedding into the residual stream, raising its logit above competing name candidates. The circuit likely involves earlier-layer components that identify the duplicated subject name and write a signal that biases later attention toward the non-duplicated (indirect-object) name. Specific layer and head identities, and the number of components involved, are unknown a priori and should be discovered by activation patching from corrupted runs.",
+     9	  "phenomenon_id": "indirect_object_identification",
+    10	  "behavior": {
+    11	    "behavior_id": "ioi-io-over-s-logit",
+    12	    "description": "Given an IOI prompt of the form 'When [A] and [B] went to the [place], [B] gave a [object] to', the model assigns higher logit to the indirect-object name (A) than to the subject name (B) at the final-token prediction position. Holds across both ABBA and BABA template orderings.",
+    13	    "risk_area": null,
+    14	    "positive_examples": [],
+    15	    "negative_examples": [],
+    16	    "success_criteria": [],
+    17	    "tags": [],
+    18	    "metadata": {}
+    19	  },
+    20	  "model": {
+    21	    "model_id": "gpt2",
+    22	    "provider": "openai-community",
+    23	    "revision": null,
+    24	    "dtype": null,
+    25	    "device": null,
+    26	    "metadata": {}
+    27	  },
+    28	  "dataset": {
+    29	    "dataset_id": "ioi-abba-baba-gpt2-v1",
+    30	    "source": "generated",
+    31	    "n_samples": 500,
+    32	    "split": "dev",
+    33	    "seed": 42,
+    34	    "generator_id": "ioi_template_generator",
+    35	    "notes": "IOI prompts. Each sample is generated from a sentence template such as 'When {A} and {B} went to the {place}, {B} gave a {object} to' (BABA order) or 'When {A} and {B} went to the {place}, {A} gave a {object} to' (ABBA order). Names are drawn from a closed list of common single-token first names that tokenize to a single GPT-2 BPE token with a leading space (e.g. ' John', ' Mary', ' Tom', ' Sarah', ' James', ' Kate', ' Robert', ' Lisa'). Places and objects are drawn from a closed single-token list. Both A and B must tokenize to a single token. The dataset is balanced 50/50 across ABBA and BABA orderings. A 100-sample heldout split is reserved for validation; dev/heldout splits use disjoint name pairs. The 'IO' token is A in ABBA prompts and A in BABA prompts (always the non-repeated name); the 'S' token is the repeated name. Length is held constant within an order group so positions align across clean and corrupted runs.",
+    36	    "metadata": {
+    37	      "heldout_n_samples": 100,
+    38	      "templates": [
+    39	        "When {A} and {B} went to the {place}, {B} gave a {object} to",
+    40	        "When {A} and {B} went to the {place}, {A} gave a {object} to"
+    41	      ]
+    42	    }
+    43	  },
+    44	  "contrast": {
+    45	    "contrast_id": "ioi-name-swap-abc",
+    46	    "positive_template": "When {A} and {B} went to the {place}, {B} gave a {object} to  -> {A}",
+    47	    "negative_template": "When {A} and {C} went to the {place}, {B} gave a {object} to  -> {A}",
+    48	    "pairing": "matched",
+    49	    "metadata": {
+    50	      "corruption_scheme": "ABC: replace one of the two repeated names in the clean prompt with a third novel name C, leaving the END-position context unchanged but breaking the duplicate-name structure.",
+    51	      "tokenization_constraint": "A, B, and C must all tokenize to a single GPT-2 BPE token with a leading space",
+    52	      "length_constraint": "clean and corrupted prompts must tokenize to identical length so that position indices align",
+    53	      "balance_constraint": "ABBA and BABA orderings split 50/50 in both clean and corrupted batches"
+    54	    }
+    55	  },
+    56	  "stages": [
+    57	    {
+    58	      "stage": "black_box",
+    59	      "pattern": "blackbox_then_patching",
+    60	      "tools": [
+    61	        "blackbox_probe"
+    62	      ],
+    63	      "metrics": [
+    64	        "accuracy",
+    65	        "logit_diff"
+    66	      ],
+    67	      "budget": {
+    68	        "max_tokens": null,
+    69	        "max_gpu_seconds": null,
+    70	        "max_samples": null,
+    71	        "max_tool_calls": null,
+    72	        "max_wallclock_seconds": null
+    73	      },
+    74	      "notes": "Confirm GPT-2-small has a strong IOI behavioral signal. Measure accuracy (logit(IO) > logit(S) at the final position) and mean logit_diff = logit(IO) - logit(S) across all 500 dev samples. Abort if accuracy < 0.9."
+    75	    },
+    76	    {
+    77	      "stage": "localization",
+    78	      "pattern": "blackbox_then_patching",
+    79	      "tools": [
+    80	        "logit_lens",
+    81	        "activation_patching"
+    82	      ],
+    83	      "metrics": [
+    84	        "kl_to_clean",
+    85	        "patch_effect_recovery"
+    86	      ],
+    87	      "budget": {
+    88	        "max_tokens": null,
+    89	        "max_gpu_seconds": null,
+    90	        "max_samples": null,
+    91	        "max_tool_calls": null,
+    92	        "max_wallclock_seconds": null
+    93	      },
+    94	      "notes": "Logit lens at the END position across all 12 layers to see where IO information emerges. Then activation patching from corrupted (ABC) into clean across all (layer, head) pairs at the END position, measuring patch_effect_recovery on logit_diff. Sweep ALL heads — do not restrict to a guessed shortlist. Identify the top heads empirically by recovery."
+    95	    },
+    96	    {
+    97	      "stage": "activation_analysis",
+    98	      "pattern": "blackbox_then_patching",
+    99	      "tools": [
+   100	        "logit_lens",

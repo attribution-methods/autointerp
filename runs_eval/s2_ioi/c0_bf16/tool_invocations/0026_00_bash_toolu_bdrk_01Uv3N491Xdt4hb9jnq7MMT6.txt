@@ -1,0 +1,226 @@
+/home/ubuntu/.local/lib/python3.10/site-packages/matplotlib/projections/__init__.py:63: UserWarning: Unable to import Axes3D. This may be due to multiple versions of Matplotlib being installed (e.g. as a system package and as a pip package). As a result, the 3D projection is not available.
+  warnings.warn("Unable to import Axes3D. This may be due to multiple versions of "
+Loading GPT-2-small...
+
+================================================================================
+ANALYZING ABBA TEMPLATE
+================================================================================
+Prompt: When Mary and John went to the store, John gave a drink to
+IO (correct): Mary, S (subject): John
+
+   0: When
+   1: ĠMary
+   2: Ġand
+   3: ĠJohn
+   4: Ġwent
+   5: Ġto
+   6: Ġthe
+   7: Ġstore
+   8: ,
+   9: ĠJohn
+  10: Ġgave
+  11: Ġa
+  12: Ġdrink
+  13: Ġto
+
+Key positions:
+  IO first: 1 (ĠMary)
+  S first: 3 (ĠJohn)
+  IO second: None (N/A)
+  S second: 9 (ĠJohn)
+
+--------------------------------------------------------------------------------
+ATTENTION PATTERNS AT FINAL TOKEN
+--------------------------------------------------------------------------------
+
+L11H0 (contrib: +3.84):
+  -> IO first (pos 1, ĠMary): 0.1138
+  -> S first (pos 3, ĠJohn): 0.1055
+  -> S second (pos 9, ĠJohn): 0.2285
+  Top 5:
+    pos  9 (ĠJohn          ): 0.2285
+    pos  2 (Ġand           ): 0.1494
+    pos  1 (ĠMary          ): 0.1138
+    pos  3 (ĠJohn          ): 0.1055
+    pos  0 (When           ): 0.0874
+
+L11H8 (contrib: +2.66):
+  -> IO first (pos 1, ĠMary): 0.0105
+  -> S first (pos 3, ĠJohn): 0.0147
+  -> S second (pos 9, ĠJohn): 0.1387
+  Top 5:
+    pos 10 (Ġgave          ): 0.3184
+    pos  8 (,              ): 0.2852
+    pos  9 (ĠJohn          ): 0.1387
+    pos  4 (Ġwent          ): 0.0576
+    pos 13 (Ġto            ): 0.0483
+
+L11H5 (contrib: +2.19):
+  -> IO first (pos 1, ĠMary): 0.0845
+  -> S first (pos 3, ĠJohn): 0.0297
+  -> S second (pos 9, ĠJohn): 0.0234
+  Top 5:
+    pos  0 (When           ): 0.7070
+    pos  1 (ĠMary          ): 0.0845
+    pos  2 (Ġand           ): 0.0513
+    pos  8 (,              ): 0.0371
+    pos  3 (ĠJohn          ): 0.0297
+
+L11H2 (contrib: +1.75):
+  -> IO first (pos 1, ĠMary): 0.1226
+  -> S first (pos 3, ĠJohn): 0.0933
+  -> S second (pos 9, ĠJohn): 0.0282
+  Top 5:
+    pos  0 (When           ): 0.6250
+    pos  1 (ĠMary          ): 0.1226
+    pos  3 (ĠJohn          ): 0.0933
+    pos 13 (Ġto            ): 0.0437
+    pos  8 (,              ): 0.0295
+
+L9H6 (contrib: +1.98):
+  -> IO first (pos 1, ĠMary): 0.4863
+  -> S first (pos 3, ĠJohn): 0.1172
+  -> S second (pos 9, ĠJohn): 0.0588
+  Top 5:
+    pos  1 (ĠMary          ): 0.4863
+    pos  0 (When           ): 0.3340
+    pos  3 (ĠJohn          ): 0.1172
+    pos  9 (ĠJohn          ): 0.0588
+    pos  2 (Ġand           ): 0.0015
+
+L8H3 (contrib: -3.91):
+  -> IO first (pos 1, ĠMary): 0.0542
+  -> S first (pos 3, ĠJohn): 0.4160
+  -> S second (pos 9, ĠJohn): 0.0474
+  Top 5:
+    pos  3 (ĠJohn          ): 0.4160
+    pos  4 (Ġwent          ): 0.2061
+    pos  0 (When           ): 0.1035
+    pos  2 (Ġand           ): 0.0718
+    pos  1 (ĠMary          ): 0.0542
+
+L10H2 (contrib: -2.19):
+  -> IO first (pos 1, ĠMary): 0.1064
+  -> S first (pos 3, ĠJohn): 0.3379
+  -> S second (pos 9, ĠJohn): 0.1455
+  Top 5:
+    pos  0 (When           ): 0.3438
+    pos  3 (ĠJohn          ): 0.3379
+    pos  9 (ĠJohn          ): 0.1455
+    pos  1 (ĠMary          ): 0.1064
+    pos  2 (Ġand           ): 0.0251
+
+Saved to scratch/attention_patterns_ABBA.png
+
+================================================================================
+ANALYZING BABA TEMPLATE
+================================================================================
+Prompt: When John and Mary went to the store, Mary gave a drink to
+IO (correct): John, S (subject): Mary
+
+   0: When
+   1: ĠJohn
+   2: Ġand
+   3: ĠMary
+   4: Ġwent
+   5: Ġto
+   6: Ġthe
+   7: Ġstore
+   8: ,
+   9: ĠMary
+  10: Ġgave
+  11: Ġa
+  12: Ġdrink
+  13: Ġto
+
+Key positions:
+  IO first: 1 (ĠJohn)
+  S first: 3 (ĠMary)
+  IO second: None (N/A)
+  S second: 9 (ĠMary)
+
+--------------------------------------------------------------------------------
+ATTENTION PATTERNS AT FINAL TOKEN
+--------------------------------------------------------------------------------
+
+L11H0 (contrib: +3.84):
+  -> IO first (pos 1, ĠJohn): 0.1592
+  -> S first (pos 3, ĠMary): 0.0806
+  -> S second (pos 9, ĠMary): 0.1514
+  Top 5:
+    pos  1 (ĠJohn          ): 0.1592
+    pos  9 (ĠMary          ): 0.1514
+    pos  2 (Ġand           ): 0.1475
+    pos  8 (,              ): 0.1035
+    pos  0 (When           ): 0.0884
+
+L11H8 (contrib: +2.66):
+  -> IO first (pos 1, ĠJohn): 0.0200
+  -> S first (pos 3, ĠMary): 0.0092
+  -> S second (pos 9, ĠMary): 0.1289
+  Top 5:
+    pos  8 (,              ): 0.3574
+    pos 10 (Ġgave          ): 0.2578
+    pos  9 (ĠMary          ): 0.1289
+    pos 11 (Ġa             ): 0.0415
+    pos  2 (Ġand           ): 0.0415
+
+L11H5 (contrib: +2.19):
+  -> IO first (pos 1, ĠJohn): 0.0791
+  -> S first (pos 3, ĠMary): 0.0569
+  -> S second (pos 9, ĠMary): 0.0271
+  Top 5:
+    pos  0 (When           ): 0.6875
+    pos  1 (ĠJohn          ): 0.0791
+    pos  3 (ĠMary          ): 0.0569
+    pos  2 (Ġand           ): 0.0447
+    pos  8 (,              ): 0.0327
+
+L11H2 (contrib: +1.75):
+  -> IO first (pos 1, ĠJohn): 0.0728
+  -> S first (pos 3, ĠMary): 0.1245
+  -> S second (pos 9, ĠMary): 0.0427
+  Top 5:
+    pos  0 (When           ): 0.6172
+    pos  3 (ĠMary          ): 0.1245
+    pos  1 (ĠJohn          ): 0.0728
+    pos 13 (Ġto            ): 0.0437
+    pos  9 (ĠMary          ): 0.0427
+
+L9H6 (contrib: +1.98):
+  -> IO first (pos 1, ĠJohn): 0.3418
+  -> S first (pos 3, ĠMary): 0.0952
+  -> S second (pos 9, ĠMary): 0.0493
+  Top 5:
+    pos  0 (When           ): 0.5078
+    pos  1 (ĠJohn          ): 0.3418
+    pos  3 (ĠMary          ): 0.0952
+    pos  9 (ĠMary          ): 0.0493
+    pos 11 (Ġa             ): 0.0015
+
+L8H3 (contrib: -3.91):
+  -> IO first (pos 1, ĠJohn): 0.1108
+  -> S first (pos 3, ĠMary): 0.1562
+  -> S second (pos 9, ĠMary): 0.0258
+  Top 5:
+    pos  4 (Ġwent          ): 0.2559
+    pos  0 (When           ): 0.1699
+    pos  3 (ĠMary          ): 0.1562
+    pos  2 (Ġand           ): 0.1250
+    pos  1 (ĠJohn          ): 0.1108
+
+L10H2 (contrib: -2.19):
+  -> IO first (pos 1, ĠJohn): 0.2061
+  -> S first (pos 3, ĠMary): 0.2002
+  -> S second (pos 9, ĠMary): 0.0537
+  Top 5:
+    pos  0 (When           ): 0.4570
+    pos  1 (ĠJohn          ): 0.2061
+    pos  3 (ĠMary          ): 0.2002
+    pos  9 (ĠMary          ): 0.0537
+    pos  2 (Ġand           ): 0.0265
+
+Saved to scratch/attention_patterns_BABA.png
+
+================================================================================
+Done!

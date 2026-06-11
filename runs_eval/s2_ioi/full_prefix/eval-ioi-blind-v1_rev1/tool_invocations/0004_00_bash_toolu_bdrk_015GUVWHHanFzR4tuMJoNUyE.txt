@@ -1,0 +1,18 @@
+/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1
+total 21
+drwxrwxr-x 2 ubuntu ubuntu  4096 May 16 13:26 .
+drwxrwxr-x 2 ubuntu ubuntu  4096 May 16 13:26 ..
+-rw-rw-r-- 1 ubuntu ubuntu    57 May 16 13:26 INVESTIGATION_LOG.md
+drwxrwxr-x 2 ubuntu ubuntu  4096 May 16 13:26 activations
+-rw-rw-r-- 1 ubuntu ubuntu  1435 May 16 13:26 assistant_turns.jsonl
+drwxrwxr-x 2 ubuntu ubuntu  4096 May 16 13:26 findings
+drwxrwxr-x 2 ubuntu ubuntu  4096 May 16 13:26 generations
+-rw-rw-r-- 1 ubuntu ubuntu     0 May 16 13:26 log.jsonl
+-rw-rw-r-- 1 ubuntu ubuntu   928 May 16 13:26 progress.md
+drwxrwxr-x 2 ubuntu ubuntu  4096 May 16 13:26 prompt_batches
+drwxrwxr-x 2 ubuntu ubuntu  4096 May 16 13:26 scratch
+drwxrwxr-x 2 ubuntu ubuntu  4096 May 16 13:26 scripts
+-r--r--r-- 1 ubuntu ubuntu 10962 May 16 13:26 spec.json
+-rw------- 1 ubuntu ubuntu  1585 May 16 13:26 state.json
+drwxrwxr-x 2 ubuntu ubuntu  4096 May 16 13:26 tool_invocations
+-rw-rw-r-- 1 ubuntu ubuntu  4118 May 16 13:26 tool_invocations.jsonl

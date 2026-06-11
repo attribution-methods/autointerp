@@ -1,0 +1,19 @@
+/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/src/autointerp/tools/lenses.py:98: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:836.)
+  row["kl_to_final"] = float(F.kl_div(layer_log_probs, final_probs, reduction="sum"))
+Loading GPT-2-small model...
+Model has 12 layers, 12 heads per layer
+
+Loading IOI dev dataset...
+Loaded 500 samples
+Running logit lens on 50 samples...
+Traceback (most recent call last):
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_logit_lens.py", line 130, in <module>
+    main()
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_logit_lens.py", line 93, in main
+    mean_kls, mean_ranks, all_kls = compute_logit_lens_kl(model_handle, samples, n_samples=50)
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_logit_lens.py", line 62, in compute_logit_lens_kl
+    top_token_ids = [tokenizer.encode(t.strip(), add_special_tokens=False)[0] 
+  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_logit_lens.py", line 63, in <listcomp>
+    if t.strip() else -1 for t in result['top_tokens']]
+AttributeError: 'dict' object has no attribute 'strip'

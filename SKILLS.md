@@ -12,6 +12,7 @@ The first toolkit pass includes these skills:
 - `logit-lens`: intermediate residual predictions and KL-based filtering.
 - `tuned-lens`: learned translators for calibrated intermediate predictions.
 - `sparse-autoencoders`: SAE feature lookup, activation ranking, feature labeling.
+- `predictive-concept-decoders`: Transluce-style sparse concept bottleneck decoders for behavior-predictive activation readouts.
 - `linear-probes`: linear and small nonlinear probes with cross-validation.
 - `attention-heads`: head discovery, attention pattern inspection, head ablation.
 - `qk-ov-decomposition`: QK attention logic and OV vocabulary/output analysis.

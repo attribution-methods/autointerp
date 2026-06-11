@@ -1,0 +1,1 @@
+(handle: 'ModelHandle', clean_prompts: 'Sequence[str]', corrupt_prompts: 'Sequence[str]', metric: 'Callable[[torch.Tensor], torch.Tensor]', layers: 'Optional[Iterable[int]]' = None, heads: 'Optional[Iterable[int]]' = None, patch_positions: 'Optional[Sequence[int]]' = None, clean_cache: 'Optional[Dict[int, torch.Tensor]]' = None) -> 'Dict[str, Any]'

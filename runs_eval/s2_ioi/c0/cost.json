@@ -1,0 +1,16 @@
+{
+  "run_id": "c0",
+  "total_cost_usd": 0.870479,
+  "total_requests": 34,
+  "has_unknown_cost": false,
+  "by_model": {
+    "anthropic/claude-4.5-sonnet-20250929": {
+      "input_tokens": 722956,
+      "output_tokens": 33126,
+      "cache_read_input_tokens": 674873,
+      "cache_creation_input_tokens": 0,
+      "requests": 34,
+      "cost_usd": 0.870479
+    }
+  }
+}

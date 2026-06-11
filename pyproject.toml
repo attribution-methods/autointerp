@@ -19,12 +19,13 @@ dependencies = [
   "prompt-toolkit>=3.0.0",
   "python-dotenv>=1.0.0",
   "litellm>=1.70.0",
+  "fastmcp>=2.0.0",
 ]
 
 [project.optional-dependencies]
-mcp = [
-  "fastmcp>=2.0.0",
-]
+# Back-compat alias: fastmcp moved into the core dependencies, so
+# `pip install -e ".[mcp]"` from older docs/scripts keeps working as a no-op.
+mcp = []
 mechinterp = [
   "numpy>=1.26.0",
   "torch>=2.2.0",
@@ -34,18 +35,22 @@ mechinterp = [
   "safetensors>=0.4.0",
   "huggingface-hub>=0.22.0",
   "datasets>=2.18.0",
+  "sae-lens>=4.0.0",
+  "requests>=2.31.0",
 ]
 dev = [
   "pytest>=8.0.0",
-  "ruff>=0.4.0",
-  "mypy>=1.9.0",
+  # Pinned to minor series so CI results are reproducible — unpinned
+  # linters made CI red the day stricter releases shipped.
+  "ruff>=0.15,<0.16",
+  "mypy>=2.1,<2.2",
 ]
 all = [
-  "autointerp[mcp,mechinterp,dev]",
+  "autointerp[mechinterp,dev]",
 ]
 
 [project.scripts]
-autointerp = "autointerp_agent.cli:main"
+autointerp = "autointerp_agent.entry:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -55,9 +60,17 @@ include = ["autointerp*", "autointerp_agent*"]
 autointerp = ["py.typed"]
 autointerp_agent = ["py.typed"]
 
+[tool.pytest.ini_options]
+# Only the real suite — runs_eval/ archives contain test_*.py files written
+# by the agent under test, which bare collection would otherwise pick up.
+testpaths = ["tests"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+# runs_eval/ holds archived evaluation runs — including scripts written by
+# the agent under test. They are data artifacts, not source; never lint them.
+extend-exclude = ["runs_eval"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

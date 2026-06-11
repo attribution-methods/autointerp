@@ -1,0 +1,15 @@
+{
+  "metric_id": "stage0_logit_diff",
+  "metric": "logit_diff",
+  "value": 2.9713321228027345,
+  "metadata": {
+    "n_samples": 500,
+    "std": 1.182588995139825,
+    "min": 0.0872802734375,
+    "max": 6.332305908203125,
+    "dataset": "ioi-dev",
+    "seed": 42
+  }
+}
+
+Metric value: 2.971332

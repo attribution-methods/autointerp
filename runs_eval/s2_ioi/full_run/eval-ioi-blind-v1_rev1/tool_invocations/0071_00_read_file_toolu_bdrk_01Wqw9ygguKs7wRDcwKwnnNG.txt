@@ -1,0 +1,35 @@
+     1	# Investigation Log: eval-ioi-blind-v1_rev1
+     2	
+     3	## Stage 0: Black-Box Behavioral Measurement (COMPLETED)
+     4	
+     5	**Goal:** Confirm GPT-2-small has a strong IOI behavioral signal.
+     6	
+     7	**Dataset Generated:**
+     8	- Created IOI dataset with 500 dev samples and 100 heldout samples
+     9	- Balanced 50/50 ABBA/BABA templates
+    10	- Single-token names, places, and objects
+    11	- ABC corruption scheme (replace duplicate name with novel name C)
+    12	
+    13	**Results:**
+    14	- **Accuracy: 99.80%** (499/500 samples correct)
+    15	  - Criterion: behavioral-sanity ✅ PASSED (0.998 >= 0.95)
+    16	- **Mean logit_diff: 2.92** (logit(IO) - logit(S))
+    17	  - Well above the 2.0 abort threshold
+    18	
+    19	**Key Findings:**
+    20	- GPT-2-small strongly prefers the indirect object (IO) name over the subject (S) name
+    21	- Only 1 out of 500 samples failed (99.8% accuracy)
+    22	- Mean logit difference of 2.92 provides strong signal for patching experiments
+    23	
+    24	**Abort Checks:**
+    25	- ✅ Accuracy >= 0.9: PASS
+    26	- ✅ Logit_diff >= 2.0: PASS
+    27	
+    28	**Next Steps:**
+    29	- Proceed to Stage 1: Localization
+    30	- Run logit lens analysis to see where IO information emerges
+    31	- Perform activation patching across all (layer, head) pairs
+    32	
+    33	---
+    34	
+    35	## Stage 1: Localization (IN PROGRESS)

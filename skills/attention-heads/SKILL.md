@@ -21,6 +21,13 @@ Use `activation-cache` for extraction and `qk-ov-decomposition` for deeper head 
 spec = "L24H7"
 ```
 
+For head-granular patching, ablation, and path patching, use
+`autointerp.tools.head_patching` (`cache_head_z`, `head_patch_sweep`,
+`mean_ablate_heads`, `path_patch`). See the `activation-patching` skill for
+end-to-end usage. Layer-level patching cannot identify individual heads — a
+flat layer sweep usually means you need head granularity, not that the
+computation is irreducibly distributed.
+
 ## Evidence
 
 A useful head should have both a readable attention pattern and measurable effect on a predeclared metric.

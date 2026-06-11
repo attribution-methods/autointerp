@@ -1,0 +1,7 @@
+Best head: L9H9 with recovery 0.4634
+Clean: 2.9246
+Corrupt: 1.5259
+Patched (best head): 2.1741
+Gap: 1.3987
+
+Saved to scratch/patch_effect_recovery_inputs.json

@@ -1,0 +1,32 @@
+{
+  "metric_result": {
+    "metric_id": "stage0_accuracy",
+    "value": 0.998,
+    "threshold": null,
+    "passed": null,
+    "metadata": {
+      "metric_name": "accuracy",
+      "metric_family": "behavioral",
+      "inputs_hash": "sha256:1a3a985a3d09d7da355e533e885785c3509beef393f541ed29dc2fc1631d8a78",
+      "registry_version": 1
+    }
+  },
+  "artifact_ref": {
+    "kind": "MetricResult",
+    "artifact_id": "stage0_accuracy",
+    "relpath": "findings/stage_0_black_box/metric_stage0_accuracy.json",
+    "stage_idx": 0,
+    "split": "dev"
+  },
+  "criterion_record": {
+    "criterion_id": "behavioral-sanity",
+    "verdict": "pass",
+    "value": 0.998,
+    "metric": "accuracy",
+    "comparator": ">=",
+    "threshold": 0.95,
+    "metric_result_ref": "findings/stage_0_black_box/metric_stage0_accuracy.json",
+    "evaluated_at": "2026-05-17T18:31:32.440234Z",
+    "inconclusive_reason": null
+  }
+}

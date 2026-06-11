@@ -1,0 +1,20 @@
+## Next Steps
+- Commit kl_to_clean and patch_effect_recovery metrics
+- Evaluate localization-recovery criterion (>= 0.85)
+- Proceed to Stage 2 for activation analysis of identified heads
+
+## Multi-Head Recovery Test
+Tested combined effect of top-K heads patching simultaneously:
+- Top-1 (L9H9): 0.435
+- Top-2 (L9H9, L8H6): 0.695
+- **Top-3 (L9H9, L8H6, L8H10): 0.908** ✓
+- Top-5: 1.120
+
+**Conclusion**: Top 3 heads achieve >= 0.85 recovery, meeting the localization-recovery criterion.
+
+The core IOI circuit consists of:
+1. **L9H9** (primary, 43.5% solo recovery)
+2. **L8H6** (secondary, adds ~26% recovery)
+3. **L8H10** (tertiary, adds ~21% recovery)
+
+These 3 heads in layers 8-9 form the minimal sufficient circuit for IOI.
