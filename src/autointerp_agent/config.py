@@ -60,6 +60,16 @@ class AgentConfig(BaseModel):
     default_skills: list[str] = Field(default_factory=list)
     mcpServers: dict[str, MCPServerConfig] = Field(default_factory=dict)
     system_prompt: str | None = None
+    # Retry final answers that leak internal identifiers (InvestigationSpec,
+    # finalize_spec, …) to the user. On for interactive Stage-0 chat; off for
+    # the investigation pipeline, whose audience reads run artifacts anyway.
+    plain_language_guard: bool = False
+    # LLM sampling temperature for the agent driver. None means "don't send a
+    # temperature" → the provider's own default applies (1.0 for OpenAI and
+    # Anthropic chat APIs). Set via `/temperature` or AUTOINTERP_TEMPERATURE.
+    # OpenAI reasoning models (gpt-5 family, o-series) ignore it — they only
+    # accept their default — so it is dropped for those (see model_select).
+    temperature: float | None = None
 
 
 def _load_structured_file(path: Path) -> dict[str, Any]:
@@ -108,11 +118,27 @@ def env_default_model() -> str:
     return os.environ.get("AUTOINTERP_MODEL", DEFAULT_MODEL)
 
 
+def env_default_temperature() -> float | None:
+    """Optional ``AUTOINTERP_TEMPERATURE`` override; None if unset or unparsable
+    (so a stray value never crashes startup — it just falls back to default)."""
+    raw = os.environ.get("AUTOINTERP_TEMPERATURE")
+    if not raw or not raw.strip():
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
 def load_config(config_path: str | Path = DEFAULT_CONFIG_PATH) -> AgentConfig:
     """Load config from YAML/JSON plus environment defaults."""
 
     load_env_files()
     raw = _substitute_env(_load_structured_file(Path(config_path)))
+    if "temperature" not in raw:
+        env_temp = env_default_temperature()
+        if env_temp is not None:
+            raw["temperature"] = env_temp
     if "model" in raw and "model_name" not in raw:
         raw["model_name"] = raw.pop("model")
     if "name" in raw:
