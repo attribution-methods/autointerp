@@ -209,6 +209,7 @@ def _stage0_to_spec(args: argparse.Namespace) -> Optional[str]:
         )
         if cfg is None:
             return None
+        cfg = cfg.model_copy(update={"plain_language_guard": True})
         # Banner after setup so it reflects the configured model + key status.
         print_banner(console, config=cfg, registry=registry, first_run=is_first_run())
         mark_first_run_complete()

@@ -61,6 +61,50 @@ def _unregistered_metric_refs(spec: InvestigationSpec) -> list[str]:
             )
     return bad
 
+# Stage types that run no interventions, so they cannot produce the
+# clean/corrupt/patched (etc.) inputs a causal metric needs. A causal metric
+# declared here can never be committed → the run deadlocks at advance_stage.
+_PRE_INTERVENTION_STAGES = {"setup", "black_box"}
+
+
+def _unproducible_metric_refs(spec: InvestigationSpec) -> list[str]:
+    """Return stage metrics that the stage provably cannot produce.
+
+    Catches the most common doomed-spec shape from a weak planner: a causal
+    metric (e.g. ``patch_effect_recovery``, ``faithfulness``) placed in a
+    ``setup`` or ``black_box`` stage. Those stages run no interventions, so
+    the metric's required inputs never exist and ``advance_stage`` can never
+    succeed — better to reject at finalize than to deadlock an expensive run.
+    """
+    bad: list[str] = []
+    for i, stage in enumerate(spec.stages):
+        if stage.stage.value not in _PRE_INTERVENTION_STAGES:
+            continue
+        for j, m in enumerate(stage.metrics):
+            meta = METRIC_META.get(m)
+            if meta is not None and meta.family == MetricFamily.CAUSAL:
+                bad.append(
+                    f"stages[{i}] ({stage.stage.value}).metrics[{j}]={m.value!r} "
+                    f"is a causal metric, but a {stage.stage.value!r} stage runs "
+                    f"no interventions and cannot produce its inputs. Move it to "
+                    f"an intervention/validation stage, or use a behavioral or "
+                    f"localization metric here."
+                )
+    return bad
+
+
+def _finalize_blockers(spec: InvestigationSpec) -> list[str]:
+    """Every non-structural issue that ``finalize_spec`` rejects on.
+
+    ``validate_spec`` and ``finalize_spec`` both run this so a plan that
+    validates is a plan that finalizes. Without it, ``validate_spec`` reports
+    "OK", the agent presents the plan and the user approves, then
+    ``finalize_spec`` fails on a metric guard ``validate_spec`` never ran — and
+    the agent has to silently rebuild and ask for approval a second time.
+    """
+    return _unregistered_metric_refs(spec) + _unproducible_metric_refs(spec)
+
+
 def _render_custom_metrics_section(data: dict[str, Any]) -> str:
     """Pretty-print every CustomMetricDef referenced in success_criteria.
 
@@ -192,7 +236,10 @@ async def _remove_spec_fields(args: dict[str, Any]) -> tuple[str, bool]:
 
 async def _show_spec(_args: dict[str, Any]) -> tuple[str, bool]:
     _load_draft_if_present()
-    return _partial.as_markdown(), True
+    return (
+        _partial.as_markdown() + _render_custom_metrics_section(_partial.data),
+        True,
+    )
 
 
 async def _validate_spec(_args: dict[str, Any]) -> tuple[str, bool]:
@@ -201,10 +248,11 @@ async def _validate_spec(_args: dict[str, Any]) -> tuple[str, bool]:
 
     missing = _partial.missing_required()
     errors: list[str] = []
+    built: InvestigationSpec | None = None
     if missing:
         errors.append(f"missing required fields: {', '.join(missing)}")
     try:
-        _partial.try_build(status=SpecStatus.DRAFT)
+        built = _partial.try_build(status=SpecStatus.DRAFT)
     except ValidationError as exc:
         for err in exc.errors()[:25]:
             loc = ".".join(str(p) for p in err.get("loc", ()))
@@ -213,9 +261,14 @@ async def _validate_spec(_args: dict[str, Any]) -> tuple[str, bool]:
             errors.append(f"... and {exc.error_count() - 25} more")
     except Exception as exc:
         errors.append(str(exc))
+    # Structurally clean — now run the SAME guards finalize_spec runs, so a
+    # "valid" verdict here means finalize_spec will not reject the plan after
+    # the user has already approved it.
+    if not errors and built is not None:
+        errors.extend(_finalize_blockers(built))
     if not errors:
-        return "OK — spec is structurally valid.", True
-    return "Errors (must fix):\n- " + "\n- ".join(errors), True
+        return "OK — spec is valid and ready to finalize.", True
+    return "Errors (must fix before finalize):\n- " + "\n- ".join(errors), True
 
 
 async def _describe_spec(_args: dict[str, Any]) -> tuple[str, bool]:
@@ -223,10 +276,14 @@ async def _describe_spec(_args: dict[str, Any]) -> tuple[str, bool]:
 
 
 async def _finalize_spec(args: dict[str, Any]) -> tuple[str, bool]:
+    """Lock the plan in. Single call: the agent presents the plan and gets the
+    user's approval in conversation FIRST, then calls this once. It re-runs the
+    full validation (so it never commits a doomed plan) and writes the approved
+    spec; the investigation then launches automatically. There is no second
+    "confirm" round — one approval, one finalize."""
     _load_draft_if_present()
     approver = str(args.get("approver", "")).strip()
     kind = str(args.get("approver_kind", "human")).strip()
-    user_confirmation = bool(args.get("user_confirmed", False))
     notes = args.get("notes")
 
     if not approver:
@@ -235,32 +292,28 @@ async def _finalize_spec(args: dict[str, Any]) -> tuple[str, bool]:
         return "approver_kind must be 'human' or 'agent'.", False
 
     try:
-        _preview = _partial.try_build(status=SpecStatus.AWAITING_APPROVAL)
-    except Exception as exc:
-        return f"Cannot finalize — spec has structural errors:\n{exc}", False
-    bad_refs = _unregistered_metric_refs(_preview)
-    if bad_refs:
-        return (
-            "Cannot finalize — the spec references metrics that are not in the "
-            "runtime registry. Fix each reference (via update_spec) before "
-            "calling finalize_spec again:\n- " + "\n- ".join(bad_refs),
-            False,
-        )
-
-    rendered = _partial.as_markdown() + _render_custom_metrics_section(_partial.data)
-
-    if not user_confirmation:
-        _pending_finalize.update({"approver": approver, "kind": kind, "notes": notes})
-        return (
-            "Show the rendered spec below to the user and ask for approval.\n\n"
-            + rendered,
-            True,
-        )
-
-    try:
         spec = _partial.try_build(status=SpecStatus.AWAITING_APPROVAL)
     except Exception as exc:
         return f"Cannot finalize — spec has structural errors:\n{exc}", False
+    bad_refs = _unregistered_metric_refs(spec)
+    if bad_refs:
+        return (
+            "Cannot finalize — the spec references metrics that are not in the "
+            "runtime registry. Replace each with a RUNNABLE metric (call "
+            "list_metrics to see which are runnable) or set metric='custom' "
+            "with a custom_metric_def, then finalize again:\n- "
+            + "\n- ".join(bad_refs),
+            False,
+        )
+    unproducible = _unproducible_metric_refs(spec)
+    if unproducible:
+        return (
+            "Cannot finalize — some stages declare metrics they cannot produce, "
+            "which would deadlock the run at advance_stage. Fix each (via "
+            "update_spec) before calling finalize_spec again:\n- "
+            + "\n- ".join(unproducible),
+            False,
+        )
 
     approval = make_approval(approver=approver, kind=kind, notes=notes)
     finalized = spec.model_copy(
@@ -272,8 +325,14 @@ async def _finalize_spec(args: dict[str, Any]) -> tuple[str, bool]:
     _pending_finalize.clear()
     _clear_draft()
     return (
-        f"Approved. Wrote {out_path}. Stage 1 may now run against spec_id "
-        f"{finalized.spec_id} (rev {finalized.revision}).",
+        f"Plan finalized and saved to {out_path}. The investigation is launching "
+        f"AUTOMATICALLY right now and will NOT pause for a reply. Your turn is "
+        f"done: write ONE short line confirming the plan is locked and the run "
+        f"is starting (e.g. \"Locked in — the investigation is running now; I'll "
+        f"report back when it finishes.\"). Do NOT ask the user a question, offer "
+        f"choices, or invite a response — there is no one to answer it and the "
+        f"run will not wait. Do NOT run experiments, write files, or call bash. "
+        f"End your turn now.",
         True,
     )
 
@@ -364,15 +423,16 @@ def _finalize_spec_tool() -> ToolSpec:
     return ToolSpec(
         name="finalize_spec",
         description=(
-            "Two-phase approval. Phase 1 renders the spec for the user; "
-            "phase 2 (user_confirmed=true) writes it."
+            "Lock the plan in. Call this ONCE, after you have shown the plan "
+            "and the user has approved it. It re-validates and writes the "
+            "approved spec; the investigation then launches automatically. "
+            "Do not ask for approval a second time."
         ),
         parameters={
             "type": "object",
             "properties": {
                 "approver": {"type": "string"},
                 "approver_kind": {"type": "string", "enum": ["human", "agent"]},
-                "user_confirmed": {"type": "boolean"},
                 "notes": {"type": "string"},
             },
             "required": ["approver"],
@@ -498,16 +558,34 @@ async def _list_metrics(args: dict[str, Any]) -> tuple[str, bool]:
         metrics = [m for m, meta in METRIC_META.items() if meta.family == wanted]
     else:
         metrics = list(METRIC_META.keys())
-    lines = []
+    runnable: list[str] = []
+    reserved: list[str] = []
     for m in metrics:
         meta = METRIC_META[m]
         lo, hi = meta.value_range
         rng = f"[{lo if lo is not None else '-∞'}, {hi if hi is not None else '∞'}]"
-        lines.append(
-            f"- {m.value} ({meta.family.value}, range {rng}, "
-            f"{meta.direction}-is-better): {meta.one_line}"
-        )
-    return "\n".join(lines), True
+        if m in _METRIC_REGISTRY or m == MetricName.CUSTOM:
+            runnable.append(
+                f"- {m.value} ({meta.family.value}, range {rng}, "
+                f"{meta.direction}-is-better): {meta.one_line}"
+            )
+        else:
+            reserved.append(f"- {m.value} ({meta.family.value}): {meta.one_line}")
+    out = [
+        "RUNNABLE metrics — these have a runtime implementation; use ONLY these "
+        "in stages and success_criteria:",
+        *runnable,
+    ]
+    if reserved:
+        out += [
+            "",
+            "NOT YET RUNNABLE — declared in the vocabulary but with no "
+            "implementation. Do NOT put these in a stage or criterion (the spec "
+            "will fail to finalize). If you need one of these measurements, "
+            "define it inline with propose_custom_metric instead:",
+            *reserved,
+        ]
+    return "\n".join(out), True
 
 
 async def _read_metric(args: dict[str, Any]) -> tuple[str, bool]:
@@ -526,8 +604,15 @@ async def _read_metric(args: dict[str, Any]) -> tuple[str, bool]:
     if meta is not None:
         lo, hi = meta.value_range
         rng = f"[{lo if lo is not None else '-∞'}, {hi if hi is not None else '∞'}]"
+        runnable = metric in _METRIC_REGISTRY or metric == MetricName.CUSTOM
+        runnable_note = (
+            "yes" if runnable
+            else "NO — declared in the vocabulary but not implemented; do not "
+                 "use it directly, define a custom metric instead"
+        )
         contract_block = (
             f"\n\n## Contract\n"
+            f"- runnable: {runnable_note}\n"
             f"- family: {meta.family.value}\n"
             f"- value_range: {rng}\n"
             f"- direction: {meta.direction}-is-better\n"

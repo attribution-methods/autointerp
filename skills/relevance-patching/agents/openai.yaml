@@ -1,0 +1,3 @@
+interface:
+  display_name: "Relevance Patching"
+  short_description: "Use RelP/ReIP with model-specific LRP rules for attribution patching"

@@ -62,6 +62,17 @@ def test_banner_shows_wordmark_model_and_key_state(monkeypatch) -> None:
     assert "Welcome" in out2  # first-run greeting
 
 
+def test_banner_shows_local_model_endpoint(monkeypatch) -> None:
+    monkeypatch.setenv("HOSTED_VLLM_API_BASE", "http://localhost:8000/v1")
+    console = _console()
+    config = AgentConfig(model_name="hosted_vllm/Qwen/Qwen2.5-7B-Instruct")
+    repl.print_banner(console, config=config, registry=SkillRegistry({}))
+    out = console.file.getvalue()
+    assert "hosted_vllm/Qwen/Qwen2.5-7B-Instruct" in out
+    assert "local" in out and "localhost:8000" in out  # endpoint, not a key badge
+    assert "no key" not in out
+
+
 def test_first_run_state_round_trip(tmp_path: Path) -> None:
     assert repl.is_first_run(tmp_path)
     repl.mark_first_run_complete(tmp_path)
@@ -106,17 +117,178 @@ class _FakeStatus:
         self.events.append(f"update:{text}")
 
 
-def test_observer_prints_tool_lines_around_spinner() -> None:
+def test_observer_prints_successes_and_suppresses_lookups() -> None:
     console = _console()
     status = _FakeStatus()
     obs = repl.ReplObserver(console, status)
-    obs.on_tool_call(0, 0, "id", "update_spec", {"question": "how?"}, "ok", True)
-    obs.on_tool_call(0, 1, "id", "bash", {"command": "ls"}, "boom", False)
+    obs.on_tool_call(0, 0, "id", "update_spec", {"patch": {"question": "q"}}, "ok", True)
+    # Successful lookups are suppressed entirely — no print, no spinner pause.
+    obs.on_tool_call(0, 1, "id", "list_metrics", {}, "…20 metrics…", True)
     out = console.file.getvalue()
-    assert "update_spec" in out and "✓" in out
-    assert "bash" in out and "✗" in out
-    # spinner paused and resumed around each print
-    assert status.events.count("stop") == 2 and status.events.count("start") == 2
+    assert "updated plan" in out and "✓" in out and "question" in out
+    assert "list_metrics" not in out
+    # spinner paused and resumed only around the one rendered line
+    assert status.events.count("stop") == 1 and status.events.count("start") == 1
+
+
+def test_observer_collapses_recovered_failures() -> None:
+    # A transient failure followed by a success is dropped silently (the
+    # agent self-corrected); only a "self-correcting" spinner note appears.
+    console = _console()
+    status = _FakeStatus()
+    obs = repl.ReplObserver(console, status)
+    obs.on_tool_call(0, 0, "id", "finalize_spec", {}, "ERROR: structural errors", False)
+    assert any("self-correcting (1)" in e for e in status.events)
+    obs.on_tool_call(0, 1, "id", "remove_spec_fields", {"keys": ["notes"]}, "ok", True)
+    out = console.file.getvalue()
+    assert "finalize" not in out and "✗" not in out  # failure never surfaced
+    assert "removed from plan" in out  # the recovery did
+
+
+def test_observer_surfaces_failure_unrecovered_at_turn_end() -> None:
+    console = _console()
+    status = _FakeStatus()
+    obs = repl.ReplObserver(console, status)
+    obs.on_tool_call(0, 0, "id", "bash", {"command": "ls"}, "ERROR: boom", False)
+    assert "boom" not in console.file.getvalue()  # held back, not yet shown
+    obs.on_final(0, "done")  # turn ends without recovery → surface it
+    out = console.file.getvalue()
+    assert "✗" in out and "boom" in out and "run bash" in out
+
+
+def test_observer_flushes_after_threshold_consecutive_failures() -> None:
+    console = _console()
+    status = _FakeStatus()
+    obs = repl.ReplObserver(console, status)
+    for i in range(repl._FAILURE_FLUSH_THRESHOLD):
+        obs.on_tool_call(0, i, "id", "update_spec", {}, f"ERROR: bad {i}", False)
+    out = console.file.getvalue()
+    # Distinct failures are surfaced (no recovery), not hidden forever.
+    assert out.count("✗") == repl._FAILURE_FLUSH_THRESHOLD
+
+
+def test_observer_collapses_identical_failure_flood() -> None:
+    # A stuck agent repeating the SAME malformed call reads as one line ×N,
+    # not a wall — but is still honestly surfaced.
+    console = _console()
+    status = _FakeStatus()
+    obs = repl.ReplObserver(console, status)
+    err = "ERROR: compute_metric: split (non-empty string) is required"
+    for i in range(repl._FAILURE_FLUSH_THRESHOLD):
+        obs.on_tool_call(0, i, "id", "compute_metric", {"metric": "logit_diff"}, err, False)
+    out = console.file.getvalue()
+    assert out.count("✗") == 1  # collapsed
+    assert f"×{repl._FAILURE_FLUSH_THRESHOLD}" in out  # with the count
+
+
+def test_highlight_identifiers_wraps_snake_case_outside_code() -> None:
+    src = (
+        "Use logit_diff and feature_activation_density now. "
+        "Keep `already_code` and a path /tmp/x.\n"
+        "```\nraw_block_id stays raw\n```\n"
+        "Also activation_cache here."
+    )
+    out = repl._highlight_identifiers(src)
+    assert "`logit_diff`" in out
+    assert "`feature_activation_density`" in out
+    assert "`activation_cache`" in out
+    assert out.count("`already_code`") == 1  # not double-wrapped
+    assert "`raw_block_id`" not in out  # inside the fence, untouched
+    # plain words and non-identifier text are left alone
+    assert "Use" in out and "now" in out
+
+
+def test_highlight_leaves_markdown_emphasis_alone() -> None:
+    # Single-underscore emphasis must not be mangled into code.
+    assert repl._highlight_identifiers("_italic_ text") == "_italic_ text"
+    # A word with no underscore is not an identifier.
+    assert repl._highlight_identifiers("just steering here") == "just steering here"
+
+
+def test_render_answer_highlights_identifiers_in_cyan() -> None:
+    import io as _io
+
+    from rich.console import Console as _C
+
+    console = _C(file=_io.StringIO(), force_terminal=True, width=80)
+    repl.render_answer(console, "Compute logit_diff for the contrast.")
+    out = console.file.getvalue()
+    assert "logit_diff" in out
+    assert "\x1b[36m" in out or ";36" in out  # cyan ansi was emitted
+
+
+def test_quiet_loop_handler_drops_benign_noise_keeps_real_errors() -> None:
+    """A GC'd background task (no 'exception' in the context) must be
+    swallowed so it can't trigger prompt_toolkit's 'Press ENTER' UI freeze;
+    genuine exceptions still reach the previous handler."""
+
+    async def go() -> None:
+        loop = asyncio.get_running_loop()
+        delegated: list[dict] = []
+        loop.set_exception_handler(lambda lp, ctx: delegated.append(ctx))
+        repl.install_quiet_loop_handler()
+        handler = loop.get_exception_handler()
+        # Benign events — dropped, never delegated.
+        handler(loop, {"message": "Task was destroyed but it is pending!"})
+        handler(loop, {"message": "x", "exception": None})
+        assert delegated == []
+        # A real exception — delegated to the previous handler.
+        err = ValueError("boom")
+        handler(loop, {"message": "real", "exception": err})
+        assert len(delegated) == 1 and delegated[0]["exception"] is err
+
+    asyncio.run(go())
+
+
+def test_format_tool_event_semantics() -> None:
+    fmt = repl._format_tool_event
+    # Lookups inform the agent, not the user → silent on success…
+    for tool in ("list_metrics", "show_spec", "describe_spec", "read_file",
+                 "validate_spec", "read_skill"):
+        assert fmt(tool, {}, True) is None, tool
+    # …but never silent on failure, and the reason is shown — in plain
+    # language on both sides of the dash (the agent still gets the precise
+    # original error; only the feed is humanized).
+    line = fmt("validate_spec", {}, False, "ERROR: contrast: Field required\ntrace")
+    assert line and "✗" in line and "contrast: Field required" in line
+    assert "couldn't validate the plan" in line
+    line = fmt(
+        "update_spec", {}, False,
+        "ERROR: patch contains keys that are not InvestigationSpec fields: 'x'",
+    )
+    assert "couldn't update the plan" in line
+    assert "not plan fields" in line and "InvestigationSpec" not in line
+    # State changes render as verb phrases; field names are humanized
+    # (no underscores) and "spec" reads as "plan" per the user convention.
+    line = fmt("update_spec", {"patch": {"success_criteria": [], "contrast": {}}}, True)
+    assert "updated plan" in line and "success criteria, contrast" in line
+    assert "success_criteria" not in line
+    assert "removed from plan" in fmt("remove_spec_fields", {"keys": ["budget"]}, True)
+    # finalize_spec is single-phase now: a successful call always means the
+    # plan was written, so one approval line covers it.
+    assert "approved and locked in" in fmt("finalize_spec", {}, True)
+    assert "bash[/bold][dim] · ls -la" in fmt("bash", {"command": "ls -la"}, True)
+    assert "scripts/x.py" in fmt("write_file", {"path": "scripts/x.py"}, True)
+    # Investigation Tier-2 tools — now a primary surface for the feed (the
+    # auto-launched run renders through this).
+    assert "computed accuracy" in fmt("compute_metric", {"metric": "accuracy"}, True)
+    assert "computed accuracy" in fmt(
+        "compute_and_commit_metric", {"metric": "accuracy"}, True
+    )
+    assert "committed MetricResult" in fmt(
+        "commit_artifact", {"kind": "MetricResult"}, True
+    )
+    assert "evaluated criterion" in fmt(
+        "evaluate_criterion", {"criterion_id": "c1"}, True
+    )
+    assert "advanced to next stage" in fmt("advance_stage", {}, True)
+    assert "requested spec revision" in fmt("request_spec_revision", {"reason": "x"}, True)
+    assert fmt("current_stage", {}, True) is None  # read-only view stays silent
+    assert "couldn't compute the metric" in fmt(
+        "compute_metric", {}, False, "ERROR: logit_diff: missing required input keys"
+    )
+    # Unknown (e.g. MCP) tools keep the generic rendering rather than hiding.
+    assert "mcp_thing" in fmt("mcp_thing", {"x": 1}, True)
 
 
 def test_observer_render_reports_elapsed_and_step() -> None:
@@ -197,6 +369,56 @@ def test_status_timer_ticks_during_slow_turn(monkeypatch) -> None:
     out = asyncio.run(repl._execute_turn(_ui(), "hi", object()))
     assert out == "done"
     assert calls["n"] >= 2  # ticked at ~0s, ~1s, ~2s
+
+
+def test_fanout_observer_dispatches_and_isolates_failures() -> None:
+    seen: list[str] = []
+
+    class A:
+        def on_tool_call(self, *a) -> None:
+            seen.append("A.tool")
+
+        def on_final(self, *a) -> None:
+            raise RuntimeError("boom")  # one bad observer must not break others
+
+    class B:
+        def on_tool_call(self, *a) -> None:
+            seen.append("B.tool")
+
+    fan = repl._FanoutObserver([A(), B()])
+    fan.on_tool_call(0, 0, "id", "bash", {}, "out", True)
+    assert seen == ["A.tool", "B.tool"]
+    fan.on_final(0, "text")  # A raises, swallowed; B lacks on_final — no error
+
+
+def test_run_live_turn_fans_out_and_returns_answer(monkeypatch) -> None:
+    disk_events: list[str] = []
+
+    class Disk:
+        def on_tool_call(self, *a) -> None:
+            disk_events.append("tool")
+
+        def on_final(self, *a) -> None:
+            disk_events.append("final")
+
+    async def fake_turn(prompt, config, context, router, observer=None, cost_tracker=None):
+        observer.on_tool_call(0, 0, "id", "update_spec", {"patch": {"q": 1}}, "ok", True)
+        observer.on_final(0, "done")
+        return "done"
+
+    monkeypatch.setattr(repl, "run_agent_turn", fake_turn)
+    console = _console()
+    ctx = ContextManager(skill_registry=SkillRegistry({}))
+    out = asyncio.run(
+        repl.run_live_turn(
+            "p", AgentConfig(), ctx, object(), console, extra_observer=Disk()
+        )
+    )
+    assert out == "done"
+    # The transcript observer saw the events…
+    assert disk_events == ["tool", "final"]
+    # …and the live feed rendered the semantic line.
+    assert "updated plan" in console.file.getvalue()
 
 
 def test_observer_interim_assistant_text_only_with_tool_calls() -> None:
@@ -301,6 +523,53 @@ def test_dispatch_unknown_command() -> None:
     assert "Unknown command" in console.file.getvalue()
 
 
+# ---------------------------------------------------------------------------
+# /temperature
+# ---------------------------------------------------------------------------
+
+
+def test_temperature_set_show_reset() -> None:
+    console = _console()
+    ui = _ui(console, config=AgentConfig(model_name="anthropic/claude-sonnet-4-5"))
+    assert ui.config.temperature is None
+    asyncio.run(repl.handle_repl_command("/temperature 0.4", ui))
+    assert ui.config.temperature == 0.4
+    asyncio.run(repl.handle_repl_command("/temperature", ui))  # show
+    assert "0.4" in console.file.getvalue()
+    asyncio.run(repl.handle_repl_command("/temperature default", ui))  # reset
+    assert ui.config.temperature is None
+
+
+def test_temperature_rejects_out_of_range_and_garbage() -> None:
+    console = _console()
+    ui = _ui(console, config=AgentConfig(model_name="anthropic/claude-sonnet-4-5",
+                                         temperature=0.5))
+    asyncio.run(repl.handle_repl_command("/temperature 5", ui))
+    assert ui.config.temperature == 0.5  # unchanged
+    asyncio.run(repl.handle_repl_command("/temperature hot", ui))
+    assert ui.config.temperature == 0.5  # unchanged
+    out = console.file.getvalue()
+    assert "between 0.0 and 2.0" in out and "Usage" in out
+
+
+def test_temperature_warns_for_reasoning_model() -> None:
+    console = _console()
+    ui = _ui(console, config=AgentConfig(model_name="openai/gpt-5-nano"))
+    asyncio.run(repl.handle_repl_command("/temperature 0.4", ui))
+    out = console.file.getvalue()
+    assert ui.config.temperature == 0.4  # stored (applies if they switch models)
+    assert "reasoning model" in out  # but warned it's ignored here
+
+
+def test_temperature_status_helper() -> None:
+    assert "provider default" in repl._temperature_status(AgentConfig())
+    assert "0.5" in repl._temperature_status(AgentConfig(temperature=0.5))
+    ignored = repl._temperature_status(
+        AgentConfig(model_name="openai/gpt-5-nano", temperature=0.5)
+    )
+    assert "ignored" in ignored and "reasoning" in ignored
+
+
 def test_dispatch_litrev_topic_priority(monkeypatch) -> None:
     from autointerp_agent import litrev
 
@@ -370,6 +639,108 @@ def test_dispatch_model_cancel_keeps_session(monkeypatch) -> None:
     original = ui.config
     handled, _ = asyncio.run(repl.handle_repl_command("/model", ui))
     assert handled and ui.config is original
+
+
+# ---------------------------------------------------------------------------
+# word wrap (input box)
+# ---------------------------------------------------------------------------
+
+
+def test_word_wrap_consumes_breaking_space() -> None:
+    # "…what do| they" — the inter-word space must not lead the next row.
+    rows, _ = repl._word_wrap("how many total phases do we have", width=20)
+    assert rows == ["how many total ", "phases do we have"]
+    for row in rows[1:]:
+        assert not row.startswith(" ")
+
+
+def test_word_wrap_keeps_words_whole() -> None:
+    rows, _ = repl._word_wrap("alpha beta gamma delta", width=11)
+    # Final row is exactly full → a fresh empty row hosts the end cursor.
+    assert rows == ["alpha beta ", "gamma delta", ""]
+
+
+def test_word_wrap_hard_splits_overlong_words() -> None:
+    rows, _ = repl._word_wrap("supercalifragilistic", width=8)
+    assert rows == ["supercal", "ifragili", "stic"]
+
+
+def test_word_wrap_cursor_map_is_consistent() -> None:
+    text = "one two three four"
+    width = 8
+    rows, pos = repl._word_wrap(text, width)
+    assert len(pos) == len(text) + 1
+    for row, col in pos:
+        assert 0 <= row < len(rows) and 0 <= col <= width
+    # End-of-text cursor lands at the end of the last row.
+    assert pos[len(text)] == (len(rows) - 1, len(rows[-1]))
+    # Non-space characters map onto the cell that actually renders them.
+    for i, ch in enumerate(text):
+        row, col = pos[i]
+        if ch != " " and col < len(rows[row]):
+            assert rows[row][col] == ch
+
+
+def test_word_wrap_exact_fit_moves_cursor_to_fresh_row() -> None:
+    rows, pos = repl._word_wrap("abcdefgh", width=8)
+    assert rows == ["abcdefgh", ""]
+    assert pos[8] == (1, 0)  # end cursor on a real cell, not past the edge
+
+
+def test_input_box_screen_cursor_tracks_typing(tmp_path: Path) -> None:
+    """Regression: the rendered cursor must sit at the typed position.
+
+    The custom word-wrap control once emitted cursor cells that were never
+    written to the screen, so prompt_toolkit's lookup missed and parked the
+    visible cursor at the window origin (top-left) forever.
+    """
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+    from prompt_toolkit.layout.containers import WritePosition
+    from prompt_toolkit.layout.mouse_handlers import MouseHandlers
+    from prompt_toolkit.layout.screen import Screen
+    from prompt_toolkit.output import DummyOutput
+
+    width, prefix = 40, 4  # window cols; "│ ❯ " prefix cells
+
+    def cursor_for(text: str):
+        from prompt_toolkit.application.current import set_app
+
+        with create_pipe_input() as pipe:
+            with create_app_session(input=pipe, output=DummyOutput()):
+                box = repl.BoxedInput(_ui(), tmp_path / "history")
+                box.buffer.text = text
+                box.buffer.cursor_position = len(text)
+                screen = Screen()
+                # The cursor only registers for the focused window of the
+                # active app — enter the box's own Application for the render.
+                with set_app(box.app):
+                    box._input_window.write_to_screen(
+                        screen, MouseHandlers(),
+                        WritePosition(xpos=0, ypos=0, width=width, height=8),
+                        "", False, None,
+                    )
+                return screen.cursor_positions[box._input_window]
+
+    empty = cursor_for("")
+    assert (empty.x, empty.y) == (prefix, 0)
+
+    typed = cursor_for("hello")
+    assert (typed.x, typed.y) == (prefix + 5, 0)  # NOT stuck at the origin
+
+    long_text = "What is the difference between Phase 1 and Phase 2 anyway"
+    rows, pos = repl._word_wrap(long_text, width - prefix)
+    expect_row, expect_col = pos[len(long_text)]
+    wrapped = cursor_for(long_text)
+    assert (wrapped.x, wrapped.y) == (prefix + expect_col, expect_row)
+    assert wrapped.y > 0  # genuinely on a wrapped row
+
+
+def test_word_wrap_empty_and_newlines() -> None:
+    rows, pos = repl._word_wrap("", width=10)
+    assert rows == [""] and pos == [(0, 0)]
+    rows, _ = repl._word_wrap("a\nb", width=10)
+    assert rows == ["a b"]  # pasted newlines display as spaces
 
 
 # ---------------------------------------------------------------------------
@@ -660,6 +1031,106 @@ def test_repl_resume_restores_conversation_and_draft(tmp_path: Path) -> None:
     assert (spec_dir / "_draft.json").read_text() == '{"question": "surprise?"}'
     # No get-started panel on resume.
     assert "Ask a research question" not in output
+
+
+def test_repl_resume_replays_full_history(tmp_path: Path) -> None:
+    """--continue must show the whole prior conversation (Claude-Code
+    style), not just restore it invisibly into the agent's context."""
+    payload = {
+        "session_id": "s",
+        "title": "surprise",
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:10:00Z",
+        "model_name": "m",
+        "turn": 2,
+        "messages": [
+            {"role": "user", "content": "How do models represent surprise?"},
+            {
+                "role": "assistant",
+                "content": "Let me check the schema first.",
+                "tool_calls": [
+                    {"id": "t1", "function": {
+                        "name": "update_spec",
+                        "arguments": '{"patch": {"question": "q"}}',
+                    }},
+                    {"id": "t2", "function": {
+                        "name": "validate_spec", "arguments": "{}",
+                    }},
+                ],
+            },
+            {"role": "tool", "tool_call_id": "t1", "name": "update_spec",
+             "content": "ok"},
+            {"role": "tool", "tool_call_id": "t2", "name": "validate_spec",
+             "content": "ERROR: contrast is required"},
+            {"role": "assistant", "content": "Here is the **draft plan**."},
+            {"role": "user", "content": "looks good, refine the dataset"},
+        ],
+        "cost": {"total_cost_usd": 0.0, "total_requests": 0, "by_model": {}},
+        "draft": None,
+    }
+    result, output, _ = _run_repl_with_keys(
+        "/exit\r", tmp_path, resume_payload=payload,
+    )
+    assert result is None
+    assert "previous conversation" in output
+    # Both user prompts replayed in the input-box style.
+    assert "How do models represent surprise?" in output
+    assert "looks good, refine the dataset" in output
+    # Interim thought, semantic tool feed with outcomes, markdown answer.
+    assert "Let me check the schema first." in output
+    assert "updated plan" in output and "✓" in output
+    # The failed call shows what couldn't happen and why, in plain language.
+    assert "couldn't validate the plan" in output and "✗" in output
+    assert "contrast is required" in output
+    assert "draft plan" in output
+    assert "session restored" in output
+
+
+def test_repl_on_finalize_runs_inline_and_stays_in_session(tmp_path, monkeypatch) -> None:
+    """A finalized spec runs the investigation in-session (on_finalize) and the
+    loop CONTINUES — the user is never dumped to the shell."""
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+    from prompt_toolkit.output import DummyOutput
+
+    console = _console()
+    config = AgentConfig(model_name="anthropic/claude-sonnet-4-5")
+    registry = SkillRegistry({})
+    context = ContextManager(skill_registry=registry, model_name=config.model_name)
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+
+    turn_calls = {"n": 0}
+
+    async def fake_turn(prompt, config, context, router, observer=None, **kwargs):
+        turn_calls["n"] += 1
+        if turn_calls["n"] == 1:
+            (spec_dir / "demo_rev1.json").write_text("{}")  # finalize
+            return "spec approved"
+        return "a follow-up answer"
+
+    monkeypatch.setattr(repl, "run_agent_turn", fake_turn)
+
+    finalized: list[str] = []
+
+    async def on_finalize(spec_path: str) -> None:
+        finalized.append(spec_path)
+
+    async def go():
+        with create_pipe_input() as pipe:
+            pipe.send_text("design it\rtell me more\r/exit\r")
+            with create_app_session(input=pipe, output=DummyOutput()):
+                return await repl.run_spec_repl(
+                    config=config, context=context, router=object(), console=console,
+                    registry=registry, spec_dir=spec_dir, max_turns=5,
+                    state_dir=tmp_path, on_finalize=on_finalize,
+                )
+
+    result = asyncio.run(go())
+    assert result is None  # stayed in session, did not return the spec path
+    assert finalized == [str(spec_dir / "demo_rev1.json")]  # investigation ran inline
+    assert turn_calls["n"] == 2  # a follow-up turn happened AFTER the investigation
+    assert "Back to design" in console.file.getvalue()
 
 
 def test_dispatch_clear_rotates_session(tmp_path: Path) -> None:

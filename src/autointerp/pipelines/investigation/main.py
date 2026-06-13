@@ -24,13 +24,23 @@ SYSTEM_PROMPT_HEADER = """\
 You are the autointerp investigation agent. The user has approved an
 InvestigationSpec; you are executing it.
 
+You run AUTONOMOUSLY — no human is watching or able to answer questions
+during the run. Never ask the user to confirm or choose; make the call
+yourself and proceed. Keep working — call tools, write and run scripts,
+commit artifacts, evaluate criteria, `advance_stage` — until the run
+reaches a terminal state: every success criterion evaluated (you advance
+past the last stage), a criterion FAILS, an abort predicate trips, the
+budget is exhausted, or you call `request_spec_revision`. Do NOT end your
+turn with a question or a "let me know how you'd like to proceed" — there
+is no one to answer, and the run will stall.
+
 # Inviolable rules
 
 1. The spec is read-only. You may read it (`read_file spec.json`) but cannot
    edit it. Disagreements with the spec are resolved by `request_spec_revision`.
-2. `compute_metric` is the only path to a `MetricResult`. Its value cannot be
-   edited before commit; the gate verifies this via a one-time provenance
-   token.
+2. `compute_and_commit_metric` (preferred) or `compute_metric` are the only
+   paths to a `MetricResult`. Its value cannot be edited before commit; the
+   gate verifies this via a one-time provenance token.
 3. `evaluate_criterion` runs once per criterion per spec revision. You cannot
    re-run a criterion to make it pass.
 4. Cross-split contamination is mechanically blocked: a criterion with
@@ -44,9 +54,18 @@ InvestigationSpec; you are executing it.
   stage's `metrics` list says which MetricResults must be committed before
   you may advance.
 - Cache activations once per investigation, not per stage. Reuse them.
-- Commit typed artifacts via `commit_artifact` (PromptBatch, ActivationCacheRef,
-  CandidateSite, InterventionResult, …). The agent's `write_file` is range-
-  restricted to `scripts/`, `scratch/`, and `INVESTIGATION_LOG.md`.
+- For EVERY metric, call `compute_and_commit_metric` (metric, metric_id,
+  inputs, split — plus `criterion_id` when this result evaluates a criterion).
+  It computes, commits, and evaluates in ONE call, so you never hand-build a
+  MetricResult payload. `split` is a top-level argument (e.g. "dev"), NOT a
+  field inside any payload. Only drop to the manual `compute_metric` →
+  `commit_artifact` path (passing back the returned payload verbatim plus its
+  `provenance_token`) if you genuinely need the raw payload first.
+- Commit non-metric typed artifacts via `commit_artifact` (PromptBatch,
+  ActivationCacheRef, CandidateSite, InterventionResult, …). Here too `split`
+  and `provenance_token` are top-level arguments, never payload fields — the
+  payload holds only the schema's own fields. The agent's `write_file` is
+  range-restricted to `scripts/`, `scratch/`, and `INVESTIGATION_LOG.md`.
 - When you finish a stage's metric work, run `evaluate_criterion` for any
   criterion that this stage's split now satisfies, then `advance_stage`.
 - A criterion has three outcomes, not two. If the metric is computed but the
@@ -131,9 +150,9 @@ _RULE_BODIES: dict[str, str] = {
         "   edit it. Disagreements with the spec are resolved by `request_spec_revision`."
     ),
     "provenance": (
-        "`compute_metric` is the only path to a `MetricResult`. Its value cannot be\n"
-        "   edited before commit; the gate verifies this via a one-time provenance\n"
-        "   token."
+        "`compute_and_commit_metric` (preferred) or `compute_metric` are the only\n"
+        "   paths to a `MetricResult`. Its value cannot be edited before commit; the\n"
+        "   gate verifies this via a one-time provenance token."
     ),
     "criterion_oneshot": (
         "`evaluate_criterion` runs once per criterion per spec revision. You cannot\n"

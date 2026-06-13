@@ -174,8 +174,11 @@ def _resolve_agent_path(path: str, router: "ToolRouter | None") -> str:
     """
     if Path(path).is_absolute() or router is None or router.run_dir is None:
         return path
-    from_run = router.run_dir / path
-    from_cwd = Path.cwd() / path
+    # Resolve to ABSOLUTE: a relative run_dir (e.g. runs_root="runs") would
+    # otherwise yield a relative result that the write gate's
+    # normalize_safe_path rejects, blocking every scripts/scratch/LOG write.
+    from_run = (router.run_dir / path).resolve()
+    from_cwd = (Path.cwd() / path).resolve()
     if router.writable_roots is not None:
         in_run = is_within(str(from_run), router.writable_roots)
         in_cwd = is_within(str(from_cwd), router.writable_roots)
@@ -195,11 +198,16 @@ DEFAULT_STALL_SECONDS = 600  # kill on no-output stall (10 min). Stalled
 def _bash_handler(router: "ToolRouter | None") -> ToolHandler:
     async def handler(args: dict[str, Any]) -> tuple[str, bool]:
         command = str(args.get("command", ""))
-        work_dir = str(args.get("work_dir", "."))
+        # An empty/blank work_dir (a common malformed arg) makes Popen raise
+        # FileNotFoundError on cwd="" — normalize to "." and reject a path
+        # that isn't a real directory rather than crashing.
+        work_dir = (str(args.get("work_dir") or ".")).strip() or "."
         timeout = min(int(args.get("timeout") or DEFAULT_TIMEOUT), MAX_TIMEOUT)
         stall_seconds = int(args.get("stall_seconds") or DEFAULT_STALL_SECONDS)
         if not command:
             return "No command provided.", False
+        if not Path(work_dir).is_dir():
+            return f"work_dir is not a directory: {work_dir!r}", False
         scratch_dir = router.scratch_dir if router is not None else None
         return await asyncio.to_thread(
             _run_bash_watched, command, work_dir, timeout, stall_seconds, scratch_dir

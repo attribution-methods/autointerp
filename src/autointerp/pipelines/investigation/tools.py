@@ -186,8 +186,25 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
         return _ok(state.model_dump())
 
     async def _get_budget_handler(_args: dict[str, Any]) -> tuple[str, bool]:
+        from autointerp.spec import InvestigationSpec
+
         state = read_state(handle.state_path)
-        return _ok(state.budget_consumed.model_dump())
+        spec = InvestigationSpec.model_validate_json(handle.spec_path.read_text())
+        limits = {
+            k: ("unlimited" if v is None else v)
+            for k, v in spec.budget.model_dump().items()
+        }
+        return _ok({
+            "limits": limits,
+            "consumed_so_far": state.budget_consumed.model_dump(),
+            "note": (
+                "limits of 'unlimited' mean NO cap — proceed normally. "
+                "consumed_so_far is what you have already used (starts at 0); "
+                "it is NOT a remaining allowance. Do NOT request a spec "
+                "revision over budget unless a real, non-unlimited limit here "
+                "is actually exhausted."
+            ),
+        })
 
     async def _get_progress_handler(_args: dict[str, Any]) -> tuple[str, bool]:
         return render_progress(handle), True

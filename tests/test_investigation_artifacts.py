@@ -218,6 +218,24 @@ def test_invalid_payload_rejected(tmp_path: Path) -> None:
         commit_artifact(handle, "PromptBatch", {"batch_id": "x"})
 
 
+def test_metric_payload_with_split_inside_gets_actionable_hint(tmp_path: Path) -> None:
+    """The most common weak-agent mistake: `split` crammed into the MetricResult
+    payload (it is a top-level arg). The gate must reject AND tell the agent how
+    to fix it, including the one-shot tool, so it doesn't loop for many turns."""
+    spec = _approved_spec()
+    handle = init_run(spec, runs_root=tmp_path)
+    bad_payload = {
+        "metric_id": "logit_diff_001", "value": 1.1, "passed": True,
+        "split": "dev",  # <- belongs as a sibling arg, not in payload
+    }
+    with pytest.raises(ArtifactGateError) as ei:
+        commit_artifact(handle, "MetricResult", bad_payload,
+                        split="dev", provenance_token="tok1")
+    msg = str(ei.value)
+    assert "split is a top-level argument" in msg
+    assert "compute_and_commit_metric" in msg  # points at the one-shot path
+
+
 def test_split_required_for_non_promptbatch(tmp_path: Path) -> None:
     spec = _approved_spec()
     handle = init_run(spec, runs_root=tmp_path)

@@ -27,6 +27,31 @@ _LEAKED_TOOL_XML = re.compile(
 )
 _MAX_LEAKED_XML_RETRIES = 3
 
+# Internal identifiers that must never reach the user's eyes: schema class
+# names and the Stage-0 tool surface. The concepts are fine — the user hears
+# "the investigation plan" and "I'll lock it in" — but the code vocabulary
+# means nothing to them. Enforced (when config.plain_language_guard is on)
+# with the same detect-and-retry pattern as the XML-leak guard above.
+# Deliberately narrow: rendered-spec output and plain-English phrases like
+# "success criteria" never match.
+_INTERNAL_JARGON = re.compile(
+    r"\b(InvestigationSpec|PartialSpec|StageSpec|BehaviorSpec"
+    r"|finalize_spec|update_spec|describe_spec|show_spec|validate_spec"
+    r"|remove_spec_fields|list_metrics|read_metric|propose_custom_metric)\b"
+)
+_MAX_JARGON_RETRIES = 2
+_JARGON_RETRY_PROMPT = (
+    "[automated style check — this is NOT from the user, and the user has NOT "
+    "seen your previous reply] That reply used internal code identifiers (e.g. "
+    "InvestigationSpec, finalize_spec) that mean nothing to the user. Send the "
+    "reply again with identical substance but in plain language: 'the "
+    "investigation plan', and actions as actions ('I'll lock the plan in', "
+    "'I updated the success criteria'). Output ONLY the corrected reply — no "
+    "preface, no 'here is the rewritten version', no 'thanks for the "
+    "guidance', and do NOT mention this check or that anything was reworded. "
+    "To the user, what you write now is your first and only reply."
+)
+
 # Resolved lazily on the first agent turn: `import litellm` reads thousands
 # of module files (~12s on network filesystems) and must never delay CLI
 # startup or the banner. Tests may pre-assign a fake here — any non-None
@@ -147,15 +172,27 @@ async def run_agent_turn(
     context.add_user(user_prompt)
     final_text = ""
     leaked_xml_retries = 0
+    jargon_retries = 0
+    # Resolve the temperature once: None (or a reasoning model that rejects a
+    # custom value) means we omit it and let the provider default apply.
+    temperature = getattr(config, "temperature", None)
+    if temperature is not None:
+        from .model_select import model_supports_temperature
+
+        if not model_supports_temperature(config.model_name):
+            temperature = None
     for iteration in range(config.max_iterations):
         await _emit(observer, "on_iteration_start", iteration)
-        response = await _call_llm(
-            model=config.model_name,
-            messages=context.llm_messages(),
-            tools=context.tools_with_caching(tool_router.get_tool_specs_for_llm()),
-            tool_choice="auto",
-            stream=False,
-        )
+        llm_kwargs: dict[str, Any] = {
+            "model": config.model_name,
+            "messages": context.llm_messages(),
+            "tools": context.tools_with_caching(tool_router.get_tool_specs_for_llm()),
+            "tool_choice": "auto",
+            "stream": False,
+        }
+        if temperature is not None:
+            llm_kwargs["temperature"] = temperature
+        response = await _call_llm(**llm_kwargs)
         if cost_tracker is not None:
             try:
                 cost_tracker.add_response(response)
@@ -186,6 +223,15 @@ async def run_agent_turn(
                     "tool XML in text content."
                 )
                 continue
+            if (
+                getattr(config, "plain_language_guard", False)
+                and _INTERNAL_JARGON.search(content)
+                and jargon_retries < _MAX_JARGON_RETRIES
+            ):
+                jargon_retries += 1
+                context.add_assistant({"role": "assistant", "content": content})
+                context.add_user(_JARGON_RETRY_PROMPT)
+                continue
             final_text = content
             context.add_assistant({"role": "assistant", "content": final_text})
             await _emit(observer, "on_final", iteration, final_text)
@@ -202,7 +248,15 @@ async def run_agent_turn(
                 output, ok = f"Malformed JSON arguments: {exc}", False
                 args = {"_raw": raw_args}
             else:
-                output, ok = await tool_router.call_tool(name, args)
+                try:
+                    output, ok = await tool_router.call_tool(name, args)
+                except Exception as exc:  # noqa: BLE001
+                    # A tool handler that raises (e.g. a malformed arg hitting
+                    # an unguarded path) must not crash the whole turn — return
+                    # it to the agent as a recoverable tool error instead.
+                    output, ok = (
+                        f"Tool {name!r} raised {type(exc).__name__}: {exc}", False
+                    )
             prefix = "" if ok else "ERROR: "
             call_id = tool_call.get("id", name)
             context.add_tool(call_id, name, prefix + output)

@@ -8,6 +8,7 @@ The first toolkit pass includes these skills:
 - `activation-steering`: steering with contrastive or learned directions.
 - `activation-patching`: activation replacement, causal tracing, component patching.
 - `attribution-patching`: first-order patching estimates for component triage.
+- `relevance-patching`: RelP/ReIP LRP-based attribution patching with model-specific rules for GPT-2, Pythia, Qwen, Gemma, and Llama-style models.
 - `gradient-attribution`: saliency, gradient times activation, integrated-gradient style checks.
 - `logit-lens`: intermediate residual predictions and KL-based filtering.
 - `tuned-lens`: learned translators for calibrated intermediate predictions.

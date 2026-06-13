@@ -87,6 +87,37 @@ def _atomic_write_text(path: Path, text: str) -> None:
         raise
 
 
+# Keys agents most often misplace INSIDE `payload` — they are arguments of
+# commit_artifact / compute_and_commit_metric, never schema fields.
+_TOP_LEVEL_NOT_PAYLOAD = ("split", "provenance_token")
+
+
+def _payload_shape_hint(kind: str, payload: Any) -> str:
+    """Turn a bare pydantic `extra_forbidden` failure into an actionable hint.
+
+    The common weak-agent mistake is cramming `split`/`provenance_token` into
+    the payload, or hand-building a MetricResult at all. Naming the fix here
+    saves the agent a long retry loop against the gate."""
+    hint = ""
+    if isinstance(payload, dict):
+        misplaced = [k for k in _TOP_LEVEL_NOT_PAYLOAD if k in payload]
+        if misplaced:
+            hint += (
+                f"\n\nHINT: {', '.join(misplaced)} is a top-level argument of "
+                "commit_artifact, not a field inside `payload`. Pass it as a "
+                "sibling of `payload`, and keep only the schema's own fields in "
+                "`payload`."
+            )
+    if kind == "MetricResult":
+        hint += (
+            "\n\nHINT: for metrics, prefer compute_and_commit_metric(metric, "
+            "metric_id, inputs, split[, criterion_id]) — it computes, commits, "
+            "and (with criterion_id) evaluates in ONE call, so you never "
+            "hand-construct a MetricResult payload."
+        )
+    return hint
+
+
 def _validate_payload(kind: str, payload: Any) -> BaseModel:
     if kind not in ARTIFACT_KINDS:
         raise ArtifactGateError(
@@ -104,7 +135,10 @@ def _validate_payload(kind: str, payload: Any) -> BaseModel:
     try:
         return cls.model_validate(payload)
     except ValidationError as exc:
-        raise ArtifactGateError(f"{kind} payload failed validation:\n{exc}") from exc
+        raise ArtifactGateError(
+            f"{kind} payload failed validation:\n{exc}"
+            + _payload_shape_hint(kind, payload)
+        ) from exc
 
 
 def _artifact_id(kind: str, model: BaseModel) -> str:

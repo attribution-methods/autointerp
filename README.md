@@ -67,10 +67,22 @@ process env (export …)  >  ./.env (project)  >  ~/.autointerp/credentials (use
 ```
 
 Inside any interactive session, `/model` re-opens the picker to switch
-model, provider, or key mid-conversation — if a key already exists you can
-keep it or replace it (`/help` lists all commands). `--model` still
-overrides per invocation, and a free-text "custom" entry accepts any
-litellm model string.
+model, provider, or key mid-conversation — switching to a provider whose key
+isn't set (e.g. OpenAI → Anthropic) prompts for that key right there; if a
+key already exists you can keep it or replace it (`/help` lists all
+commands). `--model` still overrides per invocation, and a free-text
+"custom" entry accepts any litellm model string.
+
+**Local / open-weights models.** The picker also has a **Local
+(HuggingFace)** option: pick a curated open-weights chat model (Qwen2.5 /
+Qwen3 / Llama-3.x, 7B–72B, all sized to fit a ≤180 GB GPU in bf16) or type
+any HuggingFace id. No API key — it routes through litellm's `hosted_vllm/`
+to a local OpenAI-compatible server (default `http://localhost:8000/v1`,
+configurable). Serve the model with tool-calling enabled, e.g.:
+
+```bash
+vllm serve Qwen/Qwen2.5-7B-Instruct --enable-auto-tool-choice --tool-call-parser hermes
+```
 
 ## Quick Start
 
@@ -85,6 +97,79 @@ Use a custom skill pack:
 ```bash
 autointerp --skills-dir /path/to/skills --list-skills
 ```
+
+### Use these skills in Codex or Claude Code
+
+The folders under `skills/` are Agent Skills: each skill is a directory with a
+`SKILL.md` file plus optional metadata/resources. They can be used outside the
+`autointerp` CLI.
+
+The plugin path is the easiest way to install the full skill bundle because it
+keeps the skills versioned and updateable through the agent's plugin manager.
+
+Install the skill bundle as a Codex plugin:
+
+```bash
+codex plugin marketplace add attribution-methods/autointerp \
+  --sparse .agents/plugins \
+  --sparse plugins/autointerp-skills
+codex plugin add autointerp-skills@autointerp
+```
+
+Install the skill bundle as a Claude Code plugin:
+
+```bash
+claude plugin marketplace add attribution-methods/autointerp \
+  --sparse .claude-plugin plugins/autointerp-skills
+claude plugin install autointerp-skills@autointerp
+```
+
+To test a local checkout before installing from GitHub:
+
+```bash
+codex plugin marketplace add ./
+codex plugin add autointerp-skills@autointerp
+
+claude plugin marketplace add ./
+claude plugin install autointerp-skills@autointerp
+```
+
+For direct local copying instead of plugin management, install all skills for
+Codex:
+
+```bash
+mkdir -p ~/.agents/skills
+cp -R skills/* ~/.agents/skills/
+```
+
+Install all skills for Claude Code:
+
+```bash
+mkdir -p ~/.claude/skills
+cp -R skills/* ~/.claude/skills/
+```
+
+For project-local use instead of personal/global use, copy to
+`.agents/skills/` for Codex or `.claude/skills/` for Claude Code.
+
+To download only the raw skill folders from GitHub:
+
+```bash
+tmp="$(mktemp -d)"
+git clone --depth 1 --filter=blob:none --sparse \
+  https://github.com/attribution-methods/autointerp.git "$tmp/autointerp"
+git -C "$tmp/autointerp" sparse-checkout set skills
+mkdir -p ~/.agents/skills ~/.claude/skills
+cp -R "$tmp/autointerp/skills/"* ~/.agents/skills/
+cp -R "$tmp/autointerp/skills/"* ~/.claude/skills/
+rm -rf "$tmp"
+```
+
+To install only one skill, copy that subdirectory instead, for example
+`skills/relevance-patching`. Review third-party skills before installing them;
+Codex and Claude Code may let skills include supporting scripts/resources.
+If a newly copied skill does not appear in an already running agent session,
+restart the agent.
 
 Run a headless investigation:
 
