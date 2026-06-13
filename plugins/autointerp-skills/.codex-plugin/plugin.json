@@ -1,0 +1,35 @@
+{
+  "name": "autointerp-skills",
+  "version": "0.1.0",
+  "description": "Automated interpretability method skills from autointerp.",
+  "author": {
+    "name": "attribution-methods",
+    "url": "https://github.com/attribution-methods"
+  },
+  "homepage": "https://github.com/attribution-methods/autointerp",
+  "repository": "https://github.com/attribution-methods/autointerp",
+  "license": "MIT",
+  "keywords": [
+    "interpretability",
+    "mechanistic-interpretability",
+    "agent-skills"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Autointerp Skills",
+    "shortDescription": "Automated interpretability method skills.",
+    "longDescription": "Reusable method skills for automated mechanistic interpretability investigations, including activation patching, attribution, SAEs, lenses, PCDs, NLAs, and RelP.",
+    "developerName": "attribution-methods",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read"
+    ],
+    "websiteURL": "https://github.com/attribution-methods/autointerp",
+    "defaultPrompt": [
+      "Use autointerp skills for this investigation.",
+      "Choose an interpretability method skill.",
+      "Plan a mechanistic interpretability workflow."
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "autointerp-skills",
+  "description": "Automated interpretability method skills from autointerp.",
+  "version": "0.1.0",
+  "author": {
+    "name": "attribution-methods"
+  }
+}

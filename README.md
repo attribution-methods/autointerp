@@ -98,6 +98,79 @@ Use a custom skill pack:
 autointerp --skills-dir /path/to/skills --list-skills
 ```
 
+### Use these skills in Codex or Claude Code
+
+The folders under `skills/` are Agent Skills: each skill is a directory with a
+`SKILL.md` file plus optional metadata/resources. They can be used outside the
+`autointerp` CLI.
+
+The plugin path is the easiest way to install the full skill bundle because it
+keeps the skills versioned and updateable through the agent's plugin manager.
+
+Install the skill bundle as a Codex plugin:
+
+```bash
+codex plugin marketplace add attribution-methods/autointerp \
+  --sparse .agents/plugins \
+  --sparse plugins/autointerp-skills
+codex plugin add autointerp-skills@autointerp
+```
+
+Install the skill bundle as a Claude Code plugin:
+
+```bash
+claude plugin marketplace add attribution-methods/autointerp \
+  --sparse .claude-plugin plugins/autointerp-skills
+claude plugin install autointerp-skills@autointerp
+```
+
+To test a local checkout before installing from GitHub:
+
+```bash
+codex plugin marketplace add ./
+codex plugin add autointerp-skills@autointerp
+
+claude plugin marketplace add ./
+claude plugin install autointerp-skills@autointerp
+```
+
+For direct local copying instead of plugin management, install all skills for
+Codex:
+
+```bash
+mkdir -p ~/.agents/skills
+cp -R skills/* ~/.agents/skills/
+```
+
+Install all skills for Claude Code:
+
+```bash
+mkdir -p ~/.claude/skills
+cp -R skills/* ~/.claude/skills/
+```
+
+For project-local use instead of personal/global use, copy to
+`.agents/skills/` for Codex or `.claude/skills/` for Claude Code.
+
+To download only the raw skill folders from GitHub:
+
+```bash
+tmp="$(mktemp -d)"
+git clone --depth 1 --filter=blob:none --sparse \
+  https://github.com/attribution-methods/autointerp.git "$tmp/autointerp"
+git -C "$tmp/autointerp" sparse-checkout set skills
+mkdir -p ~/.agents/skills ~/.claude/skills
+cp -R "$tmp/autointerp/skills/"* ~/.agents/skills/
+cp -R "$tmp/autointerp/skills/"* ~/.claude/skills/
+rm -rf "$tmp"
+```
+
+To install only one skill, copy that subdirectory instead, for example
+`skills/relevance-patching`. Review third-party skills before installing them;
+Codex and Claude Code may let skills include supporting scripts/resources.
+If a newly copied skill does not appear in an already running agent session,
+restart the agent.
+
 Run a headless investigation:
 
 ```bash
