@@ -168,7 +168,12 @@ def advance_stage(handle: RunHandle) -> dict[str, Any]:
     if missing:
         raise StageGateError(
             f"stage {idx} ({stage.stage.value}) has not committed a MetricResult "
-            f"for declared metrics: {missing}. Compute and commit them before advancing."
+            f"for declared metrics: {missing}. Compute and commit them before "
+            f"advancing. If a declared metric genuinely cannot be produced in "
+            f"this stage (e.g. a causal metric like patch_effect_recovery needs "
+            f"clean/corrupt/patched intervention values that this stage does not "
+            f"create), do NOT keep retrying — call request_spec_revision to fix "
+            f"the plan."
         )
 
     # One last guard sweep before we close the stage.
