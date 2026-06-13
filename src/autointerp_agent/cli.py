@@ -33,6 +33,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to YAML/JSON config",
     )
     parser.add_argument("--model", help="Override model name")
+    parser.add_argument(
+        "--temperature", type=float,
+        help="Sampling temperature 0.0–2.0 (default: provider's own; reasoning "
+             "models ignore it)",
+    )
     parser.add_argument("--max-iterations", type=int, help="Maximum LLM/tool loop iterations")
     parser.add_argument("--skills-dir", help="Override skill directory")
     parser.add_argument(
@@ -102,7 +107,8 @@ async def async_main(argv: list[str] | None = None) -> int | str:
     ready = await ensure_model_ready(config, console, interactive=sys.stdin.isatty())
     if ready is None:
         return 1
-    config = ready
+    # Chat surfaces talk to humans — internal identifiers get retried away.
+    config = ready.model_copy(update={"plain_language_guard": True})
     session_store = None
     resume_payload = None
     if interactive:
@@ -142,7 +148,27 @@ async def async_main(argv: list[str] | None = None) -> int | str:
             if new_specs:
                 finalized_spec = str(sorted(new_specs)[-1])
         else:
-            finalized_spec = await run_spec_repl(
+            # When a spec is finalized, run the investigation in-session and
+            # return to the prompt (the Codex/CC way) — no process exit, no
+            # separate `runs show`. Same event loop, so no nested asyncio.run.
+            async def _investigate_inline(spec_path: str) -> None:
+                from .investigation import run_investigation
+
+                inv_config = config.model_copy(
+                    update={
+                        "auto_approve": True,
+                        "max_iterations": 500,
+                        # The investigation's report legitimately names tools /
+                        # metrics; don't retry its output through the chat guard.
+                        "plain_language_guard": False,
+                    }
+                )
+                await run_investigation(
+                    spec_path=spec_path, runs_root=Path("runs"),
+                    config=inv_config, console=console,
+                )
+
+            await run_spec_repl(
                 config=config,
                 context=context,
                 router=router,
@@ -152,12 +178,12 @@ async def async_main(argv: list[str] | None = None) -> int | str:
                 max_turns=args.max_turns,
                 session_store=session_store,
                 resume_payload=resume_payload,
+                on_finalize=_investigate_inline,
             )
 
-    # Returning a string signals main() to invoke the pipeline. We must NOT
-    # call investigation_main here: it does its own asyncio.run, and nesting
-    # event loops raises "asyncio.run() cannot be called from a running
-    # event loop". Hand off to sync code after asyncio.run completes.
+    # Headless one-shot: returning a string signals main() to invoke the
+    # pipeline via a sync hand-off (it does its own asyncio.run). The
+    # interactive REPL handles the investigation inline above, so it returns 0.
     if finalized_spec is not None:
         return finalized_spec
     return 0
@@ -174,6 +200,8 @@ def _load_cli_config(args: argparse.Namespace) -> AgentConfig:
     updates = {}
     if args.model:
         updates["model_name"] = args.model
+    if getattr(args, "temperature", None) is not None:
+        updates["temperature"] = args.temperature
     if args.max_iterations is not None:
         updates["max_iterations"] = args.max_iterations
     if args.skills_dir:

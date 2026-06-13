@@ -85,3 +85,17 @@ def test_router_threads_scratch_dir(tmp_path: Path) -> None:
     assert "hello" in out
     assert (tmp_path / "scratch").exists()
     assert any((tmp_path / "scratch").glob("bash_*.log"))
+
+
+def test_bash_handles_empty_and_bad_work_dir() -> None:
+    import asyncio
+
+    from autointerp_agent.tools import _bash_handler
+
+    handler = _bash_handler(None)
+    # Empty work_dir (the FileNotFoundError('') trigger) normalizes to "."
+    out, ok = asyncio.run(handler({"command": "echo hi", "work_dir": ""}))
+    assert ok and "hi" in out
+    # A non-existent directory is reported, not crashed on.
+    out, ok = asyncio.run(handler({"command": "echo hi", "work_dir": "/no/such/dir"}))
+    assert not ok and "not a directory" in out

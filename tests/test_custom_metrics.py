@@ -137,13 +137,35 @@ def test_custom_metric_def_rejects_forbidden_token() -> None:
         )
 
 
-def test_custom_metric_def_rejects_missing_function() -> None:
-    src = "def something_else(x):\n    return 0.0\n"
-    with pytest.raises(ValueError, match="must define def compute"):
+def test_custom_metric_def_adopts_single_function() -> None:
+    # A planner often names the entry function after the metric and leaves
+    # function_name at the default — adopt the sole function rather than
+    # rejecting on a name technicality.
+    src = "def compute_surprisal(inputs):\n    return 0.0\n"
+    defn = CustomMetricDef(
+        name="surprisal", description="desc", family=MetricFamily.BEHAVIORAL,
+        value_range=(0.0, 1.0), direction="higher",
+        requires_inputs=["x"], source_code=src,
+    )
+    assert defn.function_name == "compute_surprisal"
+
+
+def test_custom_metric_def_rejects_ambiguous_or_missing_function() -> None:
+    # Two functions + default name → ambiguous, must be rejected.
+    two = "def a(inputs):\n    return 1.0\ndef b(inputs):\n    return 2.0\n"
+    with pytest.raises(ValueError, match="source must define"):
         CustomMetricDef(
             name="bad2", description="desc", family=MetricFamily.BEHAVIORAL,
             value_range=(0.0, 1.0), direction="higher",
-            requires_inputs=["x"], source_code=src,
+            requires_inputs=["x"], source_code=two,
+        )
+    # Explicit function_name that doesn't match → rejected (no guessing).
+    with pytest.raises(ValueError, match="source must define"):
+        CustomMetricDef(
+            name="bad3", description="desc", family=MetricFamily.BEHAVIORAL,
+            value_range=(0.0, 1.0), direction="higher", requires_inputs=["x"],
+            function_name="scorer",
+            source_code="def something_else(inputs):\n    return 0.0\n",
         )
 
 

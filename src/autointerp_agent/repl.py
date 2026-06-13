@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -35,7 +36,14 @@ from autointerp.utils.cost import CostTracker
 from .agent_loop import run_agent_turn, warm_llm_runtime
 from .config import USER_DIR, AgentConfig
 from .context import ContextManager
-from .model_select import format_llm_error, missing_key_env, run_setup_flow
+from .model_select import (
+    format_llm_error,
+    is_local_model,
+    local_api_base,
+    missing_key_env,
+    model_supports_temperature,
+    run_setup_flow,
+)
 from .sessions import (
     archive_stray_draft,
     cost_from_dict,
@@ -116,11 +124,12 @@ def print_banner(
 ) -> None:
     """The launch screen: wordmark, session facts, and command hints."""
     key_missing = missing_key_env(config.model_name)
-    key_badge = (
-        "[green]✓ key configured[/green]"
-        if key_missing is None
-        else f"[yellow]✗ no key — setup will run ({key_missing})[/yellow]"
-    )
+    if is_local_model(config.model_name):
+        key_badge = f"[cyan]local · {local_api_base()}[/cyan]"
+    elif key_missing is None:
+        key_badge = "[green]✓ key configured[/green]"
+    else:
+        key_badge = f"[yellow]✗ no key — setup will run ({key_missing})[/yellow]"
 
     info = Table.grid(padding=(0, 2))
     info.add_column(style="dim", justify="right", no_wrap=True)
@@ -162,6 +171,8 @@ def print_banner(
 
 COMMANDS: dict[str, str] = {
     "/model": "switch model / provider / API key (lists models live, validates)",
+    "/temperature": "set sampling temperature (0.0–2.0), or 'default'. "
+                    "Usage: /temperature [value]",
     "/litrev": "arXiv literature panel for a topic (side channel — never "
                "enters the agent's context). Usage: /litrev [topic]",
     "/cost": "token usage and cost, per model, for this session",
@@ -268,10 +279,12 @@ def _help_panel(ui: SessionUI) -> Panel:
 
 def _status_panel(ui: SessionUI) -> Panel:
     env_var = missing_key_env(ui.config.model_name)
-    key_line = (
-        "[green]✓ configured[/green]" if env_var is None
-        else f"[yellow]✗ missing ({env_var})[/yellow]"
-    )
+    if is_local_model(ui.config.model_name):
+        key_line = f"[cyan]local · {local_api_base()}[/cyan]"
+    elif env_var is None:
+        key_line = "[green]✓ configured[/green]"
+    else:
+        key_line = f"[yellow]✗ missing ({env_var})[/yellow]"
     draft = Path("outputs/specs/_draft.json")
     tokens_in, tokens_out = _usage_totals(ui.cost)
     table = Table.grid(padding=(0, 2))
@@ -279,6 +292,7 @@ def _status_panel(ui: SessionUI) -> Panel:
     table.add_column()
     table.add_row("model", ui.config.model_name)
     table.add_row("api key", key_line)
+    table.add_row("temperature", _temperature_status(ui.config))
     table.add_row("turns", f"{ui.turn}/{ui.max_turns or '∞'}")
     table.add_row("context", f"{len(ui.context.messages)} messages")
     table.add_row("tokens", f"↑{_fmt_tokens(tokens_in)} ↓{_fmt_tokens(tokens_out)}")
@@ -292,6 +306,55 @@ def _status_panel(ui: SessionUI) -> Panel:
         )
     return Panel(table, box=rich_box.ROUNDED, border_style="dim", title="status",
                  title_align="left", expand=False)
+
+
+def _temperature_status(config: AgentConfig) -> str:
+    """One-line temperature state for the status panel."""
+    if config.temperature is None:
+        return "provider default"
+    if not model_supports_temperature(config.model_name):
+        return f"{config.temperature:g} [yellow](ignored — reasoning model)[/yellow]"
+    return f"{config.temperature:g}"
+
+
+def _handle_temperature(prompt: str, ui: SessionUI) -> None:
+    """``/temperature [value|default]`` — show or set the agent's sampling
+    temperature. None (the default) omits the param so the provider's own
+    default applies; OpenAI reasoning models ignore any value set here."""
+    parts = prompt.split(maxsplit=1)
+    arg = parts[1].strip().lower() if len(parts) > 1 else ""
+    model = ui.config.model_name
+    if not arg:  # show
+        current = "provider default (1.0 for OpenAI/Anthropic)" \
+            if ui.config.temperature is None else f"{ui.config.temperature:g}"
+        body = f"temperature: [bold]{current}[/bold]"
+        if not model_supports_temperature(model):
+            body += (f"\n[yellow]note:[/yellow] {model} is a reasoning model — "
+                     "it only accepts its default, so a custom value is ignored.")
+        body += "\n[dim]set with /temperature <0.0–2.0>, reset with /temperature default[/dim]"
+        ui.console.print(Panel(body, box=rich_box.ROUNDED, border_style="dim",
+                               title="temperature", title_align="left", expand=False))
+        return
+    if arg in ("default", "none", "auto", "reset", "unset"):
+        ui.config = ui.config.model_copy(update={"temperature": None})
+        ui.console.print("[dim]temperature → provider default[/dim]")
+        return
+    try:
+        value = float(arg)
+    except ValueError:
+        ui.console.print("[yellow]Usage: /temperature <number 0.0–2.0>, or "
+                         "/temperature default[/yellow]")
+        return
+    if not 0.0 <= value <= 2.0:
+        ui.console.print("[yellow]Temperature must be between 0.0 and 2.0.[/yellow]")
+        return
+    ui.config = ui.config.model_copy(update={"temperature": value})
+    msg = f"temperature → [bold]{value:g}[/bold]"
+    if not model_supports_temperature(model):
+        msg += (f"  [yellow](note: {model} is a reasoning model and ignores "
+                "temperature — this takes effect if you switch to a standard "
+                "model)[/yellow]")
+    ui.console.print(f"[dim]{msg}[/dim]")
 
 
 async def handle_repl_command(prompt: str, ui: SessionUI) -> tuple[bool, bool]:
@@ -342,6 +405,9 @@ async def handle_repl_command(prompt: str, ui: SessionUI) -> tuple[bool, bool]:
             ui.config = updated
             ui.context.model_name = updated.model_name
             ui.console.print(f"[dim]now using {updated.model_name}[/dim]")
+        return True, False
+    if command == "/temperature":
+        _handle_temperature(prompt, ui)
         return True, False
     if command == "/litrev":
         from . import litrev
@@ -402,6 +468,133 @@ def _args_preview(args: dict[str, Any]) -> str:
     return text[:70] + ("…" if len(text) > 70 else "")
 
 
+# Successful calls to these render nothing: they are the agent reading
+# documentation/state, which informs the agent, not the user. The spinner
+# already shows liveness; failures still always render (with the reason).
+_SILENT_TOOLS = frozenset({
+    "describe_spec", "show_spec", "validate_spec", "list_metrics",
+    "read_metric", "list_skills", "read_skill", "read_file",
+    "get_state", "get_budget", "current_stage", "get_progress",
+})
+
+
+# Schema class names that may appear inside tool ERROR text. The agent needs
+# the precise originals to self-correct; the user-facing feed substitutes.
+_REASON_SUBS = (
+    ("InvestigationSpec", "plan"),
+    ("PartialSpec", "draft plan"),
+    ("StageSpec", "stage"),
+    ("BehaviorSpec", "behavior"),
+)
+
+# Failure verb phrases per tool, so ✗ lines speak the same plain language as
+# ✓ lines. Unknown tools fall back to their raw name (debuggable, rare).
+_FAIL_LABELS = {
+    "update_spec": "update the plan",
+    "remove_spec_fields": "edit the plan",
+    "finalize_spec": "finalize the plan",
+    "validate_spec": "validate the plan",
+    "describe_spec": "read the plan schema",
+    "show_spec": "render the plan",
+    "propose_custom_metric": "add the custom metric",
+    "list_metrics": "list the metrics",
+    "read_metric": "read the metric reference",
+    "list_skills": "list the skills",
+    "read_skill": "read the skill",
+    "bash": "run bash",
+    "read_file": "read the file",
+    "write_file": "write the file",
+    "edit_file": "edit the file",
+    "compute_metric": "compute the metric",
+    "compute_and_commit_metric": "compute the metric",
+    "commit_artifact": "commit the artifact",
+    "evaluate_criterion": "evaluate the criterion",
+    "advance_stage": "advance the stage",
+    "request_spec_revision": "request a revision",
+}
+
+
+def _humanize_field(key: str) -> str:
+    """Internal field name → plain words (``success_criteria`` → ``success
+    criteria``). Keeps the user's vocabulary free of code identifiers."""
+    return str(key).replace("_", " ")
+
+
+def _format_tool_event(
+    name: str, args: dict[str, Any], ok: bool, output: str = ""
+) -> str | None:
+    """One human line per tool call, or None to suppress.
+
+    Design rule: a line must either tell the user what just changed in
+    their world (plan edits, files, approvals, metrics) or surface a
+    problem with its reason. Raw (name, json-args) dumps do neither.
+    """
+    args = args if isinstance(args, dict) else {}
+    if not ok:
+        reason = output.removeprefix("ERROR: ").strip().splitlines()
+        detail = _trunc(reason[0], 90) if reason and reason[0] else "failed"
+        for internal, plain in _REASON_SUBS:
+            detail = detail.replace(internal, plain)
+        label = _FAIL_LABELS.get(name)
+        head = f"couldn't {label}" if label else name
+        return f"  [red]✗[/red] [bold]{head}[/bold][dim] — {detail}[/dim]"
+    if name in _SILENT_TOOLS:
+        return None
+    if name == "update_spec":
+        keys = list((args.get("patch") or {}).keys())
+        what = ", ".join(_humanize_field(k) for k in keys[:4]) + (
+            "…" if len(keys) > 4 else ""
+        )
+        suffix = f"[dim] · {what}[/dim]" if what else ""
+        return f"  [green]✓[/green] [bold]updated plan[/bold]{suffix}"
+    if name == "remove_spec_fields":
+        keys = ", ".join(_humanize_field(str(k)) for k in (args.get("keys") or [])[:4])
+        return f"  [green]✓[/green] [bold]removed from plan[/bold][dim] · {keys}[/dim]"
+    if name == "finalize_spec":
+        return "  [green]✓[/green] [bold]plan approved and locked in[/bold]"
+    if name == "bash":
+        return (
+            f"  [green]✓[/green] [bold]bash[/bold]"
+            f"[dim] · {_trunc(str(args.get('command') or ''), 70)}[/dim]"
+        )
+    if name in ("write_file", "edit_file"):
+        verb = "wrote" if name == "write_file" else "edited"
+        return (
+            f"  [green]✓[/green] [bold]{verb}[/bold]"
+            f"[dim] · {args.get('path', '?')}[/dim]"
+        )
+    if name == "plan":
+        return "  [green]✓[/green] [bold]updated plan[/bold]"
+    if name in ("compute_metric", "compute_and_commit_metric"):
+        metric = args.get("metric") or args.get("name") or "metric"
+        return f"  [green]✓[/green] [bold]computed {metric}[/bold]"
+    if name == "commit_artifact":
+        return f"  [green]✓[/green] [bold]committed {args.get('kind', 'artifact')}[/bold]"
+    if name == "evaluate_criterion":
+        return (
+            f"  [green]✓[/green] [bold]evaluated criterion[/bold]"
+            f"[dim] · {args.get('criterion_id', '?')}[/dim]"
+        )
+    if name == "advance_stage":
+        return "  [green]✓[/green] [bold]advanced to next stage[/bold]"
+    if name == "request_spec_revision":
+        return "  [green]✓[/green] [bold]requested spec revision[/bold]"
+    if name == "propose_custom_metric":
+        return (
+            f"  [green]✓[/green] [bold]proposed custom metric[/bold]"
+            f"[dim] · {args.get('name', '?')}[/dim]"
+        )
+    # Unknown / MCP tools: keep the generic style rather than hiding them.
+    preview = _args_preview(args)
+    suffix = f"[dim]({preview})[/dim]" if preview else ""
+    return f"  [green]✓[/green] [bold]{name}[/bold]{suffix}"
+
+
+# Consecutive tool failures with no intervening success before we stop
+# treating them as transient self-correction and surface them as ✗ lines.
+_FAILURE_FLUSH_THRESHOLD = 3
+
+
 class ReplObserver:
     """TurnObserver that narrates the agent's work in the shell.
 
@@ -416,12 +609,19 @@ class ReplObserver:
         self.status = status
         self.iteration = 0
         self._t0 = time.monotonic()
+        # Transient tool failures the agent may still recover from. Held back
+        # from the feed and shown only as a spinner note; surfaced as ✗ lines
+        # only if the agent can't recover (too many in a row, or at turn end).
+        self._pending_failures: list[str] = []
 
     def _render(self) -> str:
         elapsed = _fmt_elapsed(int(time.monotonic() - self._t0))
+        note = ""
+        if self._pending_failures:
+            note = f" · self-correcting ({len(self._pending_failures)})"
         return (
             f"[bold cyan]✶[/bold cyan] [dim]working… {elapsed} · "
-            f"step {self.iteration + 1} · ctrl-c to interrupt[/dim]"
+            f"step {self.iteration + 1} · ctrl-c to interrupt{note}[/dim]"
         )
 
     def refresh_status(self) -> None:
@@ -430,6 +630,28 @@ class ReplObserver:
     def _println(self, text: str) -> None:
         self.status.stop()
         self.console.print(text)
+        self.status.start()
+
+    def flush_pending_failures(self) -> None:
+        """Surface held-back failures as ✗ lines (the agent didn't recover).
+
+        Consecutive identical failures collapse to one line with a ``×N``
+        count, so a genuinely stuck agent (e.g. repeating the same malformed
+        metric call) reads as one clear problem rather than a wall.
+        """
+        if not self._pending_failures:
+            return
+        pending, self._pending_failures = self._pending_failures, []
+        self.status.stop()
+        i = 0
+        while i < len(pending):
+            j = i
+            while j + 1 < len(pending) and pending[j + 1] == pending[i]:
+                j += 1
+            count = j - i + 1
+            suffix = f" [dim](×{count})[/dim]" if count > 1 else ""
+            self.console.print(pending[i] + suffix)
+            i = j + 1
         self.status.start()
 
     def on_iteration_start(self, iteration: int) -> None:
@@ -452,18 +674,85 @@ class ReplObserver:
         output: str,
         ok: bool,
     ) -> None:
-        mark = "[green]✓[/green]" if ok else "[red]✗[/red]"
-        preview = _args_preview(args)
-        suffix = f"[dim]({preview})[/dim]" if preview else ""
-        self._println(f"  {mark} [bold]{name}[/bold]{suffix}")
+        line = _format_tool_event(name, args, ok, output)
+        if ok:
+            # Any success means the agent worked past its transient failures.
+            # Drop them (the spinner already showed "self-correcting").
+            if self._pending_failures:
+                self._pending_failures = []
+                self.refresh_status()
+            if line is not None:
+                self._println(line)
+            return
+        # A failure: hold it. The agent usually fixes its own mistake on the
+        # next call (gate errors are how it learns the schema), so don't alarm
+        # the user yet — show it only if recovery doesn't come.
+        if line is not None:
+            self._pending_failures.append(line)
+        if len(self._pending_failures) >= _FAILURE_FLUSH_THRESHOLD:
+            self.flush_pending_failures()
+        else:
+            self.refresh_status()
 
     def on_final(self, iteration: int, final_text: str) -> None:
-        pass
+        # Turn ended — any still-pending failures were never recovered.
+        self.flush_pending_failures()
 
 
 # ---------------------------------------------------------------------------
 # The prompt (input box, completion, history, toolbar)
 # ---------------------------------------------------------------------------
+
+
+def _word_wrap(text: str, width: int) -> tuple[list[str], list[tuple[int, int]]]:
+    """Greedy word wrap with Claude-Code semantics.
+
+    Returns ``(rows, pos)`` where ``pos[i]`` is the (row, col) of character
+    ``i`` and ``pos[len(text)]`` is the end-of-text cursor cell. The space at
+    a break point is consumed (never rendered at the start of the next row)
+    and words are kept whole unless longer than the width.
+    """
+    width = max(1, width)
+    text = text.replace("\n", " ")
+    rows: list[str] = [""]
+    pos: list[tuple[int, int]] = []
+    row, col = 0, 0
+
+    def _newline() -> None:
+        nonlocal row, col
+        rows.append("")
+        row += 1
+        col = 0
+
+    for token in re.findall(r"\S+|\s+", text):
+        if token.isspace():
+            for _ in token:
+                if col >= width:
+                    # The breaking space is swallowed visually; its cursor
+                    # cell aliases the start of the next row.
+                    _newline()
+                    pos.append((row, col))
+                else:
+                    pos.append((row, col))
+                    rows[row] += " "
+                    col += 1
+            continue
+        if col > 0 and col + len(token) > width and len(token) <= width:
+            # Word doesn't fit — wrap it whole. A single trailing space
+            # already rendered stays where it is (end of the prior row).
+            _newline()
+        for ch in token:
+            if col >= width:
+                _newline()  # word longer than the row: hard split
+            pos.append((row, col))
+            rows[row] += ch
+            col += 1
+    if col >= width:
+        # Text exactly fills the row: the end-of-text cursor lives at the
+        # start of a fresh row (a real cell), never one past the right edge.
+        _newline()
+    pos.append((row, col))
+    return rows, pos
 
 
 def _make_slash_completer(commands: dict[str, str]) -> Any:
@@ -504,13 +793,17 @@ class BoxedInput:
         from prompt_toolkit.application import Application
         from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
         from prompt_toolkit.buffer import Buffer
+        from prompt_toolkit.data_structures import Point
         from prompt_toolkit.filters import Condition
         from prompt_toolkit.history import FileHistory
         from prompt_toolkit.key_binding import KeyBindings
         from prompt_toolkit.layout import HSplit, Layout, VSplit, Window
-        from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+        from prompt_toolkit.layout.controls import (
+            BufferControl,
+            FormattedTextControl,
+            UIContent,
+        )
         from prompt_toolkit.layout.menus import CompletionsMenu
-        from prompt_toolkit.layout.processors import AppendAutoSuggestion
         from prompt_toolkit.styles import Style
 
         self.ui = ui
@@ -639,14 +932,66 @@ class BoxedInput:
             ],
             height=1,
         )
+        _PREFIX_WIDTH = 4  # "│ ❯ " / "│   " rendered by _prefix
+
+        class _WordWrapControl(BufferControl):
+            """BufferControl that emits pre-word-wrapped rows.
+
+            prompt_toolkit's Window only character-wraps, which strands the
+            breaking space at the start of continuation rows and splits
+            words mid-token. Editing, focus, and key handling stay on the
+            real Buffer; only the rendered UIContent (and the ghost
+            suggestion, drawn manually) is custom.
+            """
+
+            def _layout_rows(self, width: int):
+                text = buffer.text
+                ghost = ""
+                if (
+                    buffer.suggestion
+                    and buffer.suggestion.text
+                    and buffer.cursor_position == len(text)
+                ):
+                    ghost = buffer.suggestion.text
+                full = text + ghost
+                rows, pos = _word_wrap(full, max(1, width - _PREFIX_WIDTH))
+                fragment_rows: list[list[tuple[str, str]]] = [[] for _ in rows]
+                for i, ch in enumerate(full):
+                    if ch == " " and pos[i] == pos[i + 1]:
+                        continue  # space consumed at the wrap point
+                    style = "" if i < len(text) else "class:auto-suggestion"
+                    fragment_rows[pos[i][0]].append((style, ch))
+                for row_fragments in fragment_rows:
+                    # The screen cursor can only land on cells that were
+                    # actually written; an invisible trailing space makes the
+                    # end-of-row cell real (otherwise prompt_toolkit's lookup
+                    # misses and parks the cursor at the window origin).
+                    row_fragments.append(("", " "))
+                cursor = pos[min(buffer.cursor_position, len(full))]
+                return fragment_rows, Point(x=cursor[1], y=cursor[0])
+
+            def preferred_height(
+                self, width, max_available_height, wrap_lines, get_line_prefix
+            ):
+                fragment_rows, _ = self._layout_rows(width)
+                return len(fragment_rows)
+
+            def create_content(self, width, height, preview_search=False):
+                fragment_rows, cursor = self._layout_rows(width)
+                return UIContent(
+                    get_line=lambda row: fragment_rows[row],
+                    line_count=len(fragment_rows),
+                    cursor_position=cursor,
+                    show_cursor=True,
+                )
+
         input_window = Window(
-            BufferControl(
-                buffer=buffer, input_processors=[AppendAutoSuggestion()]
-            ),
+            _WordWrapControl(buffer=buffer),
             get_line_prefix=_prefix,
-            wrap_lines=True,
+            wrap_lines=False,  # rows arrive pre-wrapped at word boundaries
             dont_extend_height=True,
         )
+        self._input_window = input_window  # exposed for rendering tests
         body = VSplit(
             [
                 input_window,
@@ -695,14 +1040,26 @@ class BoxedInput:
             full_screen=False,
             mouse_support=False,
             erase_when_done=False,  # the submitted box stays in scrollback
-            refresh_interval=0.5,  # lets the armed-exit hint expire visibly
+            # No refresh_interval: an inline app redraws on each keypress,
+            # which is all we need. A periodic refresh re-draws the box while
+            # the user sits idle, and those redraws nest instead of updating
+            # in place (one stacked frame per tick). The only cost of dropping
+            # it: the Ctrl-C "press again to exit" toolbar hint clears on the
+            # next keypress rather than auto-expiring after the 2s window.
         )
 
     async def read(self) -> str:
-        """Show the box and return the submitted text (EOFError on exit)."""
+        """Show the box and return the submitted text (EOFError on exit).
+
+        ``set_exception_handler=False``: prompt_toolkit otherwise installs a
+        handler that, for *any* loop event without an exception (e.g. a
+        background litellm/httpx cleanup task GC'd mid-render), prints
+        "Unhandled exception in event loop … Press ENTER to continue" and
+        freezes the UI. We keep the session's own quiet handler instead.
+        """
         self.buffer.reset()
         self.buffer.load_history_if_not_yet_loaded()  # no-op once hydrated
-        return await self.app.run_async()
+        return await self.app.run_async(set_exception_handler=False)
 
 
 def _input_border_top(console: Console) -> None:
@@ -730,18 +1087,6 @@ def _trunc(text: str, n: int = 90) -> str:
 def _resumed_panel(payload: dict[str, Any]) -> Panel:
     from autointerp.utils.age import iso_age_string
 
-    messages = payload.get("messages") or []
-    last_user = next(
-        (m.get("content") for m in reversed(messages)
-         if m.get("role") == "user" and isinstance(m.get("content"), str)),
-        "",
-    )
-    last_assistant = next(
-        (m.get("content") for m in reversed(messages)
-         if m.get("role") == "assistant" and isinstance(m.get("content"), str)
-         and m.get("content")),
-        "",
-    )
     info = Table.grid(padding=(0, 2))
     info.add_column(style="dim", justify="right", no_wrap=True)
     info.add_column()
@@ -750,17 +1095,54 @@ def _resumed_panel(payload: dict[str, Any]) -> Panel:
     info.add_row("turns", str(payload.get("turn") or 0))
     info.add_row("model then", str(payload.get("model_name") or "?"))
     info.add_row("draft plan", "restored" if payload.get("draft") else "none")
-    body: list[Any] = [info]
-    if last_user or last_assistant:
-        body += [
-            Text(""),
-            Text.from_markup(f"[bold cyan]❯[/bold cyan] [dim]{_trunc(last_user)}[/dim]"),
-            Text.from_markup(f"[bold cyan]⏺[/bold cyan] [dim]{_trunc(last_assistant)}[/dim]"),
-        ]
     return Panel(
-        Group(*body), box=rich_box.ROUNDED, border_style="green",
+        info, box=rich_box.ROUNDED, border_style="green",
         title="session resumed", title_align="left", padding=(0, 1),
     )
+
+
+def _replay_transcript(console: Console, messages: list[dict[str, Any]]) -> None:
+    """Re-render a restored conversation in the live session's own visual
+    language (the Claude-Code resume experience): user prompts as input
+    boxes, assistant answers as markdown, tool calls as the ✓/✗ activity
+    feed. Tool outputs stay collapsed — the mark carries their outcome.
+    """
+    tool_results: dict[str, str] = {}
+    for msg in messages:
+        if msg.get("role") == "tool":
+            tool_results[str(msg.get("tool_call_id"))] = str(msg.get("content") or "")
+
+    console.rule("[dim]previous conversation[/dim]", style="bright_black")
+    for msg in messages:
+        role = msg.get("role")
+        content = msg.get("content")
+        if role == "user":
+            if isinstance(content, str) and content.strip():
+                _echo_scripted_prompt(console, content.strip())
+            continue
+        if role != "assistant":
+            continue
+        calls = msg.get("tool_calls") or []
+        if isinstance(content, str) and content.strip() and calls:
+            snippet = " ".join(content.split())[:160]
+            console.print(f"  [dim italic]{snippet}[/dim italic]")
+        for call in calls:
+            function = (call or {}).get("function") or {}
+            name = str(function.get("name") or "?")
+            try:
+                args = json.loads(function.get("arguments") or "{}")
+            except (json.JSONDecodeError, TypeError):
+                args = {}
+            output = tool_results.get(str((call or {}).get("id")), "")
+            ok = not output.startswith("ERROR: ")
+            line = _format_tool_event(
+                name, args if isinstance(args, dict) else {}, ok, output
+            )
+            if line is not None:
+                console.print(line)
+        if isinstance(content, str) and content.strip() and not calls:
+            render_answer(console, content)
+    console.rule("[dim]session restored — continue below[/dim]", style="bright_black")
 
 
 def _persist_session(ui: SessionUI) -> None:
@@ -809,14 +1191,41 @@ def _get_started_panel() -> Panel:
     )
 
 
+# snake_case domain identifiers (>=1 underscore): metric / tool / field names
+# the agent writes as bare words. Wrapped in backticks so the markdown
+# renderer styles them (theme markdown.code = cyan) and scanning a wall of
+# plan text is easy. Intraword underscores are not markdown emphasis, so this
+# is also safer than leaving them bare.
+_SNAKE_IDENT = re.compile(r"(?<![\w`])([a-z][a-z0-9]*(?:_[a-z0-9]+)+)(?![\w`])")
+# Code regions (already styled) we must not touch: fenced blocks + inline code.
+_CODE_REGION = re.compile(r"```.*?```|`[^`]*`", re.DOTALL)
+
+
+def _highlight_identifiers(markdown_text: str) -> str:
+    """Backtick-wrap bare snake_case identifiers, skipping existing code."""
+    out: list[str] = []
+    last = 0
+    for region in _CODE_REGION.finditer(markdown_text):
+        out.append(_SNAKE_IDENT.sub(r"`\1`", markdown_text[last:region.start()]))
+        out.append(region.group(0))  # leave code spans/fences untouched
+        last = region.end()
+    out.append(_SNAKE_IDENT.sub(r"`\1`", markdown_text[last:]))
+    return "".join(out)
+
+
 def render_answer(console: Console, answer: str) -> None:
     # Markdown pulls in markdown_it (~0.5s on network filesystems) — defer
     # it past startup; the first call lands after an LLM round-trip anyway.
     from rich.markdown import Markdown
+    from rich.theme import Theme
 
     console.print()
     console.print("[bold cyan]⏺ autointerp[/bold cyan]")
-    console.print(Padding(Markdown(answer or "*(no answer)*"), (0, 0, 0, 2)))
+    md = Markdown(_highlight_identifiers(answer or "*(no answer)*"))
+    # Colour inline code (now incl. the highlighted identifiers) in the
+    # session's cyan accent, without disturbing fenced-block syntax colours.
+    with console.use_theme(Theme({"markdown.code": "cyan"})):
+        console.print(Padding(md, (0, 0, 0, 2)))
     console.print()
 
 
@@ -838,20 +1247,91 @@ async def _tick_status(observer: ReplObserver) -> None:
         await asyncio.sleep(1.0)
 
 
+class _FanoutObserver:
+    """Dispatch each TurnObserver hook to several observers at once.
+
+    Used to drive the live console feed and a persistent transcript writer
+    from a single turn. A failure in one observer never blocks the others or
+    the agent loop (same contract as the loop's own ``_emit``).
+    """
+
+    def __init__(self, observers: list[Any]) -> None:
+        self._observers = observers
+
+    def _dispatch(self, hook: str, *args: Any) -> None:
+        for obs in self._observers:
+            fn = getattr(obs, hook, None)
+            if fn is None:
+                continue
+            try:
+                fn(*args)
+            except Exception:  # noqa: BLE001 — an observer must never break the loop
+                pass
+
+    def on_iteration_start(self, *a: Any) -> None:
+        self._dispatch("on_iteration_start", *a)
+
+    def on_assistant(self, *a: Any) -> None:
+        self._dispatch("on_assistant", *a)
+
+    def on_tool_call(self, *a: Any) -> None:
+        self._dispatch("on_tool_call", *a)
+
+    def on_final(self, *a: Any) -> None:
+        self._dispatch("on_final", *a)
+
+
+async def run_live_turn(
+    prompt: str,
+    config: AgentConfig,
+    context: ContextManager,
+    router: Any,
+    console: Console,
+    *,
+    cost_tracker: CostTracker | None = None,
+    extra_observer: Any | None = None,
+    initial_label: str = "thinking…",
+) -> str:
+    """One agent turn rendered with the live spinner + semantic tool feed.
+
+    Sets up the elapsed-time ticker and the ``ReplObserver`` console feed;
+    when ``extra_observer`` is given (e.g. an investigation transcript
+    writer) events fan out to both. Exceptions propagate — the caller
+    decides how to present an interrupt or a provider error.
+    """
+    status = console.status(
+        f"[bold cyan]✶[/bold cyan] [dim]{initial_label}[/dim]", spinner="dots"
+    )
+    repl_observer = ReplObserver(console, status)
+    observer: Any = (
+        repl_observer
+        if extra_observer is None
+        else _FanoutObserver([repl_observer, extra_observer])
+    )
+    status.start()
+    ticker = asyncio.create_task(_tick_status(repl_observer))
+    try:
+        return await run_agent_turn(
+            prompt, config, context, router,
+            observer=observer, cost_tracker=cost_tracker,
+        )
+    finally:
+        ticker.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await ticker
+        # Surface any unrecovered transient failures (e.g. the turn hit the
+        # iteration cap, so on_final never fired).
+        repl_observer.flush_pending_failures()
+        status.stop()
+
+
 async def _execute_turn(
     ui: SessionUI, prompt: str, router: Any
 ) -> str | None:
     """One agent turn with spinner + live tool feed. None on interrupt/error."""
-    status = ui.console.status(
-        "[bold cyan]✶[/bold cyan] [dim]thinking…[/dim]", spinner="dots"
-    )
-    observer = ReplObserver(ui.console, status)
-    status.start()
-    ticker = asyncio.create_task(_tick_status(observer))
     try:
-        return await run_agent_turn(
-            prompt, ui.config, ui.context, router,
-            observer=observer, cost_tracker=ui.cost,
+        return await run_live_turn(
+            prompt, ui.config, ui.context, router, ui.console, cost_tracker=ui.cost,
         )
     except KeyboardInterrupt:
         ui.console.print(
@@ -861,11 +1341,34 @@ async def _execute_turn(
     except Exception as exc:  # noqa: BLE001 — keep the shell alive
         ui.console.print(f"[red]{format_llm_error(exc)}[/red]")
         return None
-    finally:
-        ticker.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await ticker
-        status.stop()
+
+
+def install_quiet_loop_handler() -> None:
+    """Drop benign background-task noise so it can't hijack the input UI.
+
+    LLM clients (litellm/httpx) sometimes leave a cleanup task that asyncio
+    garbage-collects later — emitting a loop event with no ``exception``
+    ("Task was destroyed but it is pending"). With prompt_toolkit's own
+    handler that becomes a "Press ENTER to continue" UI freeze; here we
+    swallow only those benign events and pass real exceptions through.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    previous = loop.get_exception_handler()
+
+    def handler(loop_: Any, context: dict[str, Any]) -> None:
+        exc = context.get("exception")
+        message = str(context.get("message", ""))
+        if exc is None or "destroyed but it is pending" in message:
+            return  # benign — ignore
+        if previous is not None:
+            previous(loop_, context)
+        else:
+            loop_.default_exception_handler(context)
+
+    loop.set_exception_handler(handler)
 
 
 async def run_spec_repl(
@@ -883,6 +1386,7 @@ async def run_spec_repl(
     cost_tracker: CostTracker | None = None,
     session_store: Any = None,
     resume_payload: dict[str, Any] | None = None,
+    on_finalize: Any = None,
 ) -> Optional[str]:
     """Run the interactive Stage-0 shell until a spec is finalized or exit.
 
@@ -890,7 +1394,13 @@ async def run_spec_repl(
     in ``spec_dir``), or None on exit / turn-cap. Fresh sessions never
     inherit prior state (stray drafts get archived); ``resume_payload``
     (from ``--continue``) restores conversation, draft, turns, and cost.
+
+    ``on_finalize``: optional ``async (spec_path) -> None`` callback. When set,
+    a finalized spec is handed to it (the investigation runs in-session) and
+    the loop continues afterwards instead of returning — so the user stays in
+    the conversation. When None, the spec path is returned to the caller.
     """
+    install_quiet_loop_handler()
     cap = max_turns if max_turns and max_turns > 0 else None
     ui = SessionUI(
         console=console, config=config, context=context, registry=registry, max_turns=cap
@@ -922,6 +1432,7 @@ async def run_spec_repl(
             None,
         )
         console.print(_resumed_panel(resume_payload))
+        _replay_transcript(console, restored)
     else:
         archived = archive_stray_draft(spec_dir)
         if archived is not None:
@@ -987,7 +1498,19 @@ async def run_spec_repl(
 
         new_specs = _snapshot_specs(spec_dir) - before
         if new_specs:
-            return str(sorted(new_specs)[-1])
+            finalized = str(sorted(new_specs)[-1])
+            if on_finalize is None:
+                return finalized  # caller drives the investigation (e.g. app.py)
+            # Run the investigation in-session, then return to the prompt so the
+            # user can read results and keep going (the Codex/CC way).
+            await on_finalize(finalized)
+            before = _snapshot_specs(spec_dir)  # don't re-trigger on this spec
+            _persist_session(ui)
+            console.print(
+                "[dim]Back to design — ask a follow-up, start another "
+                "investigation, or /exit.[/dim]"
+            )
+            continue
         if cap and ui.turn >= cap:
             console.print(
                 f"[yellow]Turn cap reached ({ui.turn}/{cap}) without an approved "

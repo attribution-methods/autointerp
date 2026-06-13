@@ -68,6 +68,37 @@ PROVIDERS: dict[str, Provider] = {
 
 PROVIDER_ORDER = ("anthropic", "openai", "openrouter")
 
+# --- Local (HuggingFace open-weights via a local OpenAI-compatible server) ---
+# litellm routes `hosted_vllm/<id>` to HOSTED_VLLM_API_BASE — i.e. a local
+# vLLM (or any OpenAI-compatible) server, with no API key and no collision
+# with real OpenAI. The user runs the server; we just point litellm at it.
+LOCAL_PREFIX = "hosted_vllm/"
+DEFAULT_LOCAL_API_BASE = "http://localhost:8000/v1"
+LOCAL_API_BASE_ENV = "HOSTED_VLLM_API_BASE"
+
+# Curated open-weights chat models with reliable tool-calling, all fitting a
+# <=180 GB GPU in bf16 (~2 GB / billion params + KV headroom). The user can
+# also type any HuggingFace id. Sizes are approximate bf16 weight footprints.
+LOCAL_MODELS: list[tuple[str, str]] = [
+    ("Qwen/Qwen2.5-7B-Instruct", "7B · ~16 GB · fast, strong tool use"),
+    ("meta-llama/Llama-3.1-8B-Instruct", "8B · ~16 GB · widely used (gated repo)"),
+    ("Qwen/Qwen3-8B", "8B · ~16 GB · newer Qwen"),
+    ("Qwen/Qwen2.5-14B-Instruct", "14B · ~28 GB"),
+    ("Qwen/Qwen2.5-32B-Instruct", "32B · ~64 GB · excellent agent"),
+    ("Qwen/Qwen3-32B", "32B · ~64 GB · newer Qwen"),
+    ("meta-llama/Llama-3.3-70B-Instruct", "70B · ~140 GB · frontier-class"),
+    ("Qwen/Qwen2.5-72B-Instruct", "72B · ~145 GB · top open agent"),
+]
+
+
+def is_local_model(model_name: str) -> bool:
+    return (model_name or "").startswith(LOCAL_PREFIX)
+
+
+def local_api_base() -> str:
+    """The configured local-server endpoint (for display)."""
+    return os.environ.get(LOCAL_API_BASE_ENV) or DEFAULT_LOCAL_API_BASE
+
 # Last resort ONLY — shown when both the live endpoint and litellm's bundled
 # registry are unavailable. The live fetch is the source of truth; do not
 # treat this list as current. Update opportunistically when touching this file.
@@ -101,6 +132,22 @@ def provider_for_model(model_name: str) -> Provider | None:
     if name.startswith(("gpt", "o1", "o3", "o4")):
         return PROVIDERS["openai"]
     return None
+
+
+# OpenAI's reasoning models (gpt-5 family, o-series) reject any temperature
+# other than their default (1); every other model honors a custom temperature.
+_NO_CUSTOM_TEMPERATURE = re.compile(r"(?:^|/)(?:gpt-5|o1|o3|o4)", re.IGNORECASE)
+
+
+def model_supports_temperature(model_name: str) -> bool:
+    """Whether a custom sampling temperature can be sent to this model.
+
+    False for OpenAI reasoning models (gpt-5 family, o-series): their API only
+    accepts the default and 400s on any other value. Used both to drop the
+    param before it reaches the provider and to warn the user when they set
+    one on such a model.
+    """
+    return _NO_CUSTOM_TEMPERATURE.search(model_name or "") is None
 
 
 def missing_key_env(model_name: str) -> str | None:
@@ -503,11 +550,13 @@ _CUSTOM_PROMPT = "model id (litellm format, e.g. anthropic/claude-sonnet-4-5): "
 
 
 async def select_provider(current: Provider | None) -> Provider | str | None:
-    """Pick a provider (or 'custom' for a free-text model id). None = cancel."""
+    """Pick a provider, ``'local'`` (HuggingFace on a local server), or
+    ``'custom'`` (free-text model id). None = cancel."""
     options = [
         ("Anthropic", "— Claude models (repo default provider)"),
         ("OpenAI", ""),
         ("OpenRouter", "— many providers through one key"),
+        ("Local (HuggingFace)", "— open-weights model on your own GPU (vLLM)"),
         ("Custom model id", "— type any litellm model string"),
     ]
     default_index = PROVIDER_ORDER.index(current.key) if current is not None else 0
@@ -516,7 +565,32 @@ async def select_provider(current: Provider | None) -> Provider | str | None:
         return None
     if choice == len(options) - 1:
         return "custom"
+    if choice == len(options) - 2:
+        return "local"
     return PROVIDERS[PROVIDER_ORDER[choice]]
+
+
+async def select_local_model(current: str | None) -> str | None:
+    """Pick a curated open-weights HF model id, or type a custom one."""
+    cur_id = current[len(LOCAL_PREFIX):] if is_local_model(current or "") else None
+    options: list[tuple[str, str]] = []
+    default_index = 0
+    for i, (model_id, desc) in enumerate(LOCAL_MODELS):
+        marker = "  (current)" if model_id == cur_id else ""
+        options.append((model_id, f"— {desc}{marker}"))
+        if model_id == cur_id:
+            default_index = i
+    options.append(("custom…", "— type any HuggingFace model id"))
+    choice = await _select_async(
+        "Select an open-weights model", options, default_index=default_index
+    )
+    if choice is None:
+        return None
+    if choice == len(options) - 1:
+        return await _prompt_text(
+            "HuggingFace model id (e.g. Qwen/Qwen2.5-7B-Instruct): "
+        )
+    return LOCAL_MODELS[choice][0]
 
 
 def _annotate(
@@ -596,6 +670,7 @@ async def run_setup_flow(config: AgentConfig, console: Console) -> AgentConfig |
         entered_key: str | None = None
         env_var: str | None = None
         model: str | None = None
+        extra_env: dict[str, str] = {}
 
         if picked == "custom":
             model = await _prompt_text(_CUSTOM_PROMPT)
@@ -610,6 +685,25 @@ async def run_setup_flow(config: AgentConfig, console: Console) -> AgentConfig |
                 if entered_key is None:
                     continue
                 os.environ[env_var] = entered_key
+        elif picked == "local":
+            console.print(
+                "[dim]Local models run on your own GPU via an OpenAI-compatible "
+                "server (e.g. vLLM). No API key needed — just a reachable "
+                "endpoint with tool-calling enabled.[/dim]"
+            )
+            model_id = await select_local_model(config.model_name)
+            if model_id is None:
+                continue
+            base = await _prompt_text(
+                f"server base URL [default {DEFAULT_LOCAL_API_BASE}]: "
+            ) or DEFAULT_LOCAL_API_BASE
+            os.environ[LOCAL_API_BASE_ENV] = base
+            extra_env[LOCAL_API_BASE_ENV] = base
+            model = LOCAL_PREFIX + model_id
+            console.print(
+                f"[dim]If nothing is serving it yet:[/dim] vllm serve {model_id} "
+                f"--enable-auto-tool-choice --tool-call-parser hermes"
+            )
         else:
             provider = picked
             active = _active_env_key(provider)
@@ -693,6 +787,7 @@ async def run_setup_flow(config: AgentConfig, console: Console) -> AgentConfig |
         updates: dict[str, str] = {}
         if entered_key is not None and env_var is not None:
             updates[env_var] = entered_key
+        updates.update(extra_env)  # e.g. HOSTED_VLLM_API_BASE for local models
         if model != config.model_name or updates:
             updates["AUTOINTERP_MODEL"] = model
         if updates:
@@ -723,15 +818,20 @@ async def run_setup_flow(config: AgentConfig, console: Console) -> AgentConfig |
 
 __all__ = [
     "FALLBACK_MODELS",
+    "LOCAL_MODELS",
     "PROVIDERS",
     "ensure_model_ready",
     "env_file_is_gitignored",
     "fetch_models_with_fallback",
     "format_llm_error",
+    "is_local_model",
+    "local_api_base",
     "missing_key_env",
+    "model_supports_temperature",
     "persist_to_env_file",
     "provider_for_model",
     "run_setup_flow",
+    "select_local_model",
     "select_provider",
     "validate_model",
 ]

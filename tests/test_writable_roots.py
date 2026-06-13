@@ -122,3 +122,35 @@ def test_tool_aliases_resolved(tmp_path: Path) -> None:
     )
     out, ok = asyncio.run(r.call_tool("commit_finding", {"x": 1}))
     assert ok and "called" in out
+
+
+def test_write_with_relative_run_dir_is_allowed(tmp_path, monkeypatch) -> None:
+    """Regression: a relative run_dir (what `--runs-root runs` produces) must
+    not make every scripts/scratch/LOG write fail the normalize_safe_path
+    absolute-path check. _resolve_agent_path now returns an absolute path."""
+
+    from autointerp_agent.tools import _files_read, _write_file_handler
+
+    monkeypatch.chdir(tmp_path)
+    rel_run = Path("runs/myrun")
+    (rel_run / "scripts").mkdir(parents=True)
+    (rel_run / "scratch").mkdir()
+    log = rel_run / "INVESTIGATION_LOG.md"
+    log.write_text("# log\n")
+
+    r = ToolRouter(skill_registry=SkillRegistry(skills={}), auto_approve=True)
+    r.run_dir = rel_run  # RELATIVE
+    r.writable_roots = [rel_run / "scripts", rel_run / "scratch", log]
+    handler = _write_file_handler(r)
+
+    out, ok = asyncio.run(handler({"path": "scripts/probe.py", "content": "print(1)"}))
+    assert ok, out
+    assert (rel_run / "scripts" / "probe.py").read_text() == "print(1)"
+
+    _files_read.add(str(log.resolve()))  # read-before-overwrite
+    out2, ok2 = asyncio.run(handler({"path": "INVESTIGATION_LOG.md", "content": "x"}))
+    assert ok2, out2
+
+    # Outside the roots is still refused.
+    _, bad_ok = asyncio.run(handler({"path": "outputs/x.json", "content": "x"}))
+    assert not bad_ok

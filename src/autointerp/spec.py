@@ -418,12 +418,23 @@ class CustomMetricDef(StrictBaseModel):
             tree = ast.parse(self.source_code)
         except SyntaxError as e:
             raise ValueError(f"custom metric {self.name!r} source does not parse: {e}")
-        defs = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+        func_names = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+        defs = set(func_names)
         if self.function_name not in defs:
-            raise ValueError(
-                f"custom metric {self.name!r} must define def "
-                f"{self.function_name}(inputs: dict) -> float"
-            )
+            # Convenience: a planner often names the entry function after the
+            # metric (e.g. `compute_surprisal`) and leaves function_name at the
+            # default. If the source defines exactly one function, adopt it
+            # rather than rejecting on a name technicality.
+            if self.function_name == "compute" and len(func_names) == 1:
+                object.__setattr__(self, "function_name", func_names[0])
+            else:
+                found = sorted(defs) or "no functions"
+                raise ValueError(
+                    f"custom metric {self.name!r}: source must define "
+                    f"def {self.function_name}(inputs: dict) -> float, but found "
+                    f"{found}. Either name your function {self.function_name!r}, "
+                    f"or set function_name to the function you defined."
+                )
         for node in ast.walk(tree):
             if isinstance(node, (ast.Import, ast.ImportFrom)):
                 raise ValueError(

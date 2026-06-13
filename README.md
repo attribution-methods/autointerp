@@ -67,10 +67,22 @@ process env (export …)  >  ./.env (project)  >  ~/.autointerp/credentials (use
 ```
 
 Inside any interactive session, `/model` re-opens the picker to switch
-model, provider, or key mid-conversation — if a key already exists you can
-keep it or replace it (`/help` lists all commands). `--model` still
-overrides per invocation, and a free-text "custom" entry accepts any
-litellm model string.
+model, provider, or key mid-conversation — switching to a provider whose key
+isn't set (e.g. OpenAI → Anthropic) prompts for that key right there; if a
+key already exists you can keep it or replace it (`/help` lists all
+commands). `--model` still overrides per invocation, and a free-text
+"custom" entry accepts any litellm model string.
+
+**Local / open-weights models.** The picker also has a **Local
+(HuggingFace)** option: pick a curated open-weights chat model (Qwen2.5 /
+Qwen3 / Llama-3.x, 7B–72B, all sized to fit a ≤180 GB GPU in bf16) or type
+any HuggingFace id. No API key — it routes through litellm's `hosted_vllm/`
+to a local OpenAI-compatible server (default `http://localhost:8000/v1`,
+configurable). Serve the model with tool-calling enabled, e.g.:
+
+```bash
+vllm serve Qwen/Qwen2.5-7B-Instruct --enable-auto-tool-choice --tool-call-parser hermes
+```
 
 ## Quick Start
 

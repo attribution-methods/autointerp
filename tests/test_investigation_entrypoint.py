@@ -316,3 +316,20 @@ def test_tool_commit_artifact_handler_validation(tmp_path: Path) -> None:
     )
     assert ok is False
     assert "ArtifactGateError" in out
+
+
+def test_get_budget_shows_unlimited_not_zero(tmp_path: Path) -> None:
+    """An unset budget must read as 'unlimited', not as all-zero counters a
+    weak agent misreads as 'zero budget' and bails on."""
+    spec = InvestigationSpec.model_validate_json(_spec_path(tmp_path).read_text())
+    handle = init_run(spec, runs_root=tmp_path / "runs")
+    tools = {t.name: t for t in create_investigation_tools(handle)}
+    out, ok = asyncio.run(tools["get_budget"].handler({}))
+    assert ok
+    data = json.loads(out)
+    assert "limits" in data and "consumed_so_far" in data
+    # The fixture spec sets max_tool_calls=20; the rest are unlimited.
+    assert data["limits"]["max_tool_calls"] == 20
+    assert data["limits"]["max_gpu_seconds"] == "unlimited"
+    assert data["consumed_so_far"]["tool_calls"] == 0
+    assert "unlimited" in data["note"]

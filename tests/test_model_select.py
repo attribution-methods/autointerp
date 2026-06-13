@@ -650,3 +650,116 @@ def test_cli_config_fallback_honors_saved_credentials(monkeypatch, tmp_path: Pat
 
 
 # REPL command dispatch lives in autointerp_agent.repl — see test_repl_ui.py.
+
+
+# ---------------------------------------------------------------------------
+# local (HuggingFace) models
+# ---------------------------------------------------------------------------
+
+
+def test_local_model_helpers(monkeypatch) -> None:
+    monkeypatch.delenv("HOSTED_VLLM_API_BASE", raising=False)
+    m = "hosted_vllm/Qwen/Qwen2.5-7B-Instruct"
+    assert ms.is_local_model(m)
+    assert not ms.is_local_model("anthropic/claude-sonnet-4-5")
+    # Local models need no API key gate.
+    assert ms.missing_key_env(m) is None
+    assert ms.local_api_base() == ms.DEFAULT_LOCAL_API_BASE
+    # Curated list: 8 models, each with a parameter size shown.
+    assert len(ms.LOCAL_MODELS) == 8
+    assert all("B ·" in desc for _, desc in ms.LOCAL_MODELS)
+
+
+def test_select_local_model_curated_and_custom(monkeypatch) -> None:
+    async def pick_first(title, options, default_index=0):
+        assert "open-weights" in title
+        return 0
+
+    monkeypatch.setattr(ms, "_select_async", pick_first)
+    assert asyncio.run(ms.select_local_model(None)) == ms.LOCAL_MODELS[0][0]
+
+    async def pick_last(title, options, default_index=0):
+        return len(options) - 1
+
+    async def fake_prompt(message, password=False):
+        return "my-org/my-model"
+
+    monkeypatch.setattr(ms, "_select_async", pick_last)
+    monkeypatch.setattr(ms, "_prompt_text", fake_prompt)
+    assert asyncio.run(ms.select_local_model(None)) == "my-org/my-model"
+
+
+def test_setup_flow_local_model_saves_base_url(monkeypatch, tmp_path: Path) -> None:
+    _clear_keys(monkeypatch)
+    monkeypatch.delenv("HOSTED_VLLM_API_BASE", raising=False)
+    monkeypatch.delenv("AUTOINTERP_MODEL", raising=False)
+    monkeypatch.setattr(ms, "USER_ENV_PATH", tmp_path / "creds")
+
+    async def fake_select_provider(current):
+        return "local"
+
+    async def fake_select_local(current):
+        return "Qwen/Qwen2.5-7B-Instruct"
+
+    async def fake_prompt(message, password=False):
+        return "http://localhost:9000/v1"  # the base-URL prompt
+
+    async def fake_validate(model):
+        assert model == "hosted_vllm/Qwen/Qwen2.5-7B-Instruct"
+        return True, ""
+
+    monkeypatch.setattr(ms, "select_provider", fake_select_provider)
+    monkeypatch.setattr(ms, "select_local_model", fake_select_local)
+    monkeypatch.setattr(ms, "_prompt_text", fake_prompt)
+    monkeypatch.setattr(ms, "validate_model", fake_validate)
+    monkeypatch.setattr(ms, "_select_async", _seq_select([("Save", 0)]))
+
+    config = AgentConfig(model_name="anthropic/claude-sonnet-4-5")
+    try:
+        out = asyncio.run(ms.run_setup_flow(config, _console()))
+        assert out is not None
+        assert out.model_name == "hosted_vllm/Qwen/Qwen2.5-7B-Instruct"
+        assert os.environ["HOSTED_VLLM_API_BASE"] == "http://localhost:9000/v1"
+        creds = (tmp_path / "creds").read_text()
+        assert "HOSTED_VLLM_API_BASE=http://localhost:9000/v1" in creds
+        assert "AUTOINTERP_MODEL=hosted_vllm/Qwen/Qwen2.5-7B-Instruct" in creds
+    finally:
+        os.environ.pop("HOSTED_VLLM_API_BASE", None)
+        os.environ.pop("AUTOINTERP_MODEL", None)
+
+
+def test_setup_flow_switch_provider_prompts_for_new_key(monkeypatch) -> None:
+    # Mid-session OpenAI -> Anthropic with no Anthropic key: must prompt for it.
+    _clear_keys(monkeypatch)
+    monkeypatch.setenv("OPENAI_API_KEY", "k")  # current provider has a key
+
+    async def fake_select_provider(current):
+        return ms.PROVIDERS["anthropic"]  # switch to Anthropic
+
+    prompted = {"for": None}
+
+    async def fake_prompt(message, password=False):
+        prompted["for"] = message
+        return "sk-ant-new"
+
+    async def fake_fetch(provider):
+        return [("anthropic/claude-sonnet-4-5", "")], "live"
+
+    async def fake_validate(model):
+        return True, ""
+
+    monkeypatch.setattr(ms, "select_provider", fake_select_provider)
+    monkeypatch.setattr(ms, "_prompt_text", fake_prompt)
+    monkeypatch.setattr(ms, "fetch_models_with_fallback", fake_fetch)
+    monkeypatch.setattr(ms, "validate_model", fake_validate)
+    monkeypatch.setattr(ms, "_select_async", _seq_select([("Select a model", 0), ("Save", 2)]))
+
+    config = AgentConfig(model_name="openai/gpt-9")
+    try:
+        out = asyncio.run(ms.run_setup_flow(config, _console()))
+        assert out is not None and out.model_name == "anthropic/claude-sonnet-4-5"
+        assert "ANTHROPIC_API_KEY" in (prompted["for"] or "")  # asked for the key
+        assert os.environ["ANTHROPIC_API_KEY"] == "sk-ant-new"
+    finally:
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+        os.environ.pop("AUTOINTERP_MODEL", None)

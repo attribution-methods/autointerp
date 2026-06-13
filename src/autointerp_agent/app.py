@@ -210,6 +210,7 @@ def _stage0_to_spec(args: argparse.Namespace) -> Optional[str]:
         )
         if cfg is None:
             return None
+        cfg = cfg.model_copy(update={"plain_language_guard": True})
         mark_first_run_complete()
         context.model_name = cfg.model_name
         async with ToolRouter(
