@@ -1,7 +1,0 @@
-Clean logit_diff: 2.9246
-Corrupt logit_diff: 1.5259
-Gap (clean - corrupt): 1.3987
-
-Top head recoveries from head_patch_sweep:
-  L9H9: 0.4634 → patched_metric should be 2.174070375776291
-  L8H6: 0.4413 → patched_metric should be 2.143158694815636

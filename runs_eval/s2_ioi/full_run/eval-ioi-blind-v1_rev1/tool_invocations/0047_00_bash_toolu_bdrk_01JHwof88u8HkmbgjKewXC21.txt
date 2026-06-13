@@ -1,6 +1,0 @@
-Clean logit_diff: 2.9246227741241455
-Corrupt logit_diff: 1.5259041786193848
-Gap: 1.3987185955047607
-
-Top 10 mean recovery: 0.18833331763744354
-This represents what fraction of the gap the top 10 heads recover

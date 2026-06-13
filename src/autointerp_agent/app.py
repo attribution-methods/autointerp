@@ -202,7 +202,6 @@ def _stage0_to_spec(args: argparse.Namespace) -> Optional[str]:
     )
 
     console = Console()
-    print_banner(console, config=config, registry=registry, first_run=is_first_run())
 
     async def _loop() -> Optional[str]:
         cfg = await ensure_model_ready(
@@ -210,6 +209,8 @@ def _stage0_to_spec(args: argparse.Namespace) -> Optional[str]:
         )
         if cfg is None:
             return None
+        # Banner after setup so it reflects the configured model + key status.
+        print_banner(console, config=cfg, registry=registry, first_run=is_first_run())
         mark_first_run_complete()
         context.model_name = cfg.model_name
         async with ToolRouter(

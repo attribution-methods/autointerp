@@ -1,2 +1,0 @@
-Mean diff: 2.9713321228027345
-Data prepared: 500 samples

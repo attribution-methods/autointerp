@@ -1,5 +1,0 @@
-- [completed] Stage 0: Black-box measurements
-- [in_progress] Stage 1.1: Logit lens analysis at END position across all 12 layers
-- [pending] Stage 1.2: Activation patching from corrupt to clean for all (layer, head) pairs
-- [pending] Stage 1.3: Identify top heads and commit patch_effect_recovery and kl_to_clean metrics
-- [pending] Evaluate localization-recovery criterion and advance to Stage 2

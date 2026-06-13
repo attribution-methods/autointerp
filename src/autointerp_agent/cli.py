@@ -97,8 +97,6 @@ async def async_main(argv: list[str] | None = None) -> int | str:
         return 0
 
     interactive = args.prompt is None
-    if interactive:
-        print_banner(console, config=config, registry=registry, first_run=is_first_run())
     ready = await ensure_model_ready(config, console, interactive=sys.stdin.isatty())
     if ready is None:
         return 1
@@ -106,6 +104,8 @@ async def async_main(argv: list[str] | None = None) -> int | str:
     session_store = None
     resume_payload = None
     if interactive:
+        # Banner after setup so it reflects the configured model + key status.
+        print_banner(console, config=config, registry=registry, first_run=is_first_run())
         mark_first_run_complete()
         from .sessions import SessionStore, pick_session
 

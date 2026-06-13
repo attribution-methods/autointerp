@@ -1,5 +1,0 @@
-total 11
-drwxrwxr-x 2 ubuntu ubuntu  4096 May 16 13:14 .
-drwxrwxr-x 2 ubuntu ubuntu  4096 May 16 13:14 ..
--rw-rw-r-- 1 ubuntu ubuntu 10241 May 16 13:19 s2_ioi.json
--rw-rw-r-- 1 ubuntu ubuntu   366 May 16 13:14 s2_ioi.question.md

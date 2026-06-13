@@ -33,9 +33,14 @@ from rich.text import Text
 from autointerp.utils.cost import CostTracker
 
 from .agent_loop import run_agent_turn, warm_llm_runtime
-from .config import USER_DIR, AgentConfig
+from .config import DEFAULT_MODEL, USER_DIR, AgentConfig
 from .context import ContextManager
-from .model_select import format_llm_error, missing_key_env, run_setup_flow
+from .model_select import (
+    clear_credentials,
+    format_llm_error,
+    missing_key_env,
+    run_setup_flow,
+)
 from .sessions import (
     archive_stray_draft,
     cost_from_dict,
@@ -162,6 +167,7 @@ def print_banner(
 
 COMMANDS: dict[str, str] = {
     "/model": "switch model / provider / API key (lists models live, validates)",
+    "/logout": "sign out — forget the saved API key + model (setup runs next launch)",
     "/litrev": "arXiv literature panel for a topic (side channel — never "
                "enters the agent's context). Usage: /litrev [topic]",
     "/cost": "token usage and cost, per model, for this session",
@@ -294,6 +300,23 @@ def _status_panel(ui: SessionUI) -> Panel:
                  title_align="left", expand=False)
 
 
+def _flush_screen(console: Console) -> None:
+    """Wipe the visible screen *and* the scrollback buffer for a clean slate."""
+    console.clear()
+    with contextlib.suppress(Exception):
+        console.file.write("\x1b[3J")  # also drop scrollback, not just the screen
+        console.file.flush()
+
+
+def _fresh_screen(ui: SessionUI) -> None:
+    """Flush to a clean screen, then redraw the banner — plus the get-started
+    intro when there's no conversation yet (e.g. after /clear or a re-login)."""
+    _flush_screen(ui.console)
+    print_banner(ui.console, config=ui.config, registry=ui.registry, first_run=False)
+    if not ui.context.messages:
+        ui.console.print(_get_started_panel())
+
+
 async def handle_repl_command(prompt: str, ui: SessionUI) -> tuple[bool, bool]:
     """Dispatch ``/...`` commands. Returns ``(handled, should_exit)``.
 
@@ -323,7 +346,6 @@ async def handle_repl_command(prompt: str, ui: SessionUI) -> tuple[bool, bool]:
         return True, False
     if command == "/clear":
         ui.context.messages.clear()
-        ui.console.clear()
         if ui.session_store is not None:
             # A cleared conversation is a new session (the old one stays on
             # disk at its last saved turn, still resumable via --continue).
@@ -332,6 +354,7 @@ async def handle_repl_command(prompt: str, ui: SessionUI) -> tuple[bool, bool]:
             ui.turn = 0
             if ui.spec_dir is not None:
                 archive_stray_draft(ui.spec_dir)
+        _fresh_screen(ui)
         ui.console.print("[dim]context cleared — new session[/dim]")
         return True, False
     if command == "/model":
@@ -341,7 +364,22 @@ async def handle_repl_command(prompt: str, ui: SessionUI) -> tuple[bool, bool]:
         else:
             ui.config = updated
             ui.context.model_name = updated.model_name
-            ui.console.print(f"[dim]now using {updated.model_name}[/dim]")
+            # Fresh screen + banner + intro so a re-login lands on a clean
+            # slate reflecting the new model.
+            _fresh_screen(ui)
+        return True, False
+    if command == "/logout":
+        cleared = clear_credentials()
+        for path, names in cleared.items():
+            ui.console.print(f"[dim]removed {', '.join(names)} from {path}[/dim]")
+        if not cleared:
+            ui.console.print("[dim]no saved credentials on disk[/dim]")
+        ui.config = ui.config.model_copy(update={"model_name": DEFAULT_MODEL})
+        ui.context.model_name = DEFAULT_MODEL
+        ui.console.print(
+            "[yellow]Signed out.[/yellow] [dim]Run /model to sign in again, "
+            "or /exit and relaunch.[/dim]"
+        )
         return True, False
     if command == "/litrev":
         from . import litrev
@@ -544,10 +582,21 @@ class BoxedInput:
 
         @kb.add("enter")
         def _accept(event) -> None:
+            # If the completion menu is open, accept the highlighted item — or
+            # the first one when nothing is explicitly selected. The menu auto-
+            # opens via complete_while_typing without selecting anything, so a
+            # bare Enter would otherwise submit the half-typed command. Apply
+            # only when it would change the text, so a fully-typed command
+            # still submits on the first Enter.
             state = buffer.complete_state
-            if state is not None and state.current_completion is not None:
-                buffer.apply_completion(state.current_completion)
-                return
+            if state is not None:
+                comp = state.current_completion
+                if comp is None:
+                    completions = getattr(state, "completions", None) or []
+                    comp = completions[0] if completions else None
+                if comp is not None and comp.text != buffer.text:
+                    buffer.apply_completion(comp)
+                    return
             text = buffer.text
             if text.strip():
                 buffer.history.append_string(text)

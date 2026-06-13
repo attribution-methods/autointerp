@@ -1,7 +1,0 @@
-- [completed] Set up test prompts with ABBA and BABA templates to verify the IOI phenomenon
-- [completed] Analyze logit differences between A and B tokens at final position
-- [in_progress] Run activation patching to identify critical layers/components
-- [pending] Investigate attention patterns in key layers
-- [pending] Examine direct logit attribution from different components
-- [pending] Test hypotheses about name mover heads and other specialized components
-- [pending] Synthesize findings into mechanistic explanation

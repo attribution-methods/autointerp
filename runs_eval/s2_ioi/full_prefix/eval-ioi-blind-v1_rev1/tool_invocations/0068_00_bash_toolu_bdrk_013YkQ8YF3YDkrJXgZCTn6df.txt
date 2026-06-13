@@ -1,9 +1,0 @@
-Caching...
-Baselines...
-Clean=3.2496, Corrupt=1.6594, Gap=1.5902
-Top-1: recovery=0.4350
-Top-2: recovery=0.6952
-Top-3: recovery=0.9080
-Top-5: recovery=1.1195
-
-Best: 1.1195 ✓ PASS

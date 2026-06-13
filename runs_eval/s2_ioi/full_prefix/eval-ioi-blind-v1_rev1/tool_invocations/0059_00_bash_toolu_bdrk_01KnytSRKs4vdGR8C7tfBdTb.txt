@@ -1,4 +1,0 @@
-(self, layer: 'int', head: 'int', source: 'torch.Tensor', positions: 'Optional[Sequence[int]]' = None) -> None
-
-HeadPatch fields:
-dict_keys(['layer', 'head', 'source', 'positions'])

@@ -1,8 +1,0 @@
-Subset size: 100 samples
-Subset mean logit_diff: 2.8466
-Full mean: 2.9713
-Difference: 0.1247
-Compact JSON size: 4401 chars
-
-Compact inputs preview (first 5):
-{"logits": [[-81.56529235839844, -84.6110610961914], [-79.31935119628906, -82.3643569946289], [-70.80069732666016, -74.95001983642578], [-76.58936309814453, -78.65919494628906], [-76.6305923461914, -79.75410461425781]], "target_token": [0, 0, 0, 0, 0], "foil_token": [1, 1, 1, 1, 1]}

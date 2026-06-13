@@ -1,9 +1,0 @@
-{
-  "c0": {
-    "cmd": "/usr/bin/python -m autointerp_agent.free_agent --question-file eval/specs/s2_ioi.question.md --run-dir /lambda/nfs/test-filesystem/fadi/attribution-methods/autointerp/runs_eval/s2_ioi/c0 --model openrouter/anthropic/claude-sonnet-4.5 --max-iterations 80 --wallclock 1800 --quiet",
-    "returncode": 0,
-    "seconds": 509.9,
-    "ended_at": "2026-05-16T12:50:30Z",
-    "log": "runs_eval/s2_ioi/c0/driver.log"
-  }
-}

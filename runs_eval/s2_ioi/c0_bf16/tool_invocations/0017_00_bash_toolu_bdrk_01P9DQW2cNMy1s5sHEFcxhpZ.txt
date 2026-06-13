@@ -1,42 +1,0 @@
-Loading GPT-2-small...
-Tokens: ['When', 'ĠMary', 'Ġand', 'ĠJohn', 'Ġwent', 'Ġto', 'Ġthe', 'Ġstore', ',', 'ĠJohn', 'Ġgave', 'Ġa', 'Ġdrink', 'Ġto']
-Sequence length: 14
-
-Clean logit diff: 2.000
-Corrupt logit diff: -1.500
-Effect size: 3.500
-
-Patching 144 attention heads at position 13...
-Error with sweep_patch_sites: sweep_patch_sites() got an unexpected keyword argument 'clean'
-Falling back to manual patching...
-Caching clean activations...
-Patching individual heads...
-  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:00<00:01,  8.00it/s] 17%|█▋        | 2/12 [00:00<00:01,  8.13it/s] 25%|██▌       | 3/12 [00:00<00:01,  8.30it/s] 33%|███▎      | 4/12 [00:00<00:00,  8.32it/s] 42%|████▏     | 5/12 [00:00<00:00,  8.33it/s] 50%|█████     | 6/12 [00:00<00:00,  8.34it/s] 58%|█████▊    | 7/12 [00:00<00:00,  8.33it/s] 67%|██████▋   | 8/12 [00:00<00:00,  8.34it/s] 75%|███████▌  | 9/12 [00:01<00:00,  8.33it/s] 83%|████████▎ | 10/12 [00:01<00:00,  8.31it/s] 92%|█████████▏| 11/12 [00:01<00:00,  8.36it/s]100%|██████████| 12/12 [00:01<00:00,  8.37it/s]100%|██████████| 12/12 [00:01<00:00,  8.32it/s]
-
-================================================================================
-TOP 20 MOST IMPORTANT ATTENTION HEADS
-================================================================================
-Layer    Head     Recovery %     
---------------------------------------------------------------------------------
-0        0        0.0            
-0        2        0.0            
-0        3        0.0            
-0        5        0.0            
-0        7        0.0            
-0        8        0.0            
-0        9        0.0            
-0        10       0.0            
-1        0        0.0            
-1        5        0.0            
-1        6        0.0            
-2        1        0.0            
-2        2        0.0            
-2        5        0.0            
-2        6        0.0            
-2        11       0.0            
-3        0        0.0            
-3        1        0.0            
-3        2        0.0            
-3        4        0.0            
-
-Saved to scratch/head_patching_results.json

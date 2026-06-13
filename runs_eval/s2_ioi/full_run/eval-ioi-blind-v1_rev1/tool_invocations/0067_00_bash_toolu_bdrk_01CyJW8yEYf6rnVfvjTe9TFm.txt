@@ -1,5 +1,0 @@
-Layer 9 KL divergences: 50 samples
-Mean: 75.0373
-Min: 62.3722, Max: 95.4225
-
-Saved to scratch/kl_to_clean_inputs.json

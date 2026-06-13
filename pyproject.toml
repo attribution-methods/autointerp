@@ -61,16 +61,12 @@ autointerp = ["py.typed"]
 autointerp_agent = ["py.typed"]
 
 [tool.pytest.ini_options]
-# Only the real suite — runs_eval/ archives contain test_*.py files written
-# by the agent under test, which bare collection would otherwise pick up.
+# Only collect the real suite under tests/.
 testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-# runs_eval/ holds archived evaluation runs — including scripts written by
-# the agent under test. They are data artifacts, not source; never lint them.
-extend-exclude = ["runs_eval"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

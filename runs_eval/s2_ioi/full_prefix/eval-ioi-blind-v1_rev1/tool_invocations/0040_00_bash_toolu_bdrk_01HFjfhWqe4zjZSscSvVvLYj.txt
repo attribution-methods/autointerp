@@ -1,5 +1,0 @@
-Full inputs keys: ['logits', 'target_token', 'foil_token']
-Logits shape: 500 x 2
-Sample logits[0]: [-81.56529235839844, -84.6110610961914]
-
-Computed mean logit_diff: 2.971332

@@ -331,6 +331,56 @@ def env_file_is_gitignored(repo_root: Path | None = None) -> bool:
     return ".env" in patterns or "*.env" in patterns
 
 
+# Credential vars written by the setup flow's save step — what "logout" forgets.
+_CREDENTIAL_VARS: frozenset[str] = frozenset(
+    {var for prov in PROVIDERS.values() for var in prov.env_vars} | {"AUTOINTERP_MODEL"}
+)
+
+
+def _strip_vars_from_env_file(path: Path, names: frozenset[str]) -> list[str]:
+    """Remove ``VAR=...`` lines for ``names`` from ``path``.
+
+    Unrelated lines (comments, other vars) are preserved; the file is deleted
+    if nothing but the cleared keys was in it. Returns the vars removed.
+    """
+    if not path.exists():
+        return []
+    kept: list[str] = []
+    removed: list[str] = []
+    for line in path.read_text().splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            var = stripped.split("=", 1)[0].strip()
+            if var in names:
+                removed.append(var)
+                continue
+        kept.append(line)
+    if removed:
+        if any(line.strip() for line in kept):
+            path.write_text("\n".join(kept) + "\n")
+        else:
+            path.unlink()  # nothing but the cleared keys — start clean
+    return removed
+
+
+def clear_credentials() -> dict[str, list[str]]:
+    """Forget saved credentials (logout).
+
+    Removes the provider API keys and the saved model choice from
+    ``~/.autointerp/credentials`` and the project ``.env``, and unsets them
+    from the current process environment so the running session stops using
+    them. Returns ``{path: [vars removed]}`` for each file that changed.
+    """
+    cleared: dict[str, list[str]] = {}
+    for path in (USER_ENV_PATH, Path(".env")):
+        removed = _strip_vars_from_env_file(path, _CREDENTIAL_VARS)
+        if removed:
+            cleared[str(path)] = removed
+    for var in _CREDENTIAL_VARS:
+        os.environ.pop(var, None)
+    return cleared
+
+
 # ---------------------------------------------------------------------------
 # Validation + error formatting
 # ---------------------------------------------------------------------------
@@ -501,6 +551,27 @@ async def _prompt_text(message: str, *, password: bool = False) -> str | None:
 
 _CUSTOM_PROMPT = "model id (litellm format, e.g. anthropic/claude-sonnet-4-5): "
 
+# In-provider "custom…": the user already picked the provider, so they type only
+# the provider-local id (e.g. "openai/gpt-5-nano" under OpenRouter) and we add
+# the litellm prefix for them.
+_CUSTOM_EXAMPLES = {
+    "anthropic": "claude-opus-4-8",
+    "openai": "gpt-5.1",
+    "openrouter": "openai/gpt-5-nano",
+}
+
+
+def _custom_prompt_for(provider: Provider) -> str:
+    example = _CUSTOM_EXAMPLES.get(provider.key, "model-id")
+    return f"{provider.display} model id (e.g. {example}): "
+
+
+def _with_provider_prefix(provider: Provider, model_id: str) -> str:
+    """Prepend the provider's litellm prefix unless it's already present."""
+    model_id = model_id.strip()
+    prefix = provider.key + "/"
+    return model_id if model_id.startswith(prefix) else prefix + model_id
+
 
 async def select_provider(current: Provider | None) -> Provider | str | None:
     """Pick a provider (or 'custom' for a free-text model id). None = cancel."""
@@ -588,6 +659,10 @@ async def run_setup_flow(config: AgentConfig, console: Console) -> AgentConfig |
     The user can back out at any point (returns None at startup; the /model
     command treats None as "keep the old config").
     """
+    # Keys the user types during this setup session, keyed by env var. They
+    # stay in os.environ across retries (so a failed validation never forces
+    # re-entry) and are offered for disk save only on success.
+    session_keys: dict[str, str] = {}
     while True:
         picked = await select_provider(provider_for_model(config.model_name))
         if picked is None:
@@ -610,6 +685,7 @@ async def run_setup_flow(config: AgentConfig, console: Console) -> AgentConfig |
                 if entered_key is None:
                     continue
                 os.environ[env_var] = entered_key
+                session_keys[env_var] = entered_key
         else:
             provider = picked
             active = _active_env_key(provider)
@@ -636,6 +712,7 @@ async def run_setup_flow(config: AgentConfig, console: Console) -> AgentConfig |
                 if entered_key is None:
                     continue
                 os.environ[env_var] = entered_key
+                session_keys[env_var] = entered_key
 
             with console.status(f"[dim]fetching {provider.display} model list…[/dim]"):
                 models, source = await fetch_models_with_fallback(provider)
@@ -653,13 +730,12 @@ async def run_setup_flow(config: AgentConfig, console: Console) -> AgentConfig |
                 "Select a model", options, default_index=default_index
             )
             if choice is None:
-                if entered_key is not None and env_var is not None:
-                    os.environ.pop(env_var, None)  # don't keep an unvetted key
                 continue
             if choice == len(options) - 1:
-                model = await _prompt_text(_CUSTOM_PROMPT)
-                if model is None:
+                raw = await _prompt_text(_custom_prompt_for(provider))
+                if raw is None:
                     continue
+                model = _with_provider_prefix(provider, raw)
             else:
                 model = options[choice][0]
 
@@ -668,31 +744,38 @@ async def run_setup_flow(config: AgentConfig, console: Console) -> AgentConfig |
         with console.status(f"[dim]validating {model}…[/dim]"):
             ok, err = await validate_model(model)
         if not ok:
-            if entered_key is not None and env_var is not None:
-                # Don't leave a bad key poisoning the session environment.
-                os.environ.pop(env_var, None)
             console.print(f"[red]✗ {err}[/red]")
             retry = await _select_async(
                 "Validation failed — what next?",
                 [
-                    ("Try again", "— re-enter the key / pick another model"),
+                    ("Try again", "— reuse your key and pick another model, or re-enter"),
                     ("Continue anyway", "— use this config without validating"),
                     ("Quit setup", ""),
                 ],
             )
             if retry == 0:
-                continue  # back to the provider picker
-            if retry == 1:
+                # Keep the entered key set so the next pass can reuse it (the
+                # provider step offers "Use the existing key") instead of
+                # forcing re-entry. Keys reach disk only via the save step.
+                continue
+            if retry != 1:  # "Quit setup" or escaped the prompt
                 if entered_key is not None and env_var is not None:
-                    os.environ[env_var] = entered_key
-            else:
+                    os.environ.pop(env_var, None)  # don't leave an unvetted key set
                 return None
+            # "Continue anyway": the entered key stays in os.environ.
         else:
             console.print(f"[green]✓ {model} responded[/green]")
 
         updates: dict[str, str] = {}
-        if entered_key is not None and env_var is not None:
-            updates[env_var] = entered_key
+        # Offer to persist a key the user typed this session for the chosen
+        # model's provider — even if it was entered on an earlier attempt and
+        # reused here via "Use the existing key".
+        final_provider = provider_for_model(model)
+        if final_provider is not None:
+            for var in final_provider.env_vars:
+                if var in session_keys:
+                    updates[var] = session_keys[var]
+                    break
         if model != config.model_name or updates:
             updates["AUTOINTERP_MODEL"] = model
         if updates:
@@ -724,6 +807,7 @@ async def run_setup_flow(config: AgentConfig, console: Console) -> AgentConfig |
 __all__ = [
     "FALLBACK_MODELS",
     "PROVIDERS",
+    "clear_credentials",
     "ensure_model_ready",
     "env_file_is_gitignored",
     "fetch_models_with_fallback",

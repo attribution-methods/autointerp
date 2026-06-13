@@ -1,5 +1,0 @@
-- [in_progress] Create script to load GPT-2, IOI dataset, and compute logit_diff and accuracy
-- [pending] Run black box evaluation on 500 dev samples
-- [pending] Commit accuracy and logit_diff metrics
-- [pending] Evaluate behavioral-sanity criterion
-- [pending] Advance to Stage 1

@@ -1,2 +1,0 @@
-(layer: 'int', head: 'int', source: 'torch.Tensor', positions: 'Optional[Sequence[int]]' = None) -> None
-Fields: {'layer': 'int', 'head': 'int', 'source': 'torch.Tensor', 'positions': 'Optional[Sequence[int]]'}

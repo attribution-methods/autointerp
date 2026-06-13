@@ -1,7 +1,0 @@
-[exit 1] cd active_runs/full/eval-ioi-blind-v1_rev1 && cat > scripts/stage1_multi_head...
-Traceback (most recent call last):
-  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_multi_head_patch.py", line 36, in <module>
-    io_token_ids = [handle.tokenizer.encode(" " + s["io_name"], add_special_tokens=False)[0] 
-  File "/lambda/nfs/test-filesystem/fadi/attribution-methods/eval_cleanroom/repo/active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage1_multi_head_patch.py", line 36, in <listcomp>
-    io_token_ids = [handle.tokenizer.encode(" " + s["io_name"], add_special_tokens=False)[0] 
-NameError: name 'handle' is not defined

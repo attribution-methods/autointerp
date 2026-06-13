@@ -259,6 +259,33 @@ def test_repo_gitignore_covers_env_file() -> None:
     assert ms.env_file_is_gitignored(Path(__file__).resolve().parents[1])
 
 
+def test_clear_credentials_removes_keys_and_unsets_env(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # User credentials file holds only saved creds -> deleted entirely on logout.
+    cred = tmp_path / "credentials"
+    cred.write_text(
+        "OPENROUTER_API_KEY=sk-or-123\nAUTOINTERP_MODEL=openrouter/openai/gpt-5-nano\n"
+    )
+    # Project .env mixes a saved key with an unrelated line that must survive.
+    monkeypatch.chdir(tmp_path)
+    Path(".env").write_text("ANTHROPIC_API_KEY=sk-ant-1\nMY_OTHER_VAR=keep\n")
+    monkeypatch.setattr(ms, "USER_ENV_PATH", cred)
+    for var in ("OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "AUTOINTERP_MODEL"):
+        monkeypatch.setenv(var, "from-env")
+
+    cleared = ms.clear_credentials()
+
+    assert not cred.exists()  # held only creds -> removed
+    env_text = Path(".env").read_text()
+    assert "MY_OTHER_VAR=keep" in env_text  # unrelated line preserved
+    assert "ANTHROPIC_API_KEY" not in env_text
+    for var in ("OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "AUTOINTERP_MODEL"):
+        assert var not in os.environ  # unset from the live session
+    assert "OPENROUTER_API_KEY" in cleared[str(cred)]
+    assert "ANTHROPIC_API_KEY" in cleared[".env"]
+
+
 # ---------------------------------------------------------------------------
 # validation + error formatting
 # ---------------------------------------------------------------------------

@@ -1,1 +1,0 @@
-Refused unsafe path: 'active_runs/full/eval-ioi-blind-v1_rev1/scripts/stage0_black_box.py'

@@ -1,2 +1,0 @@
-Mean KL divergence at final layer: 560.0107
-Top-10 heads mean recovery: 0.1883

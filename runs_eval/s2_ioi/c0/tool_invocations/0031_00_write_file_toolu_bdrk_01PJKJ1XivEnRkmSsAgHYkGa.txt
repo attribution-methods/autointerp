@@ -1,1 +1,0 @@
-Wrote 9852 bytes to /lambda/nfs/test-filesystem/fadi/attribution-methods/autointerp/runs_eval/s2_ioi/c0/scratch/INVESTIGATION_REPORT.md
