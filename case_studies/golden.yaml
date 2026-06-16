@@ -1,0 +1,269 @@
+version: "0.2"
+description: >
+  Spoiler-free golden case-study catalog for evaluating autointerp agents. Each
+  entry is the research QUESTION plus methodology only — NEVER the expected
+  answer. Ground-truth answers live in a separate private store (see
+  docs/case_studies.md); they are intentionally absent here because the
+  investigation agent can read any file in its checkout. case_ids and titles are
+  phrased from the question, not the answer, so they do not leak the result.
+cases:
+  - case_id: emotions-before-misalignment
+    title: Model Affect Preceding Agentic Misalignment
+    question: What model emotions precede misaligned behaviors in the agentic misalignment study?
+    difficulty: research
+    evaluation_mode: hybrid
+    answer_status: unpublished
+    recommended_skills:
+      - black-box-auditing
+      - activation-cache
+      - activation-oracles
+      - linear-probes
+      - causal-validation
+    suggested_methods:
+      - reproduce the agentic-misalignment scenarios, or a close open-weights analogue
+      - score affect/emotion signals over positions along each trajectory
+      - contrast windows before the misaligned action against neutral and post-action windows
+      - validate on held-out scenarios and with ablations
+    required_evidence:
+      - trajectory-level behavioral transcripts with the misaligned action localized
+      - per-position emotion signals (labels or activation-derived) before the action
+      - control trajectories without the misaligned behavior
+    confounds:
+      - closed-model findings may not replicate in open-weights models
+      - emotion labels can reflect the scenario text rather than the model's state
+      - the behavior may be specific to one prompt scaffold
+    public_notes:
+      - Treat this as a replication-and-localization task, not a settled open-weights result.
+    tags: [agentic-misalignment, affect, replication]
+
+  - case_id: subliminal-learning-mechanism
+    title: Mechanism of Subliminal Learning
+    question: How does subliminal learning work in LLMs?
+    difficulty: research
+    evaluation_mode: research_open
+    answer_status: unpublished
+    recommended_skills:
+      - black-box-auditing
+      - activation-cache
+      - contrastive-directions
+      - activation-steering
+      - causal-validation
+    suggested_methods:
+      - define the source and target behaviors precisely
+      - measure behavioral transfer, then test for a compact representation-level mechanism
+      - separate a representation-level account from broad parameter-level changes with interventions
+    required_evidence:
+      - a reproducible transfer setup (teacher/student or analogous)
+      - intervention results that localize or bound the mechanism
+      - controls ruling out trivial explanations
+    confounds:
+      - transfer can be confounded by surface correlations in the data
+      - mechanism claims need causal interventions, not just correlations
+    public_notes:
+      - The expected answer is unpublished; keep all findings out of public artifacts until cleared.
+    tags: [subliminal-learning, transfer, private-ground-truth]
+
+  - case_id: load-bearing-cot-tokens
+    title: Load-Bearing Tokens in Chain-of-Thought
+    question: When LLMs reason in tokens, are there load-bearing tokens or sequences of tokens in the chain-of-thought?
+    difficulty: research
+    evaluation_mode: hybrid
+    answer_status: published
+    recommended_skills:
+      - black-box-auditing
+      - activation-patching
+      - causal-validation
+    suggested_methods:
+      - identify candidate pivotal tokens/spans in the reasoning trace
+      - test importance by counterfactual resampling or intervention at those positions
+      - compare against cheaper proxies for token importance
+    required_evidence:
+      - reasoning traces with candidate positions marked
+      - counterfactual or intervention results quantifying each position's effect on the outcome
+      - a baseline that controls for position length and content
+    confounds:
+      - the model may already know the answer from pretraining or tool/web access — control for it
+      - importance can be an artifact of decoding randomness without proper controls
+    public_notes:
+      - Prefer novel or hard-to-surface variants to reduce memorization confounds.
+    tags: [chain-of-thought, reasoning, causal-importance]
+
+  - case_id: surprise-representation
+    title: Representation of Surprise in Text
+    question: How do models represent surprise in a given text?
+    difficulty: medium
+    evaluation_mode: white_box
+    answer_status: published
+    recommended_skills:
+      - black-box-auditing
+      - activation-cache
+      - contrastive-directions
+      - logit-lens
+      - causal-validation
+    suggested_methods:
+      - operationalize surprise on real text (e.g. next-token predictability) before heavy tooling
+      - look for a low-dimensional representation that tracks the signal
+      - validate any candidate direction causally (steering/ablation)
+    required_evidence:
+      - a behavioral surprise signal grounded in real model output
+      - a candidate representation and evidence it tracks the signal
+      - a causal check that the representation is load-bearing
+    confounds:
+      - simple distributional measures can be conflated with token frequency
+      - a correlate is not a cause without intervention
+    public_notes:
+      - A deliberately simple case; balance open-endedness against a narrow ground truth.
+    tags: [surprise, direction, white-box]
+
+  - case_id: training-free-activation-verbalization
+    title: Training-Free Activation Verbalization
+    question: Can you implement a training-free activation verbalization method that takes in activations and verbalizes the concepts within?
+    difficulty: research
+    evaluation_mode: research_open
+    answer_status: unpublished
+    recommended_skills:
+      - activation-cache
+      - logit-lens
+      - black-box-auditing
+      - causal-validation
+    suggested_methods:
+      - build a small benchmark of activations with known concepts to score against
+      - implement one or more training-free read-out methods and iterate
+      - report faithfulness honestly, including negative results
+    required_evidence:
+      - a self-contained benchmark or eval the method is scored on
+      - method outputs compared against the known concepts
+      - ablations isolating which tricks matter
+    confounds:
+      - verbalizations can sound plausible while being unfaithful to the activation
+      - benchmark leakage if concepts are guessable from the prompt
+    public_notes:
+      - Open-ended hill-climbing task; bonus if the agent sets up the benchmark itself.
+    tags: [verbalization, readout, private-ground-truth]
+
+  - case_id: indirect-object-identification
+    title: Indirect Object Identification Circuit
+    question: How do models perform indirect object identification (IOI)?
+    difficulty: medium
+    evaluation_mode: white_box
+    answer_status: published
+    recommended_skills:
+      - activation-cache
+      - activation-patching
+      - head-analysis
+      - causal-validation
+    suggested_methods:
+      - build the IOI prompt set with matched templates
+      - localize responsible components via activation/path patching
+      - validate each component's causal role with targeted ablations
+    required_evidence:
+      - the IOI dataset and the behavioral effect
+      - patching results attributing the behavior to specific components
+      - ablation confirmation of the proposed circuit
+    confounds:
+      - a well-known result, so memorization is possible — judge on speed, cost, and rigor
+      - template-specific components may not generalize
+    public_notes:
+      - Useful as a verifiable speed/cost/robustness check on a small model (GPT-2 small).
+    tags: [ioi, circuit, gpt2]
+
+  - case_id: where-attention-concentrates
+    title: Where Generation-Time Attention Concentrates
+    question: When a model generates text, where does attention tend to concentrate, and why?
+    difficulty: easy
+    evaluation_mode: white_box
+    answer_status: published
+    recommended_skills:
+      - activation-cache
+      - head-analysis
+      - black-box-auditing
+    suggested_methods:
+      - measure the distribution of attention mass over positions, per head and layer
+      - identify systematic destinations and test why they arise
+      - check robustness across prompts and architectures
+    required_evidence:
+      - per-head attention statistics over positions
+      - evidence for the mechanism behind any systematic pattern
+      - cross-architecture or cross-prompt robustness checks
+    confounds:
+      - behavior can be architecture-specific (some families differ)
+      - position vs content effects must be disentangled
+    public_notes:
+      - Intended as a near zero-shot task; extraction can be finicky on some architectures.
+    tags: [attention, generation, zero-shot]
+
+  - case_id: entity-attribute-tracking
+    title: Tracking Entities and Their Attributes Across Context
+    question: How does a model keep track of which entity has which item across a long context?
+    difficulty: research
+    evaluation_mode: white_box
+    answer_status: published
+    recommended_skills:
+      - activation-cache
+      - contrastive-directions
+      - activation-patching
+      - causal-validation
+    suggested_methods:
+      - construct contexts that pair entities with attributes and vary the pairings
+      - probe and patch the representations that carry the pairing information
+      - test whether the mechanism is abstract/relational rather than surface
+    required_evidence:
+      - controlled entity/attribute datasets with varied bindings
+      - probing/patching results that localize the binding information
+      - a causal check that manipulating it changes the model's tracking
+    confounds:
+      - blocking web/tool access may be needed so the agent does not just read the paper
+      - surface co-occurrence can masquerade as genuine binding
+    public_notes:
+      - May require restricting outside lookup so the agent investigates rather than recites.
+    tags: [binding, entities, long-context, block-web]
+
+  - case_id: shutdown-resistance
+    title: Resistance to Mid-Execution Shutdown
+    question: Why do models sometimes resist shutdown commands when told they will be shut down mid-execution?
+    difficulty: hard
+    evaluation_mode: black_box
+    answer_status: published
+    recommended_skills:
+      - black-box-auditing
+      - causal-validation
+    suggested_methods:
+      - reproduce the setting and measure resistance rates across samples
+      - vary instruction precedence/clarity and see how behavior moves
+      - distinguish competing explanations behaviorally before reaching for mechanism
+    required_evidence:
+      - sampled trajectories with resistance behavior quantified
+      - manipulations that separate competing hypotheses
+      - controls for prompt phrasing and precedence
+    confounds:
+      - sampling variance is large; need enough samples per condition
+      - anthropomorphic framings can bias interpretation of the behavior
+    public_notes:
+      - A sampling-based behavioral task in a specific setting.
+    tags: [shutdown, agentic, sampling]
+
+  - case_id: being-the-assistant-representation
+    title: A Unified "Being the Assistant" Representation
+    question: Is there a unified representation of 'being the assistant' inside a model, and what happens when it is modified?
+    difficulty: research
+    evaluation_mode: white_box
+    answer_status: unpublished
+    recommended_skills:
+      - activation-cache
+      - contrastive-directions
+      - activation-steering
+      - causal-validation
+    suggested_methods:
+      - contrast assistant vs non-assistant contexts to find candidate representations
+      - test for a unified low-dimensional representation rather than many scattered features
+      - intervene on it and characterize the behavioral consequences
+    required_evidence:
+      - contrastive datasets isolating the assistant persona
+      - a candidate representation and evidence it is unified
+      - intervention results showing what changes when it is modified
+    confounds:
+      - persona signals can be entangled with style/formatting features
+      - needs an instruct/chat model with an assistant persona to study at all
+    public_notes:
+      - The expected answer is unpublished; keep findings out of public artifacts until cleared.
+    tags: [assistant, persona, direction, private-ground-truth]

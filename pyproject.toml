@@ -48,6 +48,7 @@ dev = [
   # linters made CI red the day stricter releases shipped.
   "ruff>=0.15,<0.16",
   "mypy>=2.1,<2.2",
+  "types-PyYAML>=6.0.12",
 ]
 all = [
   "autointerp[mechinterp,dev]",

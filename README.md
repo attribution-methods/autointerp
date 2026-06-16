@@ -183,6 +183,12 @@ Run the CI-safe end-to-end scaffold example:
 python examples/blackbox_to_validation.py
 ```
 
+Validate the golden case-study catalog:
+
+```bash
+python scripts/validate_case_studies.py
+```
+
 Start an interactive session:
 
 ```bash
@@ -312,6 +318,7 @@ src/autointerp_agent/investigation.py CLI entry point for the investigation pipe
 metrics/                    Metric reference cards (one .md per MetricName)
 examples/                   Runnable scaffold examples
 skills/                     Reusable method skills
+case_studies/               Public-safe golden case catalog (questions only; no answers)
 configs/agent.yaml          Default agent configuration
 docs/                       Architecture, schemas, Stage 0 notes
 integrations/               Downstream integration notes
@@ -345,3 +352,5 @@ See [docs/schemas.md](docs/schemas.md) for the shared artifact contracts,
 [docs/stage0.md](docs/stage0.md) for the Stage 0 conversational planner, and
 [docs/end_to_end_mvp.md](docs/end_to_end_mvp.md) for the initial investigation
 path.
+See [docs/case_studies.md](docs/case_studies.md) for the golden case catalog
+and private ground-truth handling.

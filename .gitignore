@@ -11,6 +11,7 @@ build/
 outputs/
 analysis/
 .cache/
+case_studies/private/
 runs/
 logs/
 scratch/

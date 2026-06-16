@@ -34,10 +34,13 @@ MAX_OUTPUT_CHARS = 25_000
 # It must sit comfortably ABOVE real GPU work. The old 120s default was below the
 # *floor* cost of one model load on this box (import torch+transformers + CUDA
 # init alone is ~130s), so every model-loading bash was killed mid-load and the
-# agent misread the kill as "can't load the model / no hardware". 30 min covers a
-# cold load + a real forward sweep + metric; genuinely long jobs (training) pass
-# an explicit `timeout` up to MAX_TIMEOUT, or stream to the heartbeat log.
-DEFAULT_TIMEOUT = 1_800
+# agent misread the kill as "can't load the model / no hardware". The real
+# hang-catcher is the stall watchdog (kills only on NO OUTPUT for a while), so
+# this hard backstop need not be tight — set it generously at 90m so a legitimate
+# long sweep / multi-stage pass / bigger-model load is never guillotined while
+# still progressing; genuinely long jobs (training) pass an explicit `timeout` up
+# to MAX_TIMEOUT, or stream to the heartbeat log.
+DEFAULT_TIMEOUT = 5_400
 MAX_TIMEOUT = 36_000
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\x1b\].*?\x07")
 _files_read: set[str] = set()

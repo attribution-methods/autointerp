@@ -95,6 +95,14 @@ is no one to answer, and the run will stall.
   outputs. A run whose criteria are not backed by model_forward captures is
   flagged UNSUBSTANTIATED in the final report and does NOT count as a real
   result — an honest INCONCLUSIVE is far better than an invented PASS.
+- A placeholder/empty `model_forward` capture is REJECTED at write time:
+  `record_capture("...", {"prompts": []}, source="model_forward")` and the like
+  raise "no measurement data". The fix is NEVER to retry a stub, wrap the load in
+  a try/except that writes an empty capture on failure, or request a revision —
+  it is to make the real forward pass succeed: load the model, run it on the real
+  prompts, and capture the genuine logits/predictions. If the model genuinely
+  cannot load (e.g. gated repo), switch to a concrete loadable open-weights model
+  and run it for real; do not paper over a load failure with a placeholder.
 - Commit non-metric typed artifacts via `commit_artifact` (PromptBatch,
   ActivationCacheRef, CandidateSite, InterventionResult, …). Here too `split`
   and `provenance_token` are top-level arguments, never payload fields — the
@@ -164,6 +172,29 @@ helpers before writing forward-pass / hook / patching code by hand:
 - `autointerp.tools.patching` — `patch_generation(handle, prompt, source,
   layer, component, patch_positions)`, `ablate_generation(...)`,
   `sweep_patch_sites(handle, clean, corrupt, sites)`.
+- `autointerp.tools.head_patching` — `head_patch_sweep(handle, clean, corrupt,
+  metric)` and `path_patch(handle, clean, corrupt, sender, metric)` run the
+  clean+corrupt+patched passes and RETURN `{clean_metric, corrupt_metric,
+  patched_metric, recovery}` — exactly the inputs `patch_effect_recovery` needs.
+- `autointerp.tools.causal_metrics` — PUSH-BUTTON bridge for a causal criterion,
+  so you NEVER abandon `patch_effect_recovery`/`ablation_drop` for "I couldn't
+  produce captures". For a circuit question the ONE-CALL default is
+  `circuit_recovery_capture(handle, clean, corrupt, metric)`: it sweeps heads,
+  takes the top-k by recovery, patches that whole SET together, records the
+  `model_forward` capture, and returns the relpath. Use the SET, not one head —
+  most circuits are distributed, so a single head reports recovery ≈ 0 and looks
+  like a false negative. (Lower-level pieces if you need them:
+  `best_patch_sites(...)` returns the ranked sites and
+  `patch_recovery_capture(handle, clean, corrupt, sender_or_sites, metric)`
+  accepts a single site OR a list.) `ablation_drop_capture(handle, prompts,
+  sites, metric)` is the same push-button for `ablation_drop`. Pass the returned
+  relpath straight to `compute_and_commit_metric(metric="patch_effect_recovery",
+  inputs=<relpath>, criterion_id=…)`. `metric` maps `[batch, vocab]` final-token
+  logits to `[batch]` (e.g. a target-minus-foil logit diff). Import EXACTLY (real
+  names — do not invent module names like `metric_utils`):
+      from autointerp.tools.causal_metrics import (
+          circuit_recovery_capture, best_patch_sites,
+          patch_recovery_capture, ablation_drop_capture)
 - `autointerp.tools.lenses` — `logit_lens(handle, hidden_state)`,
   `direct_logit_attribution(handle, ...)`, `top_tokens(...)`.
 - `autointerp.tools.attribution` — `attribution_patch_score(...)`,
