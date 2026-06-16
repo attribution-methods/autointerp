@@ -334,3 +334,91 @@ def test_propose_custom_metric_tool_rejects_imports() -> None:
     msg, ok = asyncio.run(_propose_custom_metric(args))
     assert not ok
     assert "import statements are not allowed" in msg
+
+
+def test_preflight_catches_undefined_name_and_allows_bare_math_np() -> None:
+    """A custom metric that PARSES but uses an undefined name is caught by the
+    dry-run pre-flight — while bare `sqrt`/`np` ARE available, so a planner's
+    natural code runs (the exact field failure: 'sqrt is not defined')."""
+    from autointerp.pipelines.investigation.metrics import preflight_custom_metric
+
+    ok_def = CustomMetricDef(
+        name="corr", description="pearson-ish via bare sqrt and np",
+        family=MetricFamily.BEHAVIORAL, value_range=(-1.0, 1.0), direction="either",
+        requires_inputs=["x", "y"],
+        source_code=(
+            "def compute(inputs):\n"
+            "    x = inputs['x']; y = inputs['y']\n"
+            "    d = sqrt(sum(a * a for a in x))  # bare sqrt, no import\n"
+            "    return float(np.mean(y)) / (d or 1.0)\n"  # bare np
+        ),
+    )
+    assert preflight_custom_metric(ok_def) is None  # sqrt + np available → runs
+
+    broken = CustomMetricDef(
+        name="broken", description="references an undefined name",
+        family=MetricFamily.BEHAVIORAL, value_range=(0.0, 1.0), direction="higher",
+        requires_inputs=["x"],
+        source_code="def compute(inputs):\n    return scoopy_stats(inputs['x'])\n",
+    )
+    err = preflight_custom_metric(broken)
+    assert err and "scoopy_stats" in err and "fail at runtime" in err
+
+
+def test_stage_custom_metric_without_def_is_a_blocker() -> None:
+    """A STAGE listing 'custom' with no custom_metric_def anywhere must be caught
+    at finalize/validate — not left to stall the run mid-investigation (the real
+    end-to-end bail: stage metrics=['custom'], criterion on logit_diff, no def)."""
+    from autointerp_agent.stage0_tools import _custom_without_def_blockers
+
+    spec = _spec_with_custom()  # valid: criterion has a custom_metric_def
+    assert _custom_without_def_blockers(spec) == []  # no false positive
+
+    # now a stage references 'custom' but NO def exists (criterion uses a built-in)
+    bad = spec.model_copy(update={
+        "stages": [spec.stages[0].model_copy(update={"metrics": [MetricName.CUSTOM]})],
+        "success_criteria": [spec.success_criteria[0].model_copy(update={
+            "metric": MetricName.LOGIT_DIFF, "custom_metric_def": None,
+        })],
+    })
+    blockers = _custom_without_def_blockers(bad)
+    assert blockers and "custom_metric_def" in blockers[0]
+
+
+def test_nan_metric_value_rejected_without_corrupting_state(tmp_path) -> None:
+    """A metric returning NaN/inf must be rejected at compute time — NOT written
+    into state.json (where a bare `NaN` is invalid JSON and bricks every later
+    read_state, crashing the whole investigation). The real end-to-end failure."""
+    nan_def = CustomMetricDef(
+        name="nan_metric", description="returns NaN on degenerate input",
+        family=MetricFamily.BEHAVIORAL, value_range=(-1.0, 1.0), direction="either",
+        requires_inputs=["x"],
+        source_code="def compute(inputs):\n    return float('nan')\n",
+    )
+    spec = _spec_with_custom(nan_def, threshold=0.0, comparator=">=")
+    handle = init_run(spec, runs_root=tmp_path)
+    with pytest.raises(MetricRegistryError, match="non-finite"):
+        compute_metric(
+            handle, metric=MetricName.CUSTOM, metric_id="m1",
+            inputs={"x": [1.0, 2.0, 3.0], "__custom_name__": "nan_metric"},
+        )
+    # state is still readable and nothing was committed
+    from autointerp.pipelines.investigation.state import read_state
+    state = read_state(handle.state_path)
+    assert len(state.pending_provenance_tokens) == 0
+
+
+def test_finalize_blockers_dry_run_flags_broken_custom_metric() -> None:
+    """validate_spec/finalize_spec now dry-run custom metrics, so an undefined-
+    name bug is a blocker at PLAN time — not a mid-investigation spec revision."""
+    from autointerp_agent.stage0_tools import _finalize_blockers
+
+    broken = CustomMetricDef(
+        name="broken_corr", description="undefined name at runtime",
+        family=MetricFamily.BEHAVIORAL, value_range=(0.0, 1.0), direction="higher",
+        requires_inputs=["x"],
+        source_code="def compute(inputs):\n    return mystery_fn(inputs['x'])\n",
+    )
+    spec = _spec_with_custom(broken, threshold=0.5, comparator=">=")
+    blockers = _finalize_blockers(spec)
+    assert any("mystery_fn" in b and "fail at runtime" in b for b in blockers)

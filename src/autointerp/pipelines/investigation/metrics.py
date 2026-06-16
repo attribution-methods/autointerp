@@ -53,7 +53,12 @@ def _require_keys(name: MetricName, inputs: dict[str, Any], keys: Iterable[str])
     if missing:
         raise MetricRegistryError(
             f"{name.value}: missing required input keys: {sorted(missing)}; "
-            f"got {sorted(inputs)}"
+            f"got {sorted(inputs)}. These inputs are numeric arrays you PRODUCE "
+            f"by running the model (logits, activations, patched/clean outputs) "
+            f"— not dataset/model_id/seed metadata. Generate them in a script "
+            f"(load the model, run a forward pass on the prompts, capture the "
+            f"values to scratch/), then pass them here. This is normal work, "
+            f"NOT a reason to request a spec revision."
         )
 
 
@@ -599,10 +604,29 @@ def _resolve_custom_def(handle: RunHandle, inputs: dict[str, Any]) -> CustomMetr
     )
 
 
+def _custom_globals() -> dict[str, Any]:
+    """Globals for custom-metric code: safe builtins, the `math` module AND its
+    functions exposed as bare names (sqrt, log, exp, pi, …), plus numpy as `np`.
+    A planner naturally writes `sqrt(x)` / `np.std(x)`; without these it hits a
+    NameError mid-investigation (the exact failure: 'sqrt is not defined')."""
+    g: dict[str, Any] = {
+        "__builtins__": _SAFE_BUILTINS,
+        "math": math,
+        **{n: getattr(math, n) for n in dir(math) if not n.startswith("_")},
+    }
+    try:  # numpy is optional, but commonly used in metric code
+        import numpy as np
+
+        g["np"] = g["numpy"] = np
+    except Exception:  # noqa: BLE001
+        pass
+    return g
+
+
 def _custom_impl(defn: CustomMetricDef) -> "MetricImpl":
     """Compile the custom metric source and wrap as a MetricImpl."""
     namespace: dict[str, Any] = {}
-    safe_globals = {"__builtins__": _SAFE_BUILTINS, "math": math}
+    safe_globals = _custom_globals()
     try:
         exec(compile(defn.source_code, f"<custom:{defn.name}>", "exec"),
              safe_globals, namespace)
@@ -638,6 +662,37 @@ def _custom_impl(defn: CustomMetricDef) -> "MetricImpl":
         compute=_wrapped,
         one_line=defn.description,
     )
+
+
+def preflight_custom_metric(defn: CustomMetricDef) -> str | None:
+    """Dry-run a custom metric against synthetic inputs to catch undefined-name /
+    import errors (e.g. `sqrt` used without `math.sqrt`) at PLAN time, instead of
+    deep inside an investigation. Returns an actionable message, or None if it
+    runs. ONLY undefined-name-class errors are reported — any other exception may
+    just be a synthetic-input mismatch and must never block a valid metric."""
+    try:
+        impl = _custom_impl(defn)
+    except MetricRegistryError as exc:
+        return str(exc)
+    sample = {k: [0.12, 0.5, 0.88, 0.31, 0.7, 0.44] for k in defn.requires_inputs}
+    try:
+        impl.compute(sample)
+    except MetricRegistryError as exc:
+        cause = exc.__cause__
+        if isinstance(cause, (NameError, ImportError, AttributeError)):
+            return (
+                f"custom metric {defn.name!r} will fail at runtime: {cause}. The "
+                "code references a name that is not defined or imported. Common "
+                "math functions (sqrt, log, exp, …) and numpy as `np` are ALREADY "
+                "available — use them directly, or define/import what you need. "
+                "Fix the source_code; do not surface this to the user."
+            )
+    except (NameError, ImportError, AttributeError) as exc:
+        return (
+            f"custom metric {defn.name!r} will fail at runtime: {exc}. Fix the "
+            "source_code (sqrt/log/exp and numpy as `np` are already available)."
+        )
+    return None
 
 
 # ---- hashing & token issuance ---------------------------------------------
@@ -693,6 +748,7 @@ def compute_metric(
     threshold: float | None = None,
     comparator: str | None = None,
     metadata: dict[str, Any] | None = None,
+    input_provenance: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Run the canonical implementation for ``metric`` and issue a one-time token.
 
@@ -747,6 +803,16 @@ def compute_metric(
 
     # Validate + compute.
     raw_value = float(impl.compute(inputs))
+    # A NaN/inf would be written into state.json as a bare `NaN`/`Infinity`, which
+    # is not valid JSON — every later read_state() then fails and the whole run
+    # bricks. Reject it HERE, before touching state, with an actionable message.
+    if not math.isfinite(raw_value):
+        raise MetricRegistryError(
+            f"metric {metric_id!r} computed a non-finite value ({raw_value}); a "
+            "NaN/inf cannot be a verdict. This usually means degenerate inputs — "
+            "a constant or empty series in a correlation/std, or a divide-by-zero. "
+            "Fix the captured inputs (or the metric) so it returns a real number."
+        )
     clipped_value, was_clipped = _clip_to_range(metric, raw_value, custom_def=custom_def)
     inputs_hash = _hash_inputs(inputs)
 
@@ -771,6 +837,8 @@ def compute_metric(
                 "registry_version": 1,
             }
         )
+    if input_provenance:
+        md["input_provenance"] = input_provenance
     if was_clipped:
         md["unclipped_value"] = raw_value
         md["clipped_to_range"] = (
@@ -835,6 +903,7 @@ def compute_and_commit_metric(
     metadata: dict[str, Any] | None = None,
     criterion_id: str | None = None,
     inconclusive_reason: str | None = None,
+    input_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """One-shot metric flow: compute, commit, optionally evaluate a criterion.
 
@@ -864,6 +933,7 @@ def compute_and_commit_metric(
         threshold=threshold,
         comparator=comparator,
         metadata=metadata,
+        input_provenance=input_provenance,
     )
     ref = commit_artifact(
         handle, "MetricResult", payload, split=split, provenance_token=token
