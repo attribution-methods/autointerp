@@ -164,6 +164,22 @@ helpers before writing forward-pass / hook / patching code by hand:
 - `autointerp.tools.patching` — `patch_generation(handle, prompt, source,
   layer, component, patch_positions)`, `ablate_generation(...)`,
   `sweep_patch_sites(handle, clean, corrupt, sites)`.
+- `autointerp.tools.head_patching` — `head_patch_sweep(handle, clean, corrupt,
+  metric)` and `path_patch(handle, clean, corrupt, sender, metric)` run the
+  clean+corrupt+patched passes and RETURN `{clean_metric, corrupt_metric,
+  patched_metric, recovery}` — exactly the inputs `patch_effect_recovery` needs.
+- `autointerp.tools.causal_metrics` — PUSH-BUTTON bridge for a causal criterion,
+  so you NEVER abandon `patch_effect_recovery`/`ablation_drop` for "I couldn't
+  produce captures". `best_patch_site(handle, clean, corrupt, metric)` picks a
+  sender head; `patch_recovery_capture(handle, clean, corrupt, sender, metric)`
+  runs the passes, records the scalar triple as a `model_forward` capture, and
+  returns the relpath — pass it straight to
+  `compute_and_commit_metric(metric="patch_effect_recovery", inputs=<relpath>,
+  criterion_id=…)`. `ablation_drop_capture(handle, prompts, sites, metric)` is
+  the same for `ablation_drop`. `metric` maps `[batch, vocab]` final-token logits
+  to `[batch]` (e.g. a target-minus-foil logit diff). Import EXACTLY:
+  `from autointerp.tools.causal_metrics import best_patch_site, patch_recovery_capture, ablation_drop_capture`
+  — these are the real names; do not invent module names like `metric_utils`.
 - `autointerp.tools.lenses` — `logit_lens(handle, hidden_state)`,
   `direct_logit_attribution(handle, ...)`, `top_tokens(...)`.
 - `autointerp.tools.attribution` — `attribution_patch_score(...)`,

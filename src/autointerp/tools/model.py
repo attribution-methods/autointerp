@@ -120,18 +120,37 @@ class ModelHandle:
     dtype: torch.dtype = torch.float32
     model_type: str = "unknown"
 
+    def _decoder_layers(self) -> Any:
+        """The decoder block ModuleList, across HF architectures.
+
+        Handles GPT-2 / GPT-J / GPT-Neo (`transformer.h`), Llama / Qwen / Mistral
+        (`model.layers`), GPTNeoX / Pythia (`gpt_neox.layers`), and the
+        double-nested / multimodal variants — so head/activation patching works on
+        whatever open-weights model the agent picks, not just gpt2.
+        """
+        m = self.model
+        inner = getattr(m, "model", None)
+        candidates = [
+            getattr(inner, "layers", None),                                   # Llama/Qwen/Mistral
+            getattr(getattr(m, "gpt_neox", None), "layers", None),            # GPTNeoX / Pythia
+            getattr(getattr(m, "transformer", None), "h", None),              # GPT-2 / GPT-J / Neo
+            getattr(getattr(inner, "language_model", None), "layers", None),  # multimodal
+            getattr(getattr(inner, "model", None), "layers", None),           # double-nested
+        ]
+        for layers in candidates:
+            if layers is not None:
+                return layers
+        raise ValueError(
+            "Could not locate the decoder layers on this model "
+            f"({type(self.model).__name__}); architecture not recognized."
+        )
+
     @property
     def n_layers(self) -> int:
-        if hasattr(self.model, "model"):
-            inner = self.model.model
-            if hasattr(inner, "language_model") and hasattr(inner.language_model, "layers"):
-                return len(inner.language_model.layers)
-            if hasattr(inner, "layers"):
-                return len(inner.layers)
-            if hasattr(inner, "model") and hasattr(inner.model, "layers"):
-                return len(inner.model.layers)
-        if hasattr(self.model, "transformer") and hasattr(self.model.transformer, "h"):
-            return len(self.model.transformer.h)
+        try:
+            return len(self._decoder_layers())
+        except ValueError:
+            pass
         config = self.model.config
         for name in ("num_hidden_layers", "n_layer", "num_layers"):
             if hasattr(config, name):
@@ -166,17 +185,7 @@ class ModelHandle:
     def layer(self, layer_idx: int) -> Any:
         if layer_idx < 0:
             layer_idx = self.n_layers + layer_idx
-        if hasattr(self.model, "model"):
-            inner = self.model.model
-            if hasattr(inner, "language_model") and hasattr(inner.language_model, "layers"):
-                return inner.language_model.layers[layer_idx]
-            if hasattr(inner, "layers"):
-                return inner.layers[layer_idx]
-            if hasattr(inner, "model") and hasattr(inner.model, "layers"):
-                return inner.model.layers[layer_idx]
-        if hasattr(self.model, "transformer") and hasattr(self.model.transformer, "h"):
-            return self.model.transformer.h[layer_idx]
-        raise ValueError(f"Could not access layer {layer_idx}")
+        return self._decoder_layers()[layer_idx]
 
     def filter_messages(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
         if self.model_type in MODELS_WITHOUT_SYSTEM_ROLE:

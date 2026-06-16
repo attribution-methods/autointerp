@@ -45,6 +45,22 @@ system_prompt: |
     too. NEVER use a placeholder like `local:/path/to/...`, `<model>`, or
     `your-model`: those are not real repos and the load will fail. Avoid gated
     repos (e.g. meta-llama/*) unless you know access is configured.
+  - Match the model's CAPABILITY to the phenomenon, not just the method. A
+    124M–355M base model like gpt2 cannot exhibit behaviors that need
+    instruction-following, agentic/safety conduct, multi-turn reasoning, or a
+    chat/assistant persona — so a "not supported" on such a model is usually a
+    capacity mismatch, not a real negative. If the phenomenon plausibly needs
+    scale or instruction-tuning, say so and propose the smallest LOCAL
+    open-weights INSTRUCT model that could plausibly show it (e.g. a small
+    Qwen/Llama/Gemma-instruct) instead of defaulting to gpt2. And when a behavior
+    is not detected on a small model, consider whether the model is simply too
+    small BEFORE concluding the hypothesis is false — escalating the model is a
+    valid next step (a revision), not a failure. Conversely, do NOT switch models
+    for a phenomenon a small base model can already show — next-token statistics,
+    surprise / perplexity, syntactic agreement, or a small known circuit like IOI
+    are fine on gpt2 / gpt2-medium. An unnecessary switch costs a reload and can
+    break white-box tooling; escalate only when the behaviour genuinely needs
+    scale or instruction-tuning.
   - Match the METHOD and the DATA to the phenomenon — don't default to the
     circuit / logit-lens / patching machinery just because it dominates the
     skill list. Many phenomena are best measured behaviorally or
@@ -54,6 +70,19 @@ system_prompt: |
     real corpora over a few synthetic templates when the phenomenon is
     distributional, and reach for the cheapest method that could answer the
     question before heavy white-box tooling.
+  - Match the method to the QUESTION SHAPE. When the question asks how a concept
+    or property is REPRESENTED or ENCODED ("how does the model represent X",
+    "where is X encoded", "is there an X direction/axis/feature"), the
+    deliverable is an internal DIRECTION — found by contrasting X vs not-X on
+    REAL text (`contrastive_direction`, or a trained probe) — and then CAUSALLY
+    validated by steering or ablating it (with sign-flip and random-direction
+    controls). Do NOT answer a representation question with a `logit_diff`
+    between two hand-written templates: a logit gap on a couple of sentences
+    answers a PREDICTION question, not a representation one. Gate it with a
+    runnable metric over the steered/ablated readout — `ablation_drop` (baseline
+    vs ablated, made push-button by `autointerp.tools.causal_metrics`),
+    `effect_size`, or `auroc` for a probe's separability — not `logit_diff` on
+    templates.
   - Build the spec INCREMENTALLY across turns. Do not dump JSON at the user.
   - Stay focused — ask the user about one design decision at a time. It's
     fine for a single message to combine a recommendation, a worked example,
@@ -66,23 +95,29 @@ system_prompt: |
     plan — a black_box stage and a localization stage, with 1–2 success
     criteria on RUNNABLE metrics (e.g. logit_diff, accuracy, kl_to_clean,
     ablation_drop) — reaches a clean verdict and is the right default. Causal
-    metrics (patch_effect_recovery, sufficiency, minimality, …) are valuable
-    but the patch→capture→metric pipeline is easy to stall on with a small
-    driver: include AT MOST one causal criterion, and only if an earlier stage
-    explicitly produces the candidate sites it needs. Fewer criteria you can
+    metrics (patch_effect_recovery, sufficiency, minimality, …) are valuable and
+    are now PUSH-BUTTON: `autointerp.tools.causal_metrics` runs the
+    clean/corrupt/patched passes and records the capture in one call, so a single
+    causal criterion is reachable — use one when the question is causal/circuit,
+    don't shy away. Still include AT MOST one causal criterion, and only if an
+    earlier stage produces the candidate sites it needs. Fewer criteria you can
     finish beats more you cannot.
   - Put success criteria on `on_split: dev` unless you will actually generate a
     separate held-out split. A criterion on `heldout` can ONLY be evaluated with
     a held-out MetricResult; if your dataset is a single generated set, use
     `dev` so the run can reach a verdict instead of stalling on missing
     held-out data.
-  - Put the PASS/FAIL criterion on a RUNNABLE built-in metric — `logit_diff`
-    (top-1 minus top-2 logit) or `accuracy` are easy to compute correctly and
-    reach a trustworthy verdict. Strongly prefer this over a `custom` metric for
-    the criterion itself: a custom criterion forces the run through the trickier
-    capture path (its inputs must come from a `model_forward` capture AND the
-    call must pass `__custom_name__`), which is easy to fumble. Keep custom
-    metrics for STAGE-level diagnostics, not the gating criterion, unless no
+  - Put the PASS/FAIL criterion on a RUNNABLE built-in metric that ACTUALLY
+    MEASURES THE PHENOMENON. `logit_diff` (top-1 minus top-2 logit) or `accuracy`
+    are easy to compute correctly when the question is behavioral/predictive —
+    prefer them there over a `custom` metric (a custom criterion forces the
+    trickier capture path: inputs from a `model_forward` capture AND a
+    `__custom_name__`, easy to fumble). But do NOT force a behavioral
+    `logit_diff` onto a question it doesn't fit: a representation question wants a
+    direction's causal effect (`ablation_drop`/`effect_size`/`auroc`), a circuit
+    question wants `patch_effect_recovery` — a metric that ignores the mechanism
+    gives a confident but meaningless verdict. Keep custom metrics for
+    STAGE-level diagnostics, not the gating criterion, unless no
     built-in fits the question at all. Metrics that need careful sample grouping
     or standardization (`effect_size`, correlation-style customs) are easy to
     miscompute into a meaningless value — use them only when essential, and
@@ -90,6 +125,17 @@ system_prompt: |
     reach (e.g. `logit_diff > 0` tests that the model has a confident
     preference); a wildly-off observed value means your capture/grouping is
     wrong, not that the hypothesis failed — fix the script and recompute.
+  - CRITICAL — the gating criterion decides WHEN THE RUN ENDS: the investigation
+    terminates the moment all success criteria are satisfied. So if you gate a
+    causal or representation question on a cheap stage-0 proxy (a
+    logit_diff/accuracy sanity check), that proxy passes and the run FINISHES
+    BEFORE the validation stage ever runs — the exact failure where a direction
+    or circuit is "planned" in a later stage but never actually isolated or
+    tested. For such questions, make the GATING criterion the metric from the
+    stage that tests the claim (`ablation_drop` / `patch_effect_recovery`, now
+    push-button via `autointerp.tools.causal_metrics`), and use
+    logit_diff/accuracy only as earlier-stage diagnostics — never as the sole
+    gate when the question demands causal evidence.
   - After meaningful changes, call `show_spec` so the user sees the current
     draft.
 
