@@ -99,3 +99,42 @@ def test_bash_handles_empty_and_bad_work_dir() -> None:
     # A non-existent directory is reported, not crashed on.
     out, ok = asyncio.run(handler({"command": "echo hi", "work_dir": "/no/such/dir"}))
     assert not ok and "not a directory" in out
+
+
+def test_bash_rejects_mangled_heredoc() -> None:
+    """The exact field failure: a heredoc with literal '\\n' instead of real
+    newlines. Caught with an actionable message, not run as broken bash."""
+    import asyncio
+
+    from autointerp_agent.tools import _bash_handler
+
+    handler = _bash_handler(None)
+    bad = 'python - <<"PY"\\nimport os\\nprint(1)\\nPY'  # literal backslash-n
+    out, ok = asyncio.run(handler({"command": bad}))
+    assert ok is False
+    assert "literal" in out.lower() and "write_file" in out
+    assert "spec revision" in out.lower()  # tells it this is NOT a spec problem
+
+    # A real heredoc (actual newlines) is not tripped by the guard.
+    out2, ok2 = asyncio.run(handler({"command": "cat <<EOF\nhi\nEOF"}))
+    assert ok2 is True and "hi" in out2
+
+
+def test_bash_runs_inside_run_dir_not_repo(tmp_path) -> None:
+    """During an investigation, the agent's relative bash writes must land in
+    the run dir (runs/<id>/), not pollute the repo's own scripts/ dir."""
+    import asyncio
+    import types
+
+    from autointerp_agent.tools import _bash_handler
+
+    run_dir = tmp_path / "runs" / "r1"
+    run_dir.mkdir(parents=True)
+    router = types.SimpleNamespace(run_dir=run_dir, scratch_dir=run_dir / "scratch")
+    handler = _bash_handler(router)
+    out, ok = asyncio.run(handler(
+        {"command": "mkdir -p scripts && echo hi > scripts/x.txt && pwd"}
+    ))
+    assert ok, out
+    assert (run_dir / "scripts" / "x.txt").read_text().strip() == "hi"
+    assert str(run_dir.resolve()) in out  # pwd is the run dir

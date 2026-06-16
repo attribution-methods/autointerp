@@ -57,9 +57,13 @@ def build_parser() -> argparse.ArgumentParser:
         "-c",
         "--continue",
         dest="continue_session",
-        action="store_true",
-        help="Pick a previous session in this project and resume it "
-             "(conversation, draft plan, turns, and cost are restored)",
+        nargs="?",
+        const="__PICK__",  # `--continue` alone → interactive picker
+        default=None,       # flag absent
+        metavar="SESSION_ID",
+        help="Resume a previous session (conversation, draft plan, turns, and "
+             "cost restored): `--continue <id>` resumes that session directly, "
+             "or `--continue` alone to pick one from a list.",
     )
     return parser
 
@@ -117,7 +121,16 @@ async def async_main(argv: list[str] | None = None) -> int | str:
 
         session_store = SessionStore()
         if args.continue_session and sys.stdin.isatty():
-            resume_payload = await pick_session(session_store, console)
+            if args.continue_session == "__PICK__":
+                resume_payload = await pick_session(session_store, console)
+            else:
+                resume_payload = session_store.load(args.continue_session)
+                if resume_payload is None:
+                    console.print(
+                        f"[yellow]No session '{args.continue_session}' in this "
+                        f"project — starting fresh. (`autointerp --continue` lists "
+                        f"sessions.)[/yellow]"
+                    )
 
     context = ContextManager(
         skill_registry=registry,

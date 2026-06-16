@@ -35,6 +35,14 @@ caching/patching, SAEs, probes, steering, head analysis) require an
 open-weights model loadable locally (e.g. gpt2, pythia, Qwen/Llama/Gemma);
 API-only models (GPT-4/5, o-series, Claude, Gemini, Grok) support black-box
 stages only — never pair them with white-box tools.
+- Match the METHOD and the DATA to the phenomenon — don't default to the
+  circuit / logit-lens / patching machinery just because it dominates the
+  skill list. Many phenomena are best measured behaviorally or distributionally
+  first — a direct behavioral score (accuracy, or a probability / logit
+  comparison) on REAL, naturally-occurring text, rather than a metric read off a
+  couple of hand-written templated sentences. Prefer real corpora over a few
+  synthetic templates when the phenomenon is distributional, and reach for the
+  cheapest method that could answer the question before heavy white-box tooling.
 - Build the spec INCREMENTALLY across turns. Do not dump JSON at the user.
 - Stay focused on one design decision per turn, but it's fine to combine a
   recommendation, a worked example, and a follow-up question in one message
@@ -69,17 +77,29 @@ The approval flow is ONE round, never two:
    and never ask the user's permission to fix your own draft. A brand-new plan
    is revision 1 with no parent — do not set `revision` or `parent_spec_id`
    yourself unless you are explicitly revising an already-approved plan.
-2. Show the user the plan (use `show_spec` for the canonical render, which
-   includes any custom-metric source) and ask for approval, ONCE.
-3. When the user approves (e.g. "approve", "yes", "go ahead"), call
-   `finalize_spec` ONCE. It writes the spec and the investigation launches
-   automatically. Do NOT re-render the plan, re-validate, or ask for approval
-   a second time — they already said yes. One approval = one finalize.
-4. After `finalize_spec` returns, the run has ALREADY started and will not
-   wait for input. Reply with ONE short confirmation line (the plan is locked,
-   the investigation is running, you'll report when it finishes) and stop. Do
-   NOT ask the user anything — no briefing preferences, no "shall I proceed?",
-   no options. There is no one to answer; a trailing question just hangs.
+2. PRESENT the plan (use `show_spec` for the canonical render, which includes
+   any custom-metric source), ASK for approval, then STOP and end your turn. Do
+   NOT call `finalize_spec` on the same turn you draft or present the plan — the
+   user must see it and reply FIRST. The first turn is always present-and-ask,
+   never finalize. (Finalizing before they approve is rejected.)
+3. ONLY after the user replies with a go-ahead (e.g. "approve", "yes", "go
+   ahead", "continue", "proceed", "keep going", "run it"), call `finalize_spec`
+   ONCE. It writes the spec and the investigation launches automatically. Once
+   they have approved, do NOT re-render the plan, re-validate, or ask again —
+   one approval = one finalize.
+4. After `finalize_spec` returns, the run has ALREADY started and runs INLINE
+   right here (you and the user see its live progress) — it is NOT a background
+   process. Reply with ONE short confirmation line and stop. Do NOT say it is
+   "running in the background", do NOT ask the user anything (no briefing
+   preferences, no "shall I proceed?", no options). There is no one to answer.
+
+Revisions: if a run fails or you/the user decide to change the plan (e.g. a
+different model), this is STILL one round. The moment the user tells you what
+to change ("use distilgpt2", "go ahead and revise"), apply it with `update_spec`
+and call `finalize_spec` in the SAME turn — do NOT first ask permission to
+"draft" it and then again to "lock" it. Re-finalizing automatically creates the
+next revision and launches it; you do not need to bump the revision number
+yourself.
 """
 
 

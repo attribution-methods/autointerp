@@ -24,7 +24,20 @@ from .skills import SkillRegistry
 ToolHandler = Callable[[dict[str, Any]], Awaitable[tuple[str, bool]]]
 
 MAX_OUTPUT_CHARS = 25_000
-DEFAULT_TIMEOUT = 120
+# Two layered limits guard each bash call (see _run_bash_watched):
+#   * the STALL watchdog (DEFAULT_STALL_SECONDS, no-output detector) is the real
+#     "is this hung?" check — it kills a process that goes silent, while letting
+#     long-but-progressing work (a model load streaming a progress bar, a forward
+#     sweep, a metric over a dataset) keep running.
+#   * this hard TIMEOUT is only a last-resort backstop so a wedged process
+#     (deadlocked, blocked on stdin) can't pin the autonomous loop forever.
+# It must sit comfortably ABOVE real GPU work. The old 120s default was below the
+# *floor* cost of one model load on this box (import torch+transformers + CUDA
+# init alone is ~130s), so every model-loading bash was killed mid-load and the
+# agent misread the kill as "can't load the model / no hardware". 30 min covers a
+# cold load + a real forward sweep + metric; genuinely long jobs (training) pass
+# an explicit `timeout` up to MAX_TIMEOUT, or stream to the heartbeat log.
+DEFAULT_TIMEOUT = 1_800
 MAX_TIMEOUT = 36_000
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\x1b\].*?\x07")
 _files_read: set[str] = set()
@@ -198,19 +211,51 @@ DEFAULT_STALL_SECONDS = 600  # kill on no-output stall (10 min). Stalled
 def _bash_handler(router: "ToolRouter | None") -> ToolHandler:
     async def handler(args: dict[str, Any]) -> tuple[str, bool]:
         command = str(args.get("command", ""))
-        # An empty/blank work_dir (a common malformed arg) makes Popen raise
-        # FileNotFoundError on cwd="" — normalize to "." and reject a path
-        # that isn't a real directory rather than crashing.
-        work_dir = (str(args.get("work_dir") or ".")).strip() or "."
+        run_dir = router.run_dir if router is not None else None
+        # During an investigation, run the agent's bash INSIDE the run dir so its
+        # relative writes (`scripts/`, `scratch/`, …) stay in runs/<id>/ instead
+        # of polluting the repo's own scripts/ dir. A relative work_dir resolves
+        # under the run dir; an absolute one is honored. (An empty/blank work_dir
+        # would make Popen raise FileNotFoundError on cwd="" — normalized here.)
+        raw_wd = str(args.get("work_dir") or "").strip()
+        if run_dir is not None:
+            base = Path(run_dir)
+            if not raw_wd or raw_wd == ".":
+                work_dir = str(base)
+            elif Path(raw_wd).is_absolute():
+                work_dir = raw_wd
+            else:
+                work_dir = str(base / raw_wd)
+        else:
+            work_dir = raw_wd or "."
         timeout = min(int(args.get("timeout") or DEFAULT_TIMEOUT), MAX_TIMEOUT)
         stall_seconds = int(args.get("stall_seconds") or DEFAULT_STALL_SECONDS)
         if not command:
             return "No command provided.", False
         if not Path(work_dir).is_dir():
             return f"work_dir is not a directory: {work_dir!r}", False
+        # Weak models often emit a heredoc with literal "\n" instead of real
+        # newlines (`python - <<"PY"\nimport ...`), which bash mangles into a
+        # broken delimiter / Python SyntaxError. Catch it with an actionable
+        # message rather than a cryptic bash error the agent tends to misread as
+        # an environment or model fault.
+        if "<<" in command and "\\n" in command:
+            return (
+                "This command is a heredoc containing the literal characters "
+                "'\\n' instead of real newlines, so bash/Python cannot parse it. "
+                "This is a command-formatting bug — NOT an environment, GPU, or "
+                "model problem, and NOT a reason to change the model or request a "
+                "spec revision. Do not use `python - <<HEREDOC`. Instead write the "
+                "script to a file (write_file handles multi-line content), then "
+                "run it:\n"
+                "  write_file(path='scripts/step.py', content='<full python>')\n"
+                "  bash(command='python scripts/step.py')",
+                False,
+            )
         scratch_dir = router.scratch_dir if router is not None else None
         return await asyncio.to_thread(
-            _run_bash_watched, command, work_dir, timeout, stall_seconds, scratch_dir
+            _run_bash_watched, command, work_dir, timeout, stall_seconds,
+            scratch_dir, run_dir,
         )
 
     return handler
@@ -222,6 +267,7 @@ def _run_bash_watched(
     timeout: int,
     stall_seconds: int,
     scratch_dir: Path | None,
+    run_dir: Path | None = None,
 ) -> tuple[str, bool]:
     """Run a bash command with both a hard timeout and a stall watchdog.
 
@@ -238,12 +284,32 @@ def _run_bash_watched(
     deadline = start + timeout
     last_output_at = start
 
+    # Expose the run dir so the agent's scripts can record metric-input captures
+    # (autointerp.tools.provenance.record_capture). Also put autointerp's `src`
+    # on PYTHONPATH so `import autointerp` works even though the agent's cwd is
+    # now the run dir (and even if the package isn't pip-installed).
+    env = None
+    if run_dir is not None:
+        try:
+            import autointerp
+            src_dir = str(Path(autointerp.__file__).resolve().parents[1])
+        except Exception:  # noqa: BLE001
+            src_dir = str(Path.cwd() / "src")
+        env = {
+            **os.environ,
+            "AUTOINTERP_RUN_DIR": str(Path(run_dir).resolve()),
+            "PYTHONPATH": os.pathsep.join(
+                p for p in (src_dir, os.environ.get("PYTHONPATH", "")) if p
+            ),
+        }
+
     proc = subprocess.Popen(
         command,
         shell=True,
         cwd=work_dir,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        env=env,
     )
 
     heartbeat_path: Path | None = None

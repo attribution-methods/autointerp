@@ -121,15 +121,40 @@ def _print_run_header(console: Console, spec: InvestigationSpec, handle: RunHand
     )
 
 
+def _grounding_warning(report_path: Path | None) -> str | None:
+    """The report's "no model execution detected" flag, if set — surfaced so a
+    fabricated run never reads as a clean success."""
+    if report_path is None or not report_path.exists():
+        return None
+    import json
+    try:
+        report = json.loads(report_path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+    return report.get("metadata", {}).get("grounding_warning")
+
+
 def _print_run_summary(
     console: Console, handle: RunHandle, state: RunState, reason: str,
     report_path: Path | None, *, spec_arg: str,
 ) -> None:
+    if (state.terminal_state is not None
+            and state.terminal_state.value == "revision_requested"):
+        # Owned by _render_inline_results, which shows a plain-language,
+        # actionable panel instead of a misleading "finished" one.
+        return
     if reason == "terminal" and state.terminal_state is not None:
         ts = state.terminal_state.value
+        grounding = _grounding_warning(report_path)
         color = {"completed": "green", "criterion_failed": "red"}.get(ts, "yellow")
+        title = "investigation finished"
         passed, total = _criteria_tally(state)
         lines = [Text.from_markup(f"[bold {color}]{ts.replace('_', ' ')}[/bold {color}]")]
+        if grounding:
+            # A "completed" run that never ran the model is not a success.
+            color = "red"
+            title = "investigation finished — results UNVERIFIED"
+            lines.append(Text.from_markup(f"[bold red]⚠ {grounding}[/bold red]"))
         if total:
             lines.append(Text.from_markup(f"[dim]criteria[/dim] {passed}/{total} passed"))
         if report_path is not None:
@@ -139,7 +164,7 @@ def _print_run_summary(
         )
         console.print(
             Panel(Group(*lines), box=rich_box.ROUNDED, border_style=color,
-                  title="investigation finished", title_align="left", padding=(0, 1))
+                  title=title, title_align="left", padding=(0, 1))
         )
         return
     why = {
@@ -171,6 +196,7 @@ def _render_inline_results(console: Console, handle: RunHandle, state: RunState)
     report_path = handle.root / "report.json"
     crits: dict = {}
     claims: list = []
+    grounding: str | None = None
     if report_path.exists():
         try:
             report = json.loads(report_path.read_text())
@@ -178,6 +204,40 @@ def _render_inline_results(console: Console, handle: RunHandle, state: RunState)
             report = {}
         crits = report.get("metadata", {}).get("criteria_evaluated", {}) or {}
         claims = report.get("claims", []) or []
+        grounding = report.get("metadata", {}).get("grounding_warning")
+
+    # A loud warning ABOVE the verdicts, so passing checkmarks computed on
+    # fabricated inputs can never read as a real result.
+    if grounding:
+        console.print(Panel(
+            Text.from_markup(f"[bold red]⚠ {grounding}[/bold red]"),
+            box=rich_box.ROUNDED, border_style="red",
+            title="results not trustworthy", title_align="left", padding=(0, 1),
+        ))
+
+    # What the run set out to test (from the frozen spec) — so the verdicts
+    # below read as evidence about a hypothesis, not bare numbers.
+    question = hypothesis = ""
+    registered_total = 0  # pre-registered criteria count — the honest denominator
+    spec_path = handle.root / "spec.json"
+    if spec_path.exists():
+        try:
+            sp = json.loads(spec_path.read_text())
+            question = str(sp.get("question") or "").strip()
+            hypothesis = str(sp.get("hypothesis") or "").strip()
+            registered_total = len(sp.get("success_criteria") or [])
+        except (json.JSONDecodeError, OSError):
+            pass
+    if crits and (question or hypothesis):
+        body = []
+        if question:
+            body.append(Text.from_markup(f"[dim]question  [/dim] {question}"))
+        if hypothesis:
+            body.append(Text.from_markup(f"[dim]hypothesis[/dim] {hypothesis}"))
+        console.print(Panel(
+            Group(*body), box=rich_box.ROUNDED, border_style="dim",
+            title="what we set out to test", title_align="left", padding=(0, 1),
+        ))
 
     if crits:
         table = Table(
@@ -201,16 +261,87 @@ def _render_inline_results(console: Console, handle: RunHandle, state: RunState)
             )
         console.print(table)
 
-    if claims:
+    # Bottom line: tie the verdicts back to the hypothesis in plain words.
+    passed = sum(1 for c in crits.values() if c.get("verdict") == "pass")
+    evaluated = len(crits)
+    # The denominator is what was PRE-REGISTERED, not just what got evaluated —
+    # otherwise a run that tested 1 of 3 criteria and paused reads as "1/1 passed
+    # → SUPPORTED", overclaiming a hypothesis whose causal half was never tested.
+    total = max(registered_total, evaluated)
+    ts = getattr(state.terminal_state, "value", state.terminal_state)
+    # These states stop a run BEFORE its pre-registered criteria are all tested,
+    # so a partial pass tally must NOT read as a final verdict (the user's run
+    # paused for a revision after 1 of 3 criteria, yet reported "SUPPORTED").
+    # 'completed' and 'criterion_failed' are definitive; None is only the
+    # mid-flight case exercised in tests.
+    incomplete = ts in {"revision_requested", "aborted", "budget_exhausted"}
+    if grounding:
+        console.print(
+            "[bold red]Bottom line:[/bold red] the model was never actually run, so "
+            "these criteria are [bold]not evidence[/bold] about the hypothesis — it was "
+            "neither confirmed nor refuted. Re-run so the metrics come from a real "
+            "model to actually test it."
+        )
+    elif incomplete and total:
+        where = (
+            "paused for a plan revision" if ts == "revision_requested"
+            else "did not finish"
+        )
+        tested = (
+            f"{passed} of {evaluated} passed so far" if evaluated
+            else "none were tested"
+        )
+        console.print(
+            f"[bold yellow]Bottom line:[/bold yellow] the run is [bold]INCOMPLETE[/bold] "
+            f"— only {evaluated} of {total} pre-registered criteria were tested "
+            f"({tested}), then it {where}. The hypothesis is [bold]not yet fully "
+            f"tested[/bold]; the remaining criteria still need to run before any "
+            f"verdict holds."
+        )
+    elif total:
+        if passed == total:
+            verdict = "[green]SUPPORTED[/green] by the pre-registered criteria"
+        elif passed == 0:
+            verdict = "[red]NOT supported[/red] by the pre-registered criteria"
+        else:
+            verdict = "[yellow]PARTIALLY supported[/yellow] by the pre-registered criteria"
+        console.print(
+            f"[bold]Bottom line:[/bold] {passed}/{total} criteria passed — "
+            f"the hypothesis is {verdict}. (The agent's message above explains what "
+            f"this means and how the evidence was obtained.)"
+        )
+
+    # Findings — but never present passing claims as real when the run wasn't
+    # grounded; the verdicts there were computed on data the model never produced.
+    if claims and not grounding:
         console.print("[bold]Findings[/bold]")
         for claim in claims:
             console.print(f"  • {claim}")
+    elif claims and grounding:
+        console.print(
+            "[dim]Per-criterion claims are withheld here — the run was not grounded, "
+            "so they are not findings.[/dim]"
+        )
 
     req = getattr(state, "spec_revision_requested", None)
     if req is not None:
-        reason = getattr(req, "reason", None)
+        reason = (getattr(req, "reason", None) or "").strip()
+        lines = [Text.from_markup(
+            "[yellow]The agent paused and asked to change the plan[/yellow] "
+            "before finishing the investigation."
+        )]
         if reason:
-            console.print(f"[yellow]Revision requested:[/yellow] {reason}")
+            lines.append(Text.from_markup(f"[dim]why:[/dim] {reason}"))
+        lines.append(Text.from_markup(
+            "[bold]What you can do[/bold] — just reply in the chat:\n"
+            "  • say how to adjust the plan (e.g. \"use a simpler metric\", or "
+            "\"go ahead, revise it and re-run\") and we'll re-plan and retry;\n"
+            "  • or ask why it stopped, or start a different investigation."
+        ))
+        console.print(Panel(
+            Group(*lines), box=rich_box.ROUNDED, border_style="yellow",
+            title="plan change requested", title_align="left", padding=(0, 1),
+        ))
 
 
 def build_parser() -> argparse.ArgumentParser:

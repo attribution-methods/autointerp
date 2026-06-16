@@ -52,6 +52,7 @@ from .sessions import (
     snapshot_draft,
 )
 from .skills import SkillRegistry
+from .stage0_tools import set_approval_gate, set_user_approved
 
 # ---------------------------------------------------------------------------
 # Per-user state (~/.autointerp/)
@@ -554,8 +555,31 @@ def _humanize_field(key: str) -> str:
     return str(key).replace("_", " ")
 
 
+def _display_path(run_dir: Any, path: Any) -> str:
+    """Render a tool's file path as its REAL location. During an investigation
+    the agent's relative paths resolve inside the run dir, so `scripts/x.py` is
+    shown as `runs/<id>/scripts/x.py` — never confused with the repo's own
+    scripts/."""
+    p = str(path or "?")
+    if not run_dir or Path(p).is_absolute():
+        return p
+    full = Path(run_dir) / p
+    try:
+        return full.relative_to(Path.cwd()).as_posix()
+    except ValueError:
+        return full.as_posix()
+
+
+def _one_line_cmd(command: str) -> str:
+    """Render a multi-line bash script as one legible line: distinct commands
+    joined with ' ; ' rather than flattened into a run-on (newline→space made
+    `ls -la\\nls dir` read as the single bogus command `ls -la ls dir`)."""
+    return " ; ".join(ln.strip() for ln in command.splitlines() if ln.strip())
+
+
 def _format_tool_event(
-    name: str, args: dict[str, Any], ok: bool, output: str = ""
+    name: str, args: dict[str, Any], ok: bool, output: str = "",
+    run_dir: Any = None,
 ) -> str | None:
     """One human line per tool call, or None to suppress.
 
@@ -589,13 +613,13 @@ def _format_tool_event(
     if name == "bash":
         return (
             f"  [green]✓[/green] [bold]bash[/bold]"
-            f"[dim] · {_trunc(str(args.get('command') or ''), 70)}[/dim]"
+            f"[dim] · {_trunc(_one_line_cmd(str(args.get('command') or '')), 70)}[/dim]"
         )
     if name in ("write_file", "edit_file"):
         verb = "wrote" if name == "write_file" else "edited"
         return (
             f"  [green]✓[/green] [bold]{verb}[/bold]"
-            f"[dim] · {args.get('path', '?')}[/dim]"
+            f"[dim] · {_display_path(run_dir, args.get('path'))}[/dim]"
         )
     if name == "plan":
         return "  [green]✓[/green] [bold]updated plan[/bold]"
@@ -603,7 +627,8 @@ def _format_tool_event(
         metric = args.get("metric") or args.get("name") or "metric"
         return f"  [green]✓[/green] [bold]computed {metric}[/bold]"
     if name == "commit_artifact":
-        return f"  [green]✓[/green] [bold]committed {args.get('kind', 'artifact')}[/bold]"
+        kind = str(args.get("kind", "artifact"))
+        return f"  [green]✓[/green] [bold]committed {_HUMANIZE.get(kind, kind)}[/bold]"
     if name == "evaluate_criterion":
         return (
             f"  [green]✓[/green] [bold]evaluated criterion[/bold]"
@@ -638,9 +663,10 @@ class ReplObserver:
     updating only at iteration boundaries would freeze the elapsed timer).
     """
 
-    def __init__(self, console: Console, status: Any) -> None:
+    def __init__(self, console: Console, status: Any, run_dir: Any = None) -> None:
         self.console = console
         self.status = status
+        self.run_dir = run_dir
         self.iteration = 0
         self._t0 = time.monotonic()
         # Transient tool failures the agent may still recover from. Held back
@@ -708,7 +734,7 @@ class ReplObserver:
         output: str,
         ok: bool,
     ) -> None:
-        line = _format_tool_event(name, args, ok, output)
+        line = _format_tool_event(name, args, ok, output, run_dir=self.run_dir)
         if ok:
             # Any success means the agent worked past its transient failures.
             # Drop them (the spinner already showed "self-correcting").
@@ -964,6 +990,18 @@ class BoxedInput:
                 event.app.exit(exception=EOFError())
             else:
                 ui.ctrl_c_armed_at = now
+                # The first press is otherwise silent — tell the user how to
+                # actually leave. Guarded so it can never break the key binding.
+                try:
+                    from prompt_toolkit.application import run_in_terminal
+
+                    run_in_terminal(
+                        lambda: ui.console.print(
+                            "[dim](press Ctrl-C again or Ctrl-D to exit)[/dim]"
+                        )
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
 
         @kb.add("c-d", filter=Condition(lambda: not buffer.text))
         def _eof(event) -> None:
@@ -1190,16 +1228,19 @@ def _replay_transcript(console: Console, messages: list[dict[str, Any]]) -> None
     console.rule("[dim]session restored — continue below[/dim]", style="bright_black")
 
 
-def _persist_session(ui: SessionUI) -> None:
-    """Write the session after each turn. Persistence never crashes the shell."""
-    if ui.session_store is None or ui.session_id is None or ui.turn == 0:
+def _persist_session(ui: SessionUI, force: bool = False) -> None:
+    """Write the session after each turn. Persistence never crashes the shell.
+
+    ``force`` saves even at turn 0 (used on exit) so the resume command shown on
+    the way out always resolves to a loadable session."""
+    if ui.session_store is None or ui.session_id is None or (ui.turn == 0 and not force):
         return
-    title = next(
-        (m.get("content") for m in ui.context.messages
-         if m.get("role") == "user" and isinstance(m.get("content"), str)),
-        "(untitled)",
-    )
     try:
+        title = next(
+            (m.get("content") for m in ui.context.messages
+             if m.get("role") == "user" and isinstance(m.get("content"), str)),
+            "(untitled)",
+        )
         ui.session_store.save(
             ui.session_id,
             model_name=ui.config.model_name,
@@ -1258,6 +1299,83 @@ def _highlight_identifiers(markdown_text: str) -> str:
     return "".join(out)
 
 
+# Internal CamelCase schema/type names the planner sometimes leaks as nouns in
+# prose. We translate them to plain language deterministically — a backstop to
+# the plain-language retry, which can't catch identifier-ish names the model
+# *invents* (the user's "InvestigationPlan" is not even a real schema name).
+# Only prose is rewritten; genuine code spans/fences are left intact.
+_HUMANIZE = {
+    "InvestigationSpec": "investigation plan",
+    "PartialSpec": "draft plan",
+    "InvestigationStage": "stage",
+    "StageSpec": "stage",
+    "BehaviorSpec": "behavior",
+    "ModelRef": "model",
+    "DatasetSpec": "dataset",
+    "ContrastSpec": "contrast set",
+    "CustomMetricDef": "custom metric",
+    "SuccessCriterion": "success criterion",
+    "Criterion": "success criterion",
+    "PromptBatch": "prompt batch",
+    "ActivationCacheRef": "activation cache",
+    # typed-artifact names the planner leaks when narrating Stage-2/3 work
+    "InterventionResult": "intervention result",
+    "MetricResult": "metric result",
+    "ValidationResult": "validation result",
+    "GenerationSample": "generation sample",
+    "FeatureFinding": "feature finding",
+    "BehavioralFinding": "behavioral finding",
+    "CandidateSite": "candidate site",
+}
+# Distinctive terms are COLORED like the underscored identifiers (rendered as
+# inline code, which the session theme paints accent-cyan). Everyday single
+# words are humanized but left plain — coloring only the schema-derived
+# instances of "model"/"stage" would clash with the same word used plainly.
+_HUMANIZE_PLAIN = {"model", "dataset", "stage", "behavior", "success criterion"}
+
+# A SINGLE pass catches every form the planner leaks "investigation plan" /
+# typed-schema names in, so a replacement is never re-scanned (no double-wrap):
+#   - ident:  exact CamelCase identifiers from the map (InterventionResult, …)
+#   - camel:  any Investigation<Capital…> token, incl. invented "InvestigationPlan"
+#   - phrase: the spaced/Title/lower phrase "Investigation Plan" / "investigation
+#             plan" (the form a real run leaked — Investigation[A-Z]\w* missed it
+#             because of the space). The capital-or-space guards keep the plain
+#             word "Investigations" from ever matching.
+_LEAK_RE = re.compile(
+    r"\b(?P<ident>" + "|".join(map(re.escape, _HUMANIZE)) + r")\b"
+    r"|\b(?P<camel>Investigation[A-Z]\w*)\b"
+    r"|\b(?P<phrase>(?i:investigation[ \t-]+plan))\b"
+)
+
+
+def _humanized(phrase: str) -> str:
+    return phrase if phrase in _HUMANIZE_PLAIN else f"`{phrase}`"
+
+
+def _leak_sub(m: "re.Match[str]") -> str:
+    ident = m.group("ident")
+    if ident is not None:
+        return _humanized(_HUMANIZE[ident])
+    return "`investigation plan`"  # camel/phrase → the colored canonical term
+
+
+def _humanize_segment(prose: str) -> str:
+    return _LEAK_RE.sub(_leak_sub, prose)
+
+
+def _humanize_identifiers(markdown_text: str) -> str:
+    """Replace internal schema/type identifiers with plain language in PROSE,
+    leaving code spans/fences untouched so genuine ``code`` references survive."""
+    out: list[str] = []
+    last = 0
+    for region in _CODE_REGION.finditer(markdown_text):
+        out.append(_humanize_segment(markdown_text[last:region.start()]))
+        out.append(region.group(0))
+        last = region.end()
+    out.append(_humanize_segment(markdown_text[last:]))
+    return "".join(out)
+
+
 def render_answer(console: Console, answer: str) -> None:
     # Markdown pulls in markdown_it (~0.5s on network filesystems) — defer
     # it past startup; the first call lands after an LLM round-trip anyway.
@@ -1266,7 +1384,7 @@ def render_answer(console: Console, answer: str) -> None:
 
     console.print()
     console.print("[bold cyan]⏺ autointerp[/bold cyan]")
-    md = Markdown(_highlight_identifiers(answer or "*(no answer)*"))
+    md = Markdown(_highlight_identifiers(_humanize_identifiers(answer or "*(no answer)*")))
     # Colour inline code (now incl. the highlighted identifiers) in the
     # session's cyan accent, without disturbing fenced-block syntax colours.
     with console.use_theme(Theme({"markdown.code": "cyan"})):
@@ -1283,6 +1401,100 @@ def _snapshot_specs(spec_dir: Path) -> set[Path]:
     if not spec_dir.exists():
         return set()
     return {p for p in spec_dir.glob("*_rev*.json") if not p.name.startswith("_")}
+
+
+_APPROVAL_RE = re.compile(
+    r"^(?:i\s+)?(?:approve|approved|yes|yep|yeah|ok|okay|sure|"
+    r"go(?:\s+ahead|\s+on|\s+for\s+it)?|continue|keep\s+going|proceed|"
+    r"lock\s+it(?:\s+in)?|do\s+it|finali[sz]e|run\s+it|launch(?:\s+it)?|"
+    r"ship\s+it|let'?s\s+go|sounds?\s+good|lgtm|confirm(?:ed)?|looks?\s+good)\b",
+    re.IGNORECASE,
+)
+_NEGATION_RE = re.compile(r"\b(but|however|except|instead|change|don'?t|not|wait)\b", re.I)
+# An unambiguous approval PHRASE anywhere in a longer message — so answering the
+# agent's questions and approving in one breath ("I want a local model … I
+# approve otherwise.") still counts. Kept explicit so it won't fire on chatter.
+_APPROVAL_PHRASE = re.compile(
+    r"\b(i\s+approve|approved|go\s+ahead|looks?\s+good|lgtm|sounds?\s+good|"
+    r"ship\s+it|i'?m\s+good\s+with\s+(?:it|this|that))\b",
+    re.IGNORECASE,
+)
+
+
+def _print_resume_hint(console: Console, ui: "SessionUI") -> None:
+    """On exit, print the exact command to resume THIS session (Codex/CC style)."""
+    sid = getattr(ui, "session_id", None)
+    if getattr(ui, "session_store", None) is None or not sid:
+        return
+    _persist_session(ui, force=True)  # ensure `--continue <id>` resolves on exit
+    # highlight=False stops rich's auto-highlighter from tinting only the DIGIT
+    # runs of the id cyan (leaving the hex suffix + dashes white) — the whole
+    # command renders in one uniform accent colour instead.
+    console.print(
+        f"[dim]Resume this session with[/dim] "
+        f"[bold cyan]autointerp --continue {sid}[/bold cyan]",
+        highlight=False,
+    )
+
+
+def _looks_like_approval(text: str) -> bool:
+    """A clean approval — a short 'Approve'/'yes go ahead', OR an explicit
+    approval phrase inside a longer reply ('… I approve otherwise.'). Never a
+    request for changes ('yes, but use a bigger model' / 'approve after you
+    change the model')."""
+    t = (text or "").strip()
+    if not t or _NEGATION_RE.search(t):
+        return False
+    if len(t.split()) <= 6 and _APPROVAL_RE.match(t):
+        return True
+    return bool(_APPROVAL_PHRASE.search(t))
+
+
+# Re-prompt when the user approved but the agent narrated locking the plan in
+# without actually calling finalize_spec (a weak-model failure that leaves the
+# user unsure whether anything launched).
+_FINALIZE_NUDGE = (
+    "The user approved the plan, but you did NOT call finalize_spec — so nothing "
+    "was locked in and no investigation started. If the draft plan is ready, "
+    "call finalize_spec NOW to lock it in and launch the run. Do not describe "
+    "locking it or claim it is running — actually call the tool. Do NOT re-print "
+    "the plan or ask for approval again. If the plan is genuinely not ready, fix "
+    "it, then finalize."
+)
+
+
+async def _force_finalize(
+    router: Any, console: Console, spec_dir: Path, before: set[Path]
+) -> set[Path]:
+    """Finalize deterministically on a clear user approval.
+
+    A reluctant driver (weak model) sometimes re-renders the plan and asks for
+    approval again instead of calling finalize_spec, stranding an approved plan.
+    Since the human explicitly approved, the REPL locks it in directly via the
+    same tool the agent would call (finalize_spec needs no approval). This is a
+    no-op if the draft isn't actually finalize-ready — finalize_spec returns its
+    blocker, which we surface so the agent can fix it on the next turn — so a
+    half-formed plan is never launched. Returns the set of newly written specs."""
+    try:
+        out, ok = await router.call_tool(
+            "finalize_spec", {"approver": "user", "approver_kind": "human"}
+        )
+    except Exception:  # noqa: BLE001 — never crash the shell on the fallback
+        return set()
+    if ok:
+        return _snapshot_specs(spec_dir) - before
+    first = next((ln for ln in (out or "").splitlines() if ln.strip()), "")
+    if "structural error" in first.lower():
+        # The draft isn't fully filled in — don't dump the pydantic blob; the
+        # agent fixes it on the next turn. Plain language for the user.
+        console.print(
+            "[yellow]The plan isn't fully filled in yet — the agent is still "
+            "finishing it. Give it a moment, or say what to change.[/yellow]"
+        )
+    elif first:
+        clean = first.replace("Cannot finalize — ", "").strip()
+        console.print(f"[yellow]Not ready to lock in yet: {clean}[/yellow]")
+    return set()
 
 
 async def _tick_status(observer: ReplObserver) -> None:
@@ -1347,7 +1559,7 @@ async def run_live_turn(
     status = console.status(
         f"[bold cyan]✶[/bold cyan] [dim]{initial_label}[/dim]", spinner="dots"
     )
-    repl_observer = ReplObserver(console, status)
+    repl_observer = ReplObserver(console, status, run_dir=getattr(router, "run_dir", None))
     observer: Any = (
         repl_observer
         if extra_observer is None
@@ -1490,6 +1702,9 @@ async def run_spec_repl(
     # first turn then starts warm instead of stalling the loop (and the
     # elapsed-time ticker) for the duration of the import.
     warm_llm_runtime()
+    # Gate finalize on an explicit user go-ahead: the weak driver otherwise
+    # drafts AND finalizes on turn 0, launching a plan the user never approved.
+    set_approval_gate(True)
     before = _snapshot_specs(spec_dir)
     if note:
         console.print(f"[dim]{note}[/dim]")
@@ -1512,6 +1727,7 @@ async def run_spec_repl(
                 continue
             except EOFError:
                 console.print()
+                _print_resume_hint(console, ui)
                 return None
             ui.ctrl_c_armed_at = None
             prompt = prompt.strip()
@@ -1519,12 +1735,16 @@ async def run_spec_repl(
                 continue
             handled, should_exit = await handle_repl_command(prompt, ui)
             if should_exit:
+                _print_resume_hint(console, ui)
                 return None
             if handled:
                 continue
 
         ui.turn += 1
         ui.last_question = prompt
+        # Tell the finalize gate whether the user approved on THIS turn, so the
+        # agent can only lock in a plan the user has actually green-lit.
+        set_user_approved(_looks_like_approval(prompt))
         usd_before = ui.cost.total_cost_usd
         in_before, out_before = _usage_totals(ui.cost)
         requests_before = ui.cost.total_requests
@@ -1542,13 +1762,51 @@ async def run_spec_repl(
         _persist_session(ui)
 
         new_specs = _snapshot_specs(spec_dir) - before
+        # The user approved (e.g. "Continue."), but the agent re-rendered the plan
+        # or narrated "locking it in" without actually calling finalize_spec, so
+        # nothing launched. Nudge it ONCE to do it; if it still won't, finalize
+        # deterministically — the human approved, so the model's reluctance must
+        # not strand the run. (_force_finalize is a no-op if the draft isn't ready.)
+        if not new_specs and on_finalize is not None and _looks_like_approval(prompt):
+            console.print(
+                "[dim]…the plan wasn't locked in yet — finalizing and starting "
+                "the run…[/dim]"
+            )
+            nudge_answer = await _execute_turn(ui, _FINALIZE_NUDGE, router)
+            if nudge_answer is not None:
+                render_answer(console, nudge_answer)
+            _persist_session(ui)
+            new_specs = _snapshot_specs(spec_dir) - before
+            if not new_specs:
+                new_specs = await _force_finalize(router, console, spec_dir, before)
+            _persist_session(ui)
+
         if new_specs:
             finalized = str(sorted(new_specs)[-1])
             if on_finalize is None:
                 return finalized  # caller drives the investigation (e.g. app.py)
             # Run the investigation in-session, then return to the prompt so the
-            # user can read results and keep going (the Codex/CC way).
-            await on_finalize(finalized)
+            # user can read results and keep going (the Codex/CC way). The
+            # investigation must NEVER be able to take the session down — an error
+            # (or Ctrl-C) is caught here, surfaced briefly, and we stay at the
+            # prompt so the user can revise the plan, tweak the metric, or retry.
+            try:
+                await on_finalize(finalized)
+            except KeyboardInterrupt:
+                console.print(
+                    "[yellow]⏸ investigation interrupted — the session is still "
+                    "here.[/yellow]"
+                )
+            except Exception as exc:  # noqa: BLE001 — keep the session alive
+                first = (str(exc).strip().splitlines() or [type(exc).__name__])[0]
+                console.print(
+                    f"[red]The investigation stopped on an error: "
+                    f"{_trunc(first, 200)}[/red]"
+                )
+                console.print(
+                    "[dim]The session is still alive — revise the plan, change the "
+                    "metric, or start another investigation.[/dim]"
+                )
             before = _snapshot_specs(spec_dir)  # don't re-trigger on this spec
             _persist_session(ui)
             console.print(
@@ -1561,6 +1819,7 @@ async def run_spec_repl(
                 f"[yellow]Turn cap reached ({ui.turn}/{cap}) without an approved "
                 f"spec. Re-run with `--max-turns N` to extend.[/yellow]"
             )
+            _print_resume_hint(console, ui)
             return None
         if cap and ui.turn == max(1, int(cap * 0.8)):
             console.print(f"[dim]({ui.turn}/{cap} turns used)[/dim]")

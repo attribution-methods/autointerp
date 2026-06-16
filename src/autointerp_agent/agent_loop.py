@@ -34,8 +34,12 @@ _MAX_LEAKED_XML_RETRIES = 3
 # with the same detect-and-retry pattern as the XML-leak guard above.
 # Deliberately narrow: rendered-spec output and plain-English phrases like
 # "success criteria" never match.
+# `Investigation[A-Z]\w*` catches the real schema names (InvestigationSpec,
+# InvestigationStage) AND identifier-ish names the model invents (the
+# user-reported "InvestigationPlan"); the required capital after "Investigation"
+# keeps the ordinary word "Investigations" from matching.
 _INTERNAL_JARGON = re.compile(
-    r"\b(InvestigationSpec|PartialSpec|StageSpec|BehaviorSpec"
+    r"\b(Investigation[A-Z]\w*|PartialSpec|StageSpec|BehaviorSpec"
     r"|finalize_spec|update_spec|describe_spec|show_spec|validate_spec"
     r"|remove_spec_fields|list_metrics|read_metric|propose_custom_metric)\b"
 )
