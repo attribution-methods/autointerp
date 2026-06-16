@@ -68,7 +68,18 @@ def _load_spec(handle: RunHandle) -> InvestigationSpec:
 
 
 def _committed_metric_names(handle: RunHandle, stage_idx: int) -> set[str]:
-    """Set of MetricName values for which at least one MetricResult exists in this stage."""
+    """Set of MetricName values for which at least one MetricResult exists in this stage.
+
+    A committed CUSTOM metric is recorded under its *definition name* (e.g.
+    ``surprisal_mean``), but a stage declares the enum value ``custom``. So a
+    custom commit must ALSO count toward the declared ``custom`` — otherwise
+    ``advance_stage`` reports the declared ``custom`` as missing even though the
+    agent committed (and a criterion passed on) a custom metric, and the agent
+    is pushed into a needless ``request_spec_revision`` that strands an otherwise
+    complete run. A metric is custom when ``metadata.custom`` is set or its name
+    is not a canonical :class:`MetricName`.
+    """
+    canonical = {m.value for m in MetricName}
     out: set[str] = set()
     state = read_state(handle.state_path)
     rec = state.stage_status.get(str(stage_idx))
@@ -86,6 +97,8 @@ def _committed_metric_names(handle: RunHandle, stage_idx: int) -> set[str]:
         name = md.get("metric_name")
         if isinstance(name, str):
             out.add(name)
+            if md.get("custom") or name not in canonical:
+                out.add(MetricName.CUSTOM.value)
     return out
 
 
@@ -162,21 +175,36 @@ def advance_stage(handle: RunHandle) -> dict[str, Any]:
         )
 
     stage = spec.stages[idx]
-    declared = {m.value for m in stage.metrics}
-    committed = _committed_metric_names(handle, idx)
-    missing = sorted(declared - committed)
-    if missing:
-        raise StageGateError(
-            f"stage {idx} ({stage.stage.value}) has not committed a MetricResult "
-            f"for declared metrics: {missing}. Compute and commit them before "
-            f"advancing. If a declared metric genuinely cannot be produced in "
-            f"this stage (e.g. a causal metric like patch_effect_recovery needs "
-            f"clean/corrupt/patched intervention values that this stage does not "
-            f"create), do NOT keep retrying — call request_spec_revision to fix "
-            f"the plan."
-        )
+    # A run's verdict is decided by its pre-registered success criteria, not by
+    # walking every declared stage. Once ALL criteria are evaluated (a FAIL would
+    # already have terminated the run), there is nothing left to test: skip the
+    # per-stage "declared metric committed" gate and finish. Without this, a plan
+    # that front-loads its one criterion (criterion passes in stage 0, but later
+    # stages still declare a metric that carries no criterion) strands itself —
+    # the agent commits + passes the criterion, then cannot advance past a
+    # criterion-free later stage and bails into request_spec_revision, reporting
+    # an otherwise-complete run as INCOMPLETE.
+    verdict_complete = bool(spec.success_criteria) and all(
+        c.criterion_id in state.criteria_evaluated for c in spec.success_criteria
+    )
 
-    # One last guard sweep before we close the stage.
+    if not verdict_complete:
+        declared = {m.value for m in stage.metrics}
+        committed = _committed_metric_names(handle, idx)
+        missing = sorted(declared - committed)
+        if missing:
+            raise StageGateError(
+                f"stage {idx} ({stage.stage.value}) has not committed a MetricResult "
+                f"for declared metrics: {missing}. Compute and commit them before "
+                f"advancing. If a declared metric genuinely cannot be produced in "
+                f"this stage (e.g. a causal metric like patch_effect_recovery needs "
+                f"clean/corrupt/patched intervention values that this stage does not "
+                f"create), do NOT keep retrying — call request_spec_revision to fix "
+                f"the plan."
+            )
+
+    # One last guard sweep before we close the stage — an abort outranks a pass,
+    # so run it even when the criteria are all satisfied.
     abort = check_abort_predicates(handle)
     if abort is not None:
         raise StageGateError(
@@ -190,7 +218,13 @@ def advance_stage(handle: RunHandle) -> dict[str, Any]:
     rec.ended_at = now_iso()
     state.current_stage_idx = idx + 1
 
-    if state.current_stage_idx >= len(spec.stages):
+    if verdict_complete:
+        # All criteria are in — terminate now, regardless of any later stages.
+        state.current_stage_idx = len(spec.stages)
+        if state.terminal_state is None:
+            state.terminal_state = TerminalState.COMPLETED
+            state.run_ended_at = rec.ended_at
+    elif state.current_stage_idx >= len(spec.stages):
         # Final advancement: check all criteria evaluated.
         unevaluated = [
             c.criterion_id

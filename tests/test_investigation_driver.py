@@ -243,10 +243,16 @@ def test_async_main_drives_real_gates_to_completion(
 
     async def fake_turn(prompt, config, context, router, observer=None, cost_tracker=None):
         # Reach `completed` through the registered gates, as a real agent would.
+        # Metric inputs must be a model_forward capture (input-provenance v2),
+        # recorded the way the agent's script would via record_capture.
+        from autointerp.tools.provenance import record_to
+        cap = record_to(
+            router.run_dir, "acc_inputs", {"predictions": [1, 1], "labels": [1, 1]},
+            source="model_forward", model_id="gpt2",
+        )
         out, ok = await router.call_tool(
             "compute_metric",
-            {"metric": "accuracy", "metric_id": "a1",
-             "inputs": {"predictions": [1, 1], "labels": [1, 1]}},
+            {"metric": "accuracy", "metric_id": "a1", "inputs": cap},
         )
         assert ok, out
         parsed = json.loads(out)
@@ -278,3 +284,110 @@ def test_async_main_drives_real_gates_to_completion(
     out = capsys.readouterr().out
     assert "running investigation" in out  # start header
     assert "investigation finished" in out and "completed" in out
+
+
+def test_render_inline_results_revision_is_actionable(tmp_path: Path) -> None:
+    """A revision-requested run must hand the USER a plain-language, actionable
+    panel — not a jargon wall with no next step."""
+    from autointerp.pipelines.investigation.revision import request_spec_revision
+
+    handle = init_run(_spec(), runs_root=tmp_path / "runs")
+    request_spec_revision(handle, reason="the metric needs a contrast the dataset lacks")
+    state = read_state(handle.state_path)
+
+    console = _console()
+    inv._render_inline_results(console, handle, state)
+    out = console.file.getvalue().lower()
+    assert "plan change requested" in out or "asked to change the plan" in out
+    assert "what you can do" in out
+    assert "re-plan" in out or "re-run" in out
+
+    # And the generic summary must NOT also claim the run "finished".
+    summary = _console()
+    inv._print_run_summary(
+        summary, handle, state, "terminal", None, spec_arg="outputs/specs/s.json"
+    )
+    assert "investigation finished" not in summary.file.getvalue()
+
+
+def test_render_inline_results_shows_hypothesis_and_bottom_line(tmp_path: Path) -> None:
+    """A grounded run must state what was tested and a plain-language verdict on
+    the hypothesis — not just a metric number."""
+    import json
+
+    handle = init_run(_spec(), runs_root=tmp_path / "runs")
+    (handle.root / "report.json").write_text(json.dumps({
+        "claims": ["L9H9 is the dominant name-mover head."],
+        "metadata": {"criteria_evaluated": {
+            "c1": {"metric": "accuracy", "comparator": ">=", "threshold": 0.5,
+                   "value": 0.98, "verdict": "pass"},
+        }},
+    }))
+    console = _console()
+    inv._render_inline_results(console, handle, read_state(handle.state_path))
+    out = console.file.getvalue()
+    assert "what we set out to test" in out.lower()
+    assert "hypothesis" in out.lower()
+    assert "bottom line" in out.lower() and "supported" in out.lower()
+    assert "Findings" in out and "name-mover" in out
+
+
+def test_render_inline_results_paused_run_is_incomplete_not_supported(tmp_path: Path) -> None:
+    """A run that PAUSED for a revision after testing only some of its
+    pre-registered criteria must read as INCOMPLETE — never 'SUPPORTED'. (The
+    user's run tested 1 of 3 criteria, paused, yet reported the hypothesis
+    SUPPORTED, hiding that the causal half was never tested.)"""
+    import json
+
+    from autointerp.pipelines.investigation.revision import request_spec_revision
+
+    handle = init_run(_spec(), runs_root=tmp_path / "runs")
+    request_spec_revision(handle, reason="stage 3 patching needs a plan change")
+    # 3 pre-registered criteria, only 1 evaluated — exactly the user's run shape.
+    (handle.root / "spec.json").write_text(json.dumps({
+        "question": "How do models represent surprise?",
+        "hypothesis": "Certain heads carry surprise and patching them changes it.",
+        "success_criteria": [
+            {"criterion_id": "crit_localization"},
+            {"criterion_id": "crit_intervention"},
+            {"criterion_id": "crit_ablation"},
+        ],
+    }))
+    (handle.root / "report.json").write_text(json.dumps({
+        "claims": [],
+        "metadata": {"criteria_evaluated": {
+            "crit_localization": {"metric": "logit_diff", "comparator": ">=",
+                                  "threshold": 0.1, "value": 0.4794, "verdict": "pass"},
+        }},
+    }))
+    console = _console()
+    inv._render_inline_results(console, handle, read_state(handle.state_path))
+    out = console.file.getvalue().lower()
+    assert "incomplete" in out
+    assert "1 of 3" in out                 # honest denominator, not 1/1
+    assert "supported" not in out          # the overclaim is gone
+    assert "plan revision" in out
+
+
+def test_render_inline_results_ungrounded_withholds_findings(tmp_path: Path) -> None:
+    """A fabricated run must NOT present passing claims as findings."""
+    import json
+
+    handle = init_run(_spec(), runs_root=tmp_path / "runs")
+    (handle.root / "report.json").write_text(json.dumps({
+        "claims": ["PASS criterion 'x': custom >= 0.4 (observed 0.9996)"],
+        "metadata": {
+            "grounding_warning": "NO MODEL EXECUTION DETECTED — fabricated.",
+            "criteria_evaluated": {
+                "x": {"metric": "custom", "comparator": ">=", "threshold": 0.4,
+                      "value": 0.9996, "verdict": "pass"},
+            },
+        },
+    }))
+    console = _console()
+    inv._render_inline_results(console, handle, read_state(handle.state_path))
+    out = console.file.getvalue()
+    assert "results not trustworthy" in out.lower()
+    assert "not evidence" in out.lower()         # the bottom line
+    assert "withheld" in out.lower()             # claims not shown as findings
+    assert "Findings" not in out                 # the confident header is suppressed

@@ -93,12 +93,16 @@ _TOP_LEVEL_NOT_PAYLOAD = ("split", "provenance_token")
 
 
 def _payload_shape_hint(kind: str, payload: Any) -> str:
-    """Turn a bare pydantic `extra_forbidden` failure into an actionable hint.
+    """Turn a bare pydantic validation failure into an actionable hint.
 
-    The common weak-agent mistake is cramming `split`/`provenance_token` into
-    the payload, or hand-building a MetricResult at all. Naming the fix here
-    saves the agent a long retry loop against the gate."""
+    Two common weak-agent mistakes: cramming `split`/`provenance_token` into
+    the payload, and — the costly one — GUESSING field names (a real run
+    invented `patches`/`prompts_used`/`status` on an InterventionResult instead
+    of `intervention_id`/`method`/…, failed the strict schema, and bailed to a
+    needless spec revision). So we always print the artifact's actual schema and
+    name the unknown fields, turning a long retry-loop-then-bail into one fix."""
     hint = ""
+    cls = ARTIFACT_KINDS[kind][0] if kind in ARTIFACT_KINDS else None
     if isinstance(payload, dict):
         misplaced = [k for k in _TOP_LEVEL_NOT_PAYLOAD if k in payload]
         if misplaced:
@@ -115,6 +119,23 @@ def _payload_shape_hint(kind: str, payload: Any) -> str:
             "and (with criterion_id) evaluates in ONE call, so you never "
             "hand-construct a MetricResult payload."
         )
+    if cls is not None:
+        required = [n for n, f in cls.model_fields.items() if f.is_required()]
+        optional = [n for n, f in cls.model_fields.items() if not f.is_required()]
+        hint += (
+            f"\n\n{kind} accepts ONLY these fields — required: "
+            f"{', '.join(required) or '(none)'}; optional: "
+            f"{', '.join(optional) or '(none)'}. Put only these in `payload` and "
+            "do not invent field names; a schema mismatch is a payload bug to fix "
+            "here, NOT a reason to request_spec_revision."
+        )
+        if isinstance(payload, dict):
+            unknown = [
+                k for k in payload
+                if k not in cls.model_fields and k not in _TOP_LEVEL_NOT_PAYLOAD
+            ]
+            if unknown:
+                hint += f" Unknown fields you sent: {', '.join(unknown)}."
     return hint
 
 
