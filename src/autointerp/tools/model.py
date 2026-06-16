@@ -198,7 +198,13 @@ class ModelHandle:
         add_generation_prompt: bool = True,
     ) -> str:
         messages = self.filter_messages(messages)
-        if hasattr(self.tokenizer, "apply_chat_template"):
+        # Use the chat template ONLY if one is actually configured. On a base
+        # model (gpt2, pythia-base, gpt-neo) the `apply_chat_template` METHOD
+        # exists but `tokenizer.chat_template` is unset, and calling it raises
+        # "Cannot use chat template functions because tokenizer.chat_template is
+        # not set" — so `hasattr(..., "apply_chat_template")` is the wrong gate.
+        # Fall through to plain text formatting (correct for a base model).
+        if getattr(self.tokenizer, "chat_template", None):
             return self.tokenizer.apply_chat_template(
                 messages,
                 tokenize=False,

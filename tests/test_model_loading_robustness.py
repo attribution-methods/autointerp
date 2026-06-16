@@ -191,6 +191,47 @@ def test_revision_allowed_after_a_real_capture(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Bug C — format_messages crashed on base models (no chat template)
+# ---------------------------------------------------------------------------
+
+
+def test_format_messages_falls_back_for_base_model_without_chat_template() -> None:
+    """Regression: on a base model the agent's generations all came back as
+    `<error:Cannot use chat template ... chat_template is not set>` and scored
+    accuracy 0.0. Cause: format_messages gated on `hasattr(tok,
+    'apply_chat_template')` — TRUE on gpt2 (the method exists) even though no
+    template is SET, so the call raised. It must gate on the template being set
+    and fall back to plain completion for a base model."""
+    pytest.importorskip("torch")
+    from types import SimpleNamespace
+
+    from autointerp.tools.model import ModelHandle
+
+    def _boom(*_a, **_k):
+        raise AssertionError("apply_chat_template called when no chat_template is set")
+
+    base = SimpleNamespace(
+        tokenizer=SimpleNamespace(chat_template=None, apply_chat_template=_boom),
+        model_type="gpt2",
+        filter_messages=lambda m: m,
+    )
+    out = ModelHandle.format_messages(base, [{"role": "user", "content": "drink to"}])
+    assert "drink to" in out  # real content, not an error string
+    assert "<error" not in out
+
+    # And when a template IS configured, it is used.
+    instruct = SimpleNamespace(
+        tokenizer=SimpleNamespace(
+            chat_template="{{ messages }}",
+            apply_chat_template=lambda *_a, **_k: "TEMPLATED",
+        ),
+        model_type="qwen",
+        filter_messages=lambda m: m,
+    )
+    assert ModelHandle.format_messages(instruct, [{"role": "user", "content": "hi"}]) == "TEMPLATED"
+
+
+# ---------------------------------------------------------------------------
 # The real end-to-end smoke test (opt-in): load → forward → capture
 # ---------------------------------------------------------------------------
 
