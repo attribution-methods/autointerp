@@ -344,6 +344,9 @@ def test_render_inline_results_paused_run_is_incomplete_not_supported(tmp_path: 
     handle = init_run(_spec(), runs_root=tmp_path / "runs")
     request_spec_revision(handle, reason="stage 3 patching needs a plan change")
     # 3 pre-registered criteria, only 1 evaluated — exactly the user's run shape.
+    # init_run froze spec.json read-only; make it writable to inject the fixture
+    # (root ignores 0444, but a non-root CI runner raises PermissionError).
+    (handle.root / "spec.json").chmod(0o644)
     (handle.root / "spec.json").write_text(json.dumps({
         "question": "How do models represent surprise?",
         "hypothesis": "Certain heads carry surprise and patching them changes it.",

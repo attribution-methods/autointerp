@@ -338,22 +338,38 @@ def test_propose_custom_metric_tool_rejects_imports() -> None:
 
 def test_preflight_catches_undefined_name_and_allows_bare_math_np() -> None:
     """A custom metric that PARSES but uses an undefined name is caught by the
-    dry-run pre-flight — while bare `sqrt`/`np` ARE available, so a planner's
-    natural code runs (the exact field failure: 'sqrt is not defined')."""
+    dry-run pre-flight — while bare `sqrt` (and `np` when numpy is installed) ARE
+    available, so a planner's natural code runs (the exact field failure: 'sqrt
+    is not defined')."""
+    import importlib.util
+
     from autointerp.pipelines.investigation.metrics import preflight_custom_metric
 
-    ok_def = CustomMetricDef(
-        name="corr", description="pearson-ish via bare sqrt and np",
-        family=MetricFamily.BEHAVIORAL, value_range=(-1.0, 1.0), direction="either",
-        requires_inputs=["x", "y"],
+    # bare `sqrt` (math) is always exposed → a planner's natural code runs.
+    sqrt_def = CustomMetricDef(
+        name="rms", description="bare sqrt, no import",
+        family=MetricFamily.BEHAVIORAL, value_range=(0.0, None), direction="higher",
+        requires_inputs=["x"],
         source_code=(
             "def compute(inputs):\n"
-            "    x = inputs['x']; y = inputs['y']\n"
-            "    d = sqrt(sum(a * a for a in x))  # bare sqrt, no import\n"
-            "    return float(np.mean(y)) / (d or 1.0)\n"  # bare np
+            "    x = inputs['x']\n"
+            "    return sqrt(sum(a * a for a in x))  # bare sqrt, no import\n"
         ),
     )
-    assert preflight_custom_metric(ok_def) is None  # sqrt + np available → runs
+    assert preflight_custom_metric(sqrt_def) is None  # sqrt available → runs
+
+    # `np` is exposed only when numpy is installed (an optional dep CI's core
+    # install lacks); assert it runs there, but don't require numpy to be present.
+    if importlib.util.find_spec("numpy") is not None:
+        np_def = CustomMetricDef(
+            name="np_mean", description="bare np", family=MetricFamily.BEHAVIORAL,
+            value_range=(-1.0, 1.0), direction="either", requires_inputs=["y"],
+            source_code=(
+                "def compute(inputs):\n"
+                "    return float(np.mean(inputs['y']))  # bare np\n"
+            ),
+        )
+        assert preflight_custom_metric(np_def) is None
 
     broken = CustomMetricDef(
         name="broken", description="references an undefined name",
