@@ -55,11 +55,27 @@ PYTHONPATH=src python -m autointerp.pipelines.investigation.discovery.harness \
   --output /tmp/out.json --dry-run
 ```
 
-For a real run, supply an evaluator (`--evaluator module:attr`, or
-`DiscoveryConfig.evaluator`) with signature
-`evaluate(score_fn, *, top_k, k_grid, seed) -> dict` that loads the model,
-applies the candidate's ranking, ablates/steers the top-K over the K-grid, and
-returns `{mean_ablation_auc_k, mean_steering_auc_k, top_features}`.
+For a real run you must supply an **evaluator** — the reward function that
+loads the model, applies the candidate's ranking, intervenes (ablate/steer the
+top-K over the K-grid), and returns
+`{mean_ablation_auc_k, mean_steering_auc_k, top_features}` from
+`evaluate(score_fn, *, top_k, k_grid, seed)`. Wire it via
+`DiscoveryConfig.evaluator` or `--evaluator`, in either form:
+
+- `module:attr` — a shipped/importable module, e.g.
+  `autointerp.pipelines.investigation.discovery.evaluators.ioi_heads:evaluate`
+  (GPT-2 IOI) or `...evaluators.surprise:evaluate` (Qwen surprise).
+- `path/to/file.py:attr` — an evaluator YOU write (e.g. in the run's
+  `scripts/`). The evaluator is model/behavior/substrate-specific, so for a new
+  investigation, **write your own**: copy
+  `src/autointerp/pipelines/investigation/discovery/evaluator_template.py`,
+  fill in the TODOs, and point `--evaluator scripts/my_eval.py:evaluate`.
+
+The template bakes in the correct intervention boilerplate (per-layer hook
+closures, ablate the right positions, return the modified output) and a
+**mandatory sanity check** that the intervention actually moves the metric.
+The harness also flags any real evaluator that returns exactly 0.0 as a likely
+silent no-op — fix the evaluator, not the ranking.
 
 ## Discipline
 

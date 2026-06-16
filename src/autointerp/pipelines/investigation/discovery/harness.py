@@ -48,14 +48,31 @@ def _load_callable_from_file(path: Path, *, attr: str = "score"):
 
 
 def _resolve_evaluator(ref: str):
-    """Resolve a ``module:attr`` reference to a callable."""
+    """Resolve an evaluator reference to a callable.
+
+    Two forms:
+      - ``module:attr``      — importable module (e.g. a shipped example).
+      - ``path/to/file.py:attr`` — a file the agent wrote (e.g. in the run's
+        ``scripts/``). Resolved as an absolute or cwd-relative path.
+    """
     if ":" not in ref:
-        raise SystemExit(f"--evaluator must be 'module:attr', got {ref!r}")
-    mod_name, attr = ref.split(":", 1)
-    module = importlib.import_module(mod_name)
+        raise SystemExit(f"--evaluator must be 'module:attr' or 'path.py:attr', got {ref!r}")
+    left, attr = ref.rsplit(":", 1)
+    if left.endswith(".py") or "/" in left or "\\" in left:
+        path = Path(left).expanduser().resolve()
+        if not path.exists():
+            raise SystemExit(f"--evaluator file not found: {path}")
+        spec = importlib.util.spec_from_file_location(f"evaluator_{path.stem}", path)
+        if spec is None or spec.loader is None:
+            raise SystemExit(f"--evaluator: cannot load {path}")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+    else:
+        module = importlib.import_module(left)
     fn = getattr(module, attr, None)
     if fn is None:
-        raise SystemExit(f"--evaluator {ref!r}: {attr} not found in {mod_name}")
+        raise SystemExit(f"--evaluator {ref!r}: {attr!r} not found in {left}")
     return fn
 
 
@@ -181,6 +198,21 @@ def main(argv: list[str] | None = None) -> int:
     payload["objective_metric"] = obj_name
     payload["objective_value"] = obj_value
     payload["algorithm"] = str(args.algorithm)
+
+    # Sanity guard: a real (non-dry-run) evaluator returning exactly 0.0 almost
+    # always means the intervention silently did nothing (broken hook, wrong
+    # position, metric that ignores the edit) rather than a genuinely useless
+    # ranking. Surface it loudly so the agent fixes the evaluator, not the
+    # ranking.
+    if not args.dry_run and float(obj_value) == 0.0:
+        payload["_sanity_warning"] = (
+            "objective_value is exactly 0.0 — the intervention likely had NO "
+            "effect on the measured quantity (silent no-op). Verify the "
+            "evaluator actually changes the metric (ablate the right positions, "
+            "return the modified output, measure where the edit lands) before "
+            "trusting this reward."
+        )
+        print("WARNING: " + payload["_sanity_warning"])
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2))

@@ -14,7 +14,9 @@ not a single concrete site. Exposed as the Tier-2 `discover_features` tool.
 | `task.py` | `HillClimbTask` (what to optimize), `HillClimbConfig` (how hard), `HillClimbResult`. |
 | `engine.py` | `run_hillclimb` — archive (population), parallel width, memory, budget, seed-variance, resume. |
 | `proposer.py` | `propose_single` (one LLM completion) and `propose_agentic` (tool-using subagent via `run_agent_turn`). |
-| `harness.py` | Evaluate ONE candidate → reward JSON. `--dry-run` stub + `--evaluator module:attr` plug. |
+| `harness.py` | Evaluate ONE candidate → reward JSON. `--dry-run` stub + `--evaluator module:attr`/`path.py:attr` plug + zero-effect sanity guard. |
+| `evaluator_template.py` | Template for an agent/user to write a real reward function (correct intervention boilerplate + mandatory sanity check). |
+| `evaluators/` | Shipped, GPU-validated example evaluators: `ioi_heads` (GPT-2 IOI), `surprise` (Qwen2.5-1.5B). |
 | `algorithm_template.py` / `candidate.py` | The `score(...) -> list[Candidate]` contract + deterministic baseline. |
 | `system_prompt.py` | Task-driven prompt scaffold (contract injected per task). |
 | `loop.py` | Feature-discovery instantiation of `run_hillclimb`. |
@@ -81,6 +83,25 @@ Proposal token/USD spend is accumulated via `CostTracker` and bridged into
 `state.budget_consumed.tokens` / `.cost_usd` by the tool handler. The run's
 `spec.budget.max_tokens` is enforced (newly wired), and the discovery call is
 capped at the remaining token budget so the inner loop can't overrun the run.
+
+## Evaluator (the reward function)
+
+The evaluator scores a candidate by intervening on the REAL model — it defines
+what "good" means, so there is no generic one: it's specific to the (model,
+behavior, substrate). Supply it via `DiscoveryConfig.evaluator` / `--evaluator`
+as `module:attr` (shipped/importable) or `path.py:attr` (one the agent writes in
+`scripts/`). Contract: `evaluate(score_fn, *, top_k, k_grid, seed) -> {mean_
+ablation_auc_k, mean_steering_auc_k, top_features}`.
+
+- **Write one** from `evaluator_template.py` — it bakes in the correct
+  intervention boilerplate (per-layer hook closures, ablate the right
+  positions, return the modified output) and a mandatory sanity assert.
+- **Or use a shipped example**: `evaluators/ioi_heads.py` (GPT-2 IOI),
+  `evaluators/surprise.py` (Qwen2.5-1.5B surprise) — both GPU-validated.
+- **Sanity guard:** the harness flags any real evaluator returning exactly 0.0
+  as a likely silent no-op (broken hook / wrong position / wrong metric) — the
+  most common and most dangerous bug, since it reads as "no effect found"
+  rather than "experiment broken." Fix the evaluator, not the ranking.
 
 ## Dry-run
 
