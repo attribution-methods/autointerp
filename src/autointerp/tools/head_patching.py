@@ -415,7 +415,7 @@ def path_patch(
     """
     senders = _normalize_senders(sender)
     sender_layers = sorted({s[0] for s in senders})
-    sender_set = {(int(l), int(h)) for (l, h) in senders}
+    sender_set = {(int(sl), int(sh)) for (sl, sh) in senders}
     if freeze_layers is None:
         freeze_layers = [
             layer for layer in range(handle.n_layers) if layer not in sender_layers

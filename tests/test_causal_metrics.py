@@ -81,7 +81,9 @@ def test_circuit_recovery_capture_multi_site(tmp_path, monkeypatch):
     assert isinstance(sites, list) and 1 <= len(sites) <= 3
     assert all(isinstance(s, tuple) and len(s) == 2 for s in sites)
 
-    rel = circuit_recovery_capture(h, clean, corrupt, metric, layers=layers, top_k=3, model_id="gpt2")
+    rel = circuit_recovery_capture(
+        h, clean, corrupt, metric, layers=layers, top_k=3, model_id="gpt2"
+    )
     cap = capture_for_relpath(str(tmp_path), rel)
     assert cap is not None and cap["source"] == "model_forward"
     assert verify_capture(str(tmp_path), cap)
@@ -90,5 +92,6 @@ def test_circuit_recovery_capture_multi_site(tmp_path, monkeypatch):
     assert isinstance(_patch_effect_recovery(data), float)
     # patching the set recovers strictly more than the single best head alone.
     one = patch_recovery_capture(h, clean, corrupt, sites[0], metric, model_id="gpt2")
-    one_data = json.loads((tmp_path / capture_for_relpath(str(tmp_path), one)["data_relpath"]).read_text())
+    one_cap = capture_for_relpath(str(tmp_path), one)
+    one_data = json.loads((tmp_path / one_cap["data_relpath"]).read_text())
     assert data["recovery"] > one_data["recovery"]

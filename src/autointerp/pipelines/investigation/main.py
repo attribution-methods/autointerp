@@ -190,9 +190,11 @@ helpers before writing forward-pass / hook / patching code by hand:
   sites, metric)` is the same push-button for `ablation_drop`. Pass the returned
   relpath straight to `compute_and_commit_metric(metric="patch_effect_recovery",
   inputs=<relpath>, criterion_id=…)`. `metric` maps `[batch, vocab]` final-token
-  logits to `[batch]` (e.g. a target-minus-foil logit diff). Import EXACTLY:
-  `from autointerp.tools.causal_metrics import circuit_recovery_capture, best_patch_sites, patch_recovery_capture, ablation_drop_capture`
-  — these are the real names; do not invent module names like `metric_utils`.
+  logits to `[batch]` (e.g. a target-minus-foil logit diff). Import EXACTLY (real
+  names — do not invent module names like `metric_utils`):
+      from autointerp.tools.causal_metrics import (
+          circuit_recovery_capture, best_patch_sites,
+          patch_recovery_capture, ablation_drop_capture)
 - `autointerp.tools.lenses` — `logit_lens(handle, hidden_state)`,
   `direct_logit_attribution(handle, ...)`, `top_tokens(...)`.
 - `autointerp.tools.attribution` — `attribution_patch_score(...)`,
