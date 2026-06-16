@@ -28,6 +28,10 @@ dependencies = [
 mcp = []
 mechinterp = [
   "numpy>=1.26.0",
+  # pip installs PyPI's default torch wheel (CUDA kernels only up to sm_90). On
+  # Blackwell GPUs (B200/sm_100, RTX 50xx/sm_120) run `python
+  # scripts/install_torch.py` after install to get the cu128 build — a version
+  # specifier can't pick the CUDA build, only the install index can.
   "torch>=2.2.0",
   "transformers>=4.40.0",
   "scikit-learn>=1.4.0",
