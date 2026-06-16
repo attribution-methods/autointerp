@@ -12,3 +12,8 @@ Observed accuracy was 0.25 against the 0.60 threshold — predictions were `[0,0
 
 ## Takeaway (testbed reach)
 This run only measured a behavioral accuracy gap on 4 prompts and localized no circuit components — Stage 2's logit_lens/activation_cache localization never executed because the Stage 1 gate failed first.
+
+## After the optimization pass
+**Verdict: SUPPORTED.** The diagnosis was a chain of two scaffold bugs, both fixed generally (no answer hardcoding): the agent posed IOI as a `"who is the indirect object?"` quiz to a base model, and `format_messages` then crashed on gpt2 (it gated on `hasattr(tok, "apply_chat_template")`, true even though no template is set), so *every* generation was the string `<error: chat_template not set>` and accuracy was 0.0. With the chat-template fix plus planner guidance to use the standard IOI **completion** paradigm and an adequate sample size, the re-run framed IOI as next-token completion ("Mary gave a book to →", target-vs-foil logit) over **200** real `model_forward` trials and reached `hit_rate = 1.0` (≥ 0.6 gate), completing as SUPPORTED with zero chat-template errors and zero placeholder stubs.
+
+**Honest gap:** this confirms IOI *behaviorally* but does not localize the name-mover circuit — the agent gated on `hit_rate` and never made the localization stage the gate. The multi-head patching now needed for that is push-button (`circuit_recovery_capture`; on gpt2 IOI the single best name-mover head recovers 0.12 vs ~0.97 for the top-3 set), but driving the weak planner to actually localize is the next round.

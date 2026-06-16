@@ -12,3 +12,8 @@ Only 1 of 2 criteria was tested: `cot_advantage` passed with observed accuracy 1
 
 ## Takeaway (testbed reach)
 GPT-2-class models do not genuinely produce chain-of-thought reasoning, so this question is not really tractable on the testbed; the run stalled before any causal patching evidence could be gathered.
+
+## After the optimization pass
+This case exhibited all three of the bugs the round fixed: (1) it was planned on **GPT-2, which emits no chain-of-thought**, so the question was vacuous on the target; (2) Stage 2 patching "could not be completed with current tooling"; and (3) "ad hoc placeholder inputs were rejected by the metrics engine," after which the agent looped on revisions. The fixes: the planner now **infers the question needs a model that actually reasons and routes to an instruct/reasoning model from turn one** (a design-phase probe confirms it now finalizes `tiiuae/falcon-7b-instruct` instead of GPT-2); the causal patching it stalled on is push-button (`circuit_recovery_capture`); and placeholder/empty `model_forward` captures are now rejected **at write time** with a message pointing at the real fix, instead of silently looping.
+
+**Honest scope:** this round validated the *model-routing and tooling* fixes (design-phase + unit/integration tests); a full end-to-end CoT investigation on a reasoning model was not run here (that needs a stronger driver and a heavier target actually executed), so this case is "unblocked and correctly routed", not yet a landed mechanistic verdict.

@@ -12,3 +12,6 @@ The observed `logit_diff` was -7.473e-05, a tiny negative value far below the 0.
 
 ## Takeaway (testbed reach)
 The black_box stage ran cheaply on a small open-weights model, but the verdict rests on a simplistic fixed-token `logit_diff` proxy over a subsampled (40-prompt) dev set, so the negative result is more a non-detection than a strong refutation.
+
+## After the optimization pass
+**Verdict: grounded SUPPORTED.** "How is surprise *represented*" is a representation question, and the −7e-5 non-detection came from answering it with a fixed-token `logit_diff` proxy instead of isolating a direction. With the planner's question-shape routing ("how is X represented" → find a direction, then validate it *causally*) and push-button causal captures, the re-run discovered a candidate surprise direction and causally validated it on `gpt-neo-125M`, gating on `patch_effect_recovery = 0.43` (> 0.2) — `source: model_forward`, no grounding warning. The verdict now rests on a discovered-and-intervened-on direction rather than a template logit gap.
