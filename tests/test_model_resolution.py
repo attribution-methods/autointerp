@@ -3,7 +3,13 @@ hand-maintained table never has to keep up with weekly model releases."""
 
 from __future__ import annotations
 
-from autointerp.tools import model as M
+import pytest
+
+# autointerp.tools.model imports torch at module level — an extra dep CI's core
+# install intentionally lacks. Skip there; run wherever torch exists.
+pytest.importorskip("torch")
+
+from autointerp.tools import model as M  # noqa: E402
 
 
 def test_curated_alias_and_passthrough() -> None:
@@ -64,7 +70,6 @@ def test_hub_search_none_when_no_exact_match(monkeypatch) -> None:
 
 
 def test_gpu_arch_preflight_blocks_unsupported(monkeypatch) -> None:
-    import pytest
     cuda = M.torch.cuda
     monkeypatch.setattr(cuda, "is_available", lambda: True)
     monkeypatch.setattr(cuda, "get_device_capability", lambda i=0: (10, 0))  # sm_100

@@ -14,7 +14,11 @@ from __future__ import annotations
 
 import pytest
 
-from autointerp.tools.activations import (
+# autointerp.tools.activations imports torch at module level — an extra dep CI's
+# core install intentionally lacks. Skip there; run wherever torch exists.
+pytest.importorskip("torch")
+
+from autointerp.tools.activations import (  # noqa: E402
     _COMPONENT_CANON,
     component_module,
     parse_component_spec,
