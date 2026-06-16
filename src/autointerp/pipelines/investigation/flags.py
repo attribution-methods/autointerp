@@ -41,6 +41,14 @@ class AblationFlags(BaseModel):
     freeze_spec: bool = True
     provenance_metrics: bool = True
     split_disjoint: bool = True
+    # Require metric inputs to come from a produced file (traceable to a model
+    # run), rejecting inline literals the agent could fabricate. Independent of
+    # the A/B/C leave-one-out matrix, so it does not affect `label()`/`all_on`.
+    require_sourced_inputs: bool = True
+    # Stronger (input-provenance v2): require metric inputs to be a recorded
+    # `model_forward` capture, so each verdict traces to a real forward pass —
+    # not just to some file. Implies the sourcing requirement above.
+    require_captured_inputs: bool = True
 
     @property
     def all_on(self) -> bool:

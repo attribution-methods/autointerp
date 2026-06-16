@@ -46,6 +46,9 @@ def assemble_report(handle: RunHandle) -> S.InvestigationReport:
     feature_findings: list[S.FeatureFinding] = []
     validations: list[S.ValidationResult] = []
 
+    # Input provenance: where each committed metric's inputs came from
+    # (a produced file vs inline literals). Traceability for every result.
+    metric_input_sources: dict[str, Any] = {}
     if handle.findings_dir.is_dir():
         for stage_dir in sorted(handle.findings_dir.iterdir()):
             if not stage_dir.is_dir():
@@ -54,6 +57,14 @@ def assemble_report(handle: RunHandle) -> S.InvestigationReport:
             candidate_sites.extend(_load_all(stage_dir, "candidate_*.json", S.CandidateSite))
             feature_findings.extend(_load_all(stage_dir, "feature_*.json", S.FeatureFinding))
             validations.extend(_load_all(stage_dir, "validation_*.json", S.ValidationResult))
+            for mp in sorted(stage_dir.glob("metric_*.json")):
+                try:
+                    mr = json.loads(mp.read_text())
+                except (json.JSONDecodeError, OSError):
+                    continue
+                prov = (mr.get("metadata") or {}).get("input_provenance")
+                if mr.get("metric_id"):
+                    metric_input_sources[mr["metric_id"]] = prov or {"source": "unknown"}
 
     claims: list[str] = []
     limitations: list[str] = []
@@ -71,6 +82,59 @@ def assemble_report(handle: RunHandle) -> S.InvestigationReport:
                 f"{rec.verdict.value.upper()} criterion {cid!r}: {rec.metric} "
                 f"{rec.comparator} {rec.threshold} (observed {rec.value})"
             )
+    # Grounding check: are the evaluated criteria backed by measurements that
+    # trace to a real model run?
+    #   - precise (input-provenance v2): each criterion's metric must have been
+    #     computed on a model_forward capture;
+    #   - coarse fallback: the run produced *some* model-interaction evidence
+    #     (prompt batch / activation / generation / finding / capture / script).
+    def _criterion_is_model_forward(rec: Any) -> bool:
+        ref = getattr(rec, "metric_result_ref", None)
+        if not ref:
+            return False
+        mp = handle.root / ref
+        if not mp.exists():
+            return False
+        try:
+            prov = (json.loads(mp.read_text()).get("metadata") or {}).get(
+                "input_provenance"
+            ) or {}
+        except (json.JSONDecodeError, OSError):
+            return False
+        return (
+            prov.get("source") == "capture"
+            and prov.get("capture_source") == "model_forward"
+        )
+
+    grounding_warning: str | None = None
+    if state.criteria_evaluated:
+        captures_present = (
+            handle.captures_dir.is_dir() and any(handle.captures_dir.iterdir())
+        )
+        has_evidence = bool(
+            prompt_batches or activation_caches or samples or behavioral
+            or candidate_sites or feature_findings or validations or captures_present
+        )
+        scripts = (
+            list(handle.scripts_dir.glob("*.py"))
+            if handle.scripts_dir.is_dir() else []
+        )
+        coarse_ungrounded = not has_evidence and not scripts
+        precise_ungrounded = False
+        if getattr(handle.flags, "require_captured_inputs", False):
+            backed = [
+                cid for cid, rec in state.criteria_evaluated.items()
+                if _criterion_is_model_forward(rec)
+            ]
+            precise_ungrounded = not backed  # nothing traces to a forward pass
+        if coarse_ungrounded or precise_ungrounded:
+            grounding_warning = (
+                "RESULTS NOT GROUNDED — the evaluated criteria are not backed by "
+                "measurements that trace to a real model run (no model_forward "
+                "captures). Treat these verdicts as UNSUBSTANTIATED, not as "
+                "findings, until the metrics are recomputed on real model output."
+            )
+            limitations.insert(0, grounding_warning)
     if state.terminal_state is not None:
         limitations.append(f"run terminal_state={state.terminal_state.value}")
     if state.abort_triggered is not None:
@@ -89,6 +153,8 @@ def assemble_report(handle: RunHandle) -> S.InvestigationReport:
             cid: rec.model_dump() for cid, rec in state.criteria_evaluated.items()
         },
         "budget_consumed": state.budget_consumed.model_dump(),
+        "grounding_warning": grounding_warning,
+        "metric_input_sources": metric_input_sources,
     }
     cost_path = handle.root / "cost.json"
     if cost_path.exists():
