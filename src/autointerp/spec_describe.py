@@ -23,6 +23,7 @@ from autointerp.spec import (
     Criterion,
     CritiqueNote,
     DatasetSpec,
+    DiscoveryConfig,
     InvestigationSpec,
     StageSpec,
 )
@@ -32,6 +33,7 @@ NESTED_MODELS: list[type[BaseModel]] = [
     Criterion,
     DatasetSpec,
     ContrastSpec,
+    DiscoveryConfig,
     Budget,
     Approval,
     CritiqueNote,

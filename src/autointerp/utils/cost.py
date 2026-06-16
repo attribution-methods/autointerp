@@ -40,6 +40,13 @@ class CostTracker:
     has_unknown_cost: bool = False
     _lock: Lock = field(default_factory=Lock, repr=False, compare=False)
 
+    @property
+    def total_tokens(self) -> int:
+        """Input + output tokens across all models (cache tokens excluded)."""
+        return sum(
+            mu.input_tokens + mu.output_tokens for mu in self.by_model.values()
+        )
+
     def add_response(self, response: Any) -> None:
         """Accumulate from a LiteLLM response. Silent on missing fields."""
         model = _safe_attr(response, "model") or "unknown"

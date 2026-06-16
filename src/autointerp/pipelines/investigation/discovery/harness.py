@@ -59,10 +59,19 @@ def _resolve_evaluator(ref: str):
     return fn
 
 
-def _dry_run(score_fn, *, top_k: int, k_grid: list[int]) -> dict[str, Any]:
-    """Deterministic stub: synthesize AUC curves from candidate magnitudes."""
+def _dry_run(
+    score_fn, *, top_k: int, k_grid: list[int], seed: int = 0
+) -> dict[str, Any]:
+    """Deterministic stub: synthesize AUC curves from candidate magnitudes.
+
+    ``seed`` applies a small deterministic jitter so re-evaluating across seeds
+    yields a non-degenerate variance (exercises the engine's fluke screening).
+    """
     from autointerp.pipelines.investigation.metrics import _mean_auc_k
     from autointerp.spec import MetricName
+
+    # Deterministic per-seed multiplier in roughly [0.97, 1.0].
+    jitter = 1.0 - ((seed % 7) * 0.005)
 
     fake_pairs = [
         {"clean_input": "A", "clean_output": "x", "corrupted_output": "y"},
@@ -96,8 +105,8 @@ def _dry_run(score_fn, *, top_k: int, k_grid: list[int]) -> dict[str, Any]:
     while len(cum) < len(k_grid):
         cum.append(cum[-1] if cum else 0.0)
     cum = cum[: len(k_grid)]
-    abl_curves = [cum, cum]
-    steer_curves = [[c * 0.9 for c in cum], [c * 0.85 for c in cum]]
+    abl_curves = [[c * jitter for c in cum], [c * jitter for c in cum]]
+    steer_curves = [[c * 0.9 * jitter for c in cum], [c * 0.85 * jitter for c in cum]]
     grid = [float(k) for k in k_grid]
     abl = _mean_auc_k(
         {"delta_curve_per_pair": abl_curves, "k_grid": grid},
@@ -145,6 +154,8 @@ def main(argv: list[str] | None = None) -> int:
                         choices=["combined", "ablation", "steering"])
     parser.add_argument("--evaluator", default=None,
                         help="module:attr returning the AUC payload (real path).")
+    parser.add_argument("--seed", type=int, default=0,
+                        help="Seed forwarded to the evaluator (fluke screening).")
     parser.add_argument("--dry-run", action="store_true",
                         help="Deterministic stub evaluator (no model load).")
     args = parser.parse_args(argv)
@@ -153,10 +164,10 @@ def main(argv: list[str] | None = None) -> int:
     score_fn = _load_callable_from_file(args.algorithm)
 
     if args.dry_run:
-        payload = _dry_run(score_fn, top_k=args.top_k, k_grid=k_grid)
+        payload = _dry_run(score_fn, top_k=args.top_k, k_grid=k_grid, seed=args.seed)
     elif args.evaluator:
         evaluator = _resolve_evaluator(args.evaluator)
-        payload = evaluator(score_fn, top_k=args.top_k, k_grid=k_grid)
+        payload = evaluator(score_fn, top_k=args.top_k, k_grid=k_grid, seed=args.seed)
         if not isinstance(payload, dict):
             raise SystemExit("--evaluator must return a dict payload")
     else:

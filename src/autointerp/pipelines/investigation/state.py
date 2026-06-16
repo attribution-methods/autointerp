@@ -93,6 +93,9 @@ class BudgetConsumed(StateBaseModel):
     gpu_seconds: float = 0.0
     wallclock_seconds: float = 0.0
     samples: int = 0
+    # LLM spend, incl. discovery sub-agent proposals (see discover_features).
+    tokens: int = 0
+    cost_usd: float = 0.0
 
 
 class RevisionRequest(StateBaseModel):

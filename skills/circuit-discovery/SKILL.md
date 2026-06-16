@@ -22,15 +22,19 @@ when the *method* is uncertain, not the site.
 
 ## How it works
 
-The Tier-2 `discover_features` tool runs the loop in
-`src/autointerp/pipelines/investigation/discovery/`:
+The Tier-2 `discover_features` tool runs the generic engine
+(`run_hillclimb`) in `src/autointerp/pipelines/investigation/discovery/`:
 
-1. Seeds `algorithm_v1.py` from `algorithm_template.py` (the `score(...)`
-   contract returning `list[Candidate]` sorted by `abs(score)`).
-2. Each iteration proposes one improved candidate (same LiteLLM model the
-   runtime uses), evaluates it via `harness.py`, and keeps it only if the reward
-   strictly improves (hill-climb with early-stop `patience`).
-3. Returns the best candidate's reward + `top_features`.
+1. Seeds a candidate from `algorithm_template.py` (the `score(...)` contract
+   returning `list[Candidate]` sorted by `abs(score)`).
+2. Each round proposes `n_subagents` candidates concurrently — either a single
+   LLM completion or a tool-using subagent (`run_agent_turn`), same LiteLLM
+   model path as the runtime — seeded from the current top-K **archive**, and
+   evaluates each via `harness.py`.
+3. Keeps a top-K archive (population), early-stops on `patience`, and re-checks
+   the best across `seeds` to flag flukes (`best_reward_std`).
+4. Returns the best candidate's reward + `top_features` + archive. Token/cost
+   spend is bridged into the run's `budget_consumed`.
 
 Reward is `combined_auc_k = 0.5*(mean_ablation_auc_k + mean_steering_auc_k)` by
 default — necessity (ablation) + sufficiency (steering) over a top-K sweep.
@@ -39,8 +43,9 @@ default — necessity (ablation) + sufficiency (steering) over a top-K sweep.
 
 `discover_features` is only allowed in a stage whose `tools` list includes it,
 and its reward must be one of that stage's pre-registered `metrics`. Tune the
-search via the stage's optional `DiscoveryConfig` (`max_iterations`, `patience`,
-`top_k`, `k_grid`, `evaluator`).
+search via the stage's frozen `DiscoveryConfig` (`max_iterations`, `patience`,
+`n_subagents`, `archive_size`, `propose_mode`, `seeds`, `model`, `max_tokens`,
+`top_k`, `k_grid`, `objective`, `evaluator`).
 
 Smoke test with no model or GPU:
 
@@ -51,8 +56,10 @@ PYTHONPATH=src python -m autointerp.pipelines.investigation.discovery.harness \
 ```
 
 For a real run, supply an evaluator (`--evaluator module:attr`, or
-`DiscoveryConfig.evaluator`) that loads the model, applies the candidate's
-ranking, ablates/steers the top-K over the K-grid, and returns the AUC payload.
+`DiscoveryConfig.evaluator`) with signature
+`evaluate(score_fn, *, top_k, k_grid, seed) -> dict` that loads the model,
+applies the candidate's ranking, ablates/steers the top-K over the K-grid, and
+returns `{mean_ablation_auc_k, mean_steering_auc_k, top_features}`.
 
 ## Discipline
 

@@ -221,8 +221,6 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
         return _ok(req.model_dump())
 
     async def _discover_features_handler(args: dict[str, Any]) -> tuple[str, bool]:
-        import asyncio
-
         from autointerp.pipelines.investigation.discovery import run_discovery_subagent
         from autointerp.spec import InvestigationSpec, ToolName
 
@@ -267,30 +265,42 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
                 False,
             )
 
-        # --- Search budget from the frozen DiscoveryConfig (or defaults). ---
+        # --- Hyperparameters from the frozen DiscoveryConfig (or defaults). ---
         disco = stage.discovery
         max_iterations = int(args.get("max_iterations",
                                       disco.max_iterations if disco else 8))
-        patience = int(disco.patience if disco else 2)
-        top_k = int(disco.top_k if disco else 20)
+        patience = disco.patience if disco else 2
+        n_subagents = disco.n_subagents if disco else 1
+        archive_size = disco.archive_size if disco else 5
+        propose_mode = disco.propose_mode if disco else "single"
+        max_turns = disco.max_turns_per_iteration if disco else 20
+        top_k = disco.top_k if disco else 20
         k_grid = list(disco.k_grid) if disco else [1, 5, 10, 20, 50]
+        objective = disco.objective if disco else "combined"
+        seeds = list(disco.seeds) if disco else [0]
         evaluator = args.get("evaluator", disco.evaluator if disco else None)
         dry_run = bool(args.get("dry_run", False))
 
-        # --- Model: reuse the runtime's configured model/temperature. ---
+        # --- Model/temperature: subagent override > spec config > runtime. ---
         try:
             from autointerp_agent.config import load_config
             cfg = load_config()
             default_model, temperature = cfg.model_name, cfg.temperature
         except Exception:
             default_model, temperature = "anthropic/claude-sonnet-4-5", None
-        model = str(args.get("model") or default_model)
+        model = str(args.get("model") or (disco.model if disco and disco.model else default_model))
+
+        # --- Budget: cap discovery spend at the remaining token budget. ---
+        max_tokens = disco.max_tokens if disco else None
+        b = spec.budget
+        if b.max_tokens is not None:
+            remaining = max(0, b.max_tokens - state.budget_consumed.tokens)
+            max_tokens = remaining if max_tokens is None else min(max_tokens, remaining)
 
         session_name = str(args.get("session_name") or f"stage{idx:02d}")
         session_dir = handle.discovery_dir / session_name
         try:
-            result = await asyncio.to_thread(
-                run_discovery_subagent,
+            result = await run_discovery_subagent(
                 session_dir=session_dir,
                 task=task,
                 reward_metric=reward_metric,
@@ -302,29 +312,52 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
                 temperature=temperature,
                 max_iterations=max_iterations,
                 patience=patience,
+                n_subagents=n_subagents,
+                archive_size=archive_size,
+                propose_mode=propose_mode,
+                max_turns_per_iteration=max_turns,
+                seeds=seeds,
                 top_k=top_k,
                 k_grid=k_grid,
+                objective=objective,
                 evaluator=evaluator,
+                max_tokens=max_tokens,
                 dry_run=dry_run,
             )
         except Exception as exc:
             return _err(exc)
+
+        # --- Bridge discovery spend into the run budget. ---
+        if result.tokens_used or result.cost_usd:
+            st = read_state(handle.state_path)
+            st.budget_consumed.tokens += int(result.tokens_used)
+            st.budget_consumed.cost_usd = round(
+                st.budget_consumed.cost_usd + float(result.cost_usd), 6
+            )
+            from .state import write_state
+            write_state(handle.state_path, st)
 
         return _ok(
             {
                 "session_dir": str(result.session_dir),
                 "best_candidate": result.best_candidate,
                 "best_reward": result.best_reward,
+                "best_reward_std": result.best_reward_std,
                 "best_summary": result.best_summary,
+                "archive": result.archive,
                 "iterations_run": result.iterations_run,
+                "proposals_made": result.proposals_made,
                 "terminated_by": result.terminated_by,
+                "tokens_used": result.tokens_used,
+                "cost_usd": result.cost_usd,
                 "log": result.log,
                 "next_step": (
                     "Advisory only — no gated artifact was committed. Inspect "
-                    "best_summary.top_features. To record them, build a "
-                    "CandidateSite / FeatureFinding and call commit_artifact. To "
-                    "register the reward as a checkable value, call compute_metric "
-                    f"({reward_metric}) on a heldout split, then commit_artifact."
+                    "best_summary.top_features (best_reward_std flags flukes). To "
+                    "record them, build a CandidateSite / FeatureFinding and call "
+                    "commit_artifact. To register the reward as a checkable value, "
+                    f"call compute_metric ({reward_metric}) on a heldout split, "
+                    "then commit_artifact."
                 ),
             }
         )

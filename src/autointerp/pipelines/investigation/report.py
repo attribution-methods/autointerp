@@ -33,6 +33,41 @@ def _load_all(dir_: Path, glob: str, cls: type[BaseModel]) -> list[Any]:
     return out
 
 
+def _collect_discovery_sessions(handle: RunHandle) -> list[dict[str, Any]]:
+    """Summarize each discover_features session under the run's discovery/ tree.
+
+    Reports the best archived candidate + reward per session so the (advisory)
+    discovery search is visible in the report without inlining transcripts.
+    """
+    disco_dir = handle.discovery_dir
+    if not disco_dir.is_dir():
+        return []
+    sessions: list[dict[str, Any]] = []
+    for session in sorted(p for p in disco_dir.iterdir() if p.is_dir()):
+        archive_path = session / "archive.jsonl"
+        best: dict[str, Any] | None = None
+        if archive_path.exists():
+            for line in archive_path.read_text().splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                if best is None or rec.get("reward", -1.0) > best.get("reward", -1.0):
+                    best = rec
+        sessions.append(
+            {
+                "session": session.name,
+                "path": str(session),
+                "best_candidate": best.get("candidate") if best else None,
+                "best_reward": best.get("reward") if best else None,
+            }
+        )
+    return sessions
+
+
 def assemble_report(handle: RunHandle) -> S.InvestigationReport:
     spec = InvestigationSpec.model_validate_json(handle.spec_path.read_text())
     state = read_state(handle.state_path)
@@ -90,6 +125,11 @@ def assemble_report(handle: RunHandle) -> S.InvestigationReport:
         },
         "budget_consumed": state.budget_consumed.model_dump(),
     }
+
+    # Surface any discovery sub-agent sessions so they aren't orphaned.
+    discovery_sessions = _collect_discovery_sessions(handle)
+    if discovery_sessions:
+        metadata["discovery_sessions"] = discovery_sessions
     cost_path = handle.root / "cost.json"
     if cost_path.exists():
         try:

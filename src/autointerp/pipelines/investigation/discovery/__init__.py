@@ -1,21 +1,28 @@
-"""Minimal hill-climbing discovery sub-agent.
+"""Hill-climbing discovery sub-agent.
 
-The ``discover_features`` Tier-2 tool delegates an iterative search to this
-package: propose a candidate ranking algorithm, evaluate it against a reward
-metric, keep the best, and repeat (hill-climbing). It is deliberately small —
-no leaderboard / memory files, no substrate registry, no extra LLM SDK. The
-proposal step reuses the same LiteLLM path as the rest of the agent runtime
-(``autointerp_agent.agent_loop``), and the reward reuses the canonical metric
-registry (``combined_auc_k``).
+A generic engine (``run_hillclimb``) optimizes any artifact against any reward
+via iterative LLM proposals + deterministic evaluation, keeping a top-K archive
+(population). ``run_discovery_subagent`` is the feature-discovery instantiation
+exposed by the ``discover_features`` Tier-2 tool.
 
-The sub-agent is *advisory*: it never commits gated artifacts. The master
-agent records evidence via the normal ``commit_artifact`` / ``compute_metric``
-gates, so all pre-registration invariants hold.
+Provider-agnostic (LiteLLM); proposals run single-completion or as a tool-using
+subagent (``run_agent_turn``). The sub-agent is *advisory* — it commits no gated
+artifacts, so pre-registration invariants hold.
 """
 
 from __future__ import annotations
 
 from .candidate import Candidate
+from .engine import run_hillclimb
 from .loop import DiscoveryResult, run_discovery_subagent
+from .task import HillClimbConfig, HillClimbResult, HillClimbTask
 
-__all__ = ["Candidate", "DiscoveryResult", "run_discovery_subagent"]
+__all__ = [
+    "Candidate",
+    "DiscoveryResult",
+    "HillClimbConfig",
+    "HillClimbResult",
+    "HillClimbTask",
+    "run_discovery_subagent",
+    "run_hillclimb",
+]

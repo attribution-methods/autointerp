@@ -188,6 +188,8 @@ def _budget_exceeded_reason(state: RunState, spec: InvestigationSpec) -> str | N
     b = spec.budget
     if b.max_tool_calls is not None and bc.tool_calls >= b.max_tool_calls:
         return f"max_tool_calls={b.max_tool_calls} reached"
+    if b.max_tokens is not None and bc.tokens >= b.max_tokens:
+        return f"max_tokens={b.max_tokens} reached"
     if b.max_samples is not None and bc.samples >= b.max_samples:
         return f"max_samples={b.max_samples} reached"
     if b.max_gpu_seconds is not None and bc.gpu_seconds >= b.max_gpu_seconds:

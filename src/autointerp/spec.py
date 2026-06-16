@@ -598,19 +598,43 @@ class AbortPredicate(StrictBaseModel):
 
 
 class DiscoveryConfig(StrictBaseModel):
-    """Search-budget configuration for a stage that uses `discover_features`.
+    """Pre-registered search configuration for a stage that uses
+    `discover_features`.
 
-    Optional and small by design — the hill-climbing sub-agent reads these
-    knobs; if absent, the tool falls back to its own defaults. The reward
-    metric is NOT set here: it is bound at runtime to the stage's
-    pre-registered `metrics` list so the agent can pick among allowed metrics
-    but not invent a new one.
+    These are the reproducibility-relevant hyperparameters of the
+    hill-climbing sub-agent — they belong in the frozen spec so a run is
+    reproducible. The reward metric is NOT set here: it is bound at runtime to
+    the stage's pre-registered `metrics` list, so the agent can pick among
+    allowed metrics but cannot invent a new one. Ephemeral switches (dry_run)
+    stay as tool args.
     """
 
+    # Search budget.
     max_iterations: int = Field(ge=1, default=8)
     patience: int = Field(ge=1, default=2)
+    # Parallel proposals per round (width). 1 = single-branch hill climb.
+    n_subagents: int = Field(ge=1, default=1)
+    # Top-K candidates retained as the search population (archive).
+    archive_size: int = Field(ge=1, default=5)
+
+    # Proposer: "single" = one LLM completion; "agentic" = a tool-using
+    # subagent (run_agent_turn) that may run its own experiments.
+    propose_mode: Literal["single", "agentic"] = "single"
+    max_turns_per_iteration: int = Field(ge=1, default=20)
+    # Subagent model override (LiteLLM string, e.g. "openai/gpt-5",
+    # "openrouter/...", "hosted_vllm/..."). None → inherit the run's model.
+    model: str | None = None
+    # Token budget for the whole discovery call; counts against the run's
+    # budget. None → only the spec-level budget applies.
+    max_tokens: int | None = Field(ge=1, default=None)
+
+    # Evaluator.
     top_k: int = Field(ge=1, default=20)
     k_grid: list[int] = Field(default_factory=lambda: [1, 5, 10, 20, 50])
+    objective: Literal["combined", "ablation", "steering"] = "combined"
+    # Variance seeds: the best candidate is re-evaluated across these to screen
+    # out flukes. A single seed disables the variance check.
+    seeds: list[int] = Field(default_factory=lambda: [0])
     # `module:attr` for the real (GPU) evaluator. None → dry-run only.
     evaluator: str | None = None
 
