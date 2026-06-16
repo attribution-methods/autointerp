@@ -41,7 +41,7 @@ def _err(exc: Exception) -> tuple[str, bool]:
 
 def _resolve_metric_inputs(
     handle: RunHandle, raw_inputs: Any
-) -> tuple[dict | None, dict, str | None]:
+) -> tuple[dict, dict, str | None]:
     """Resolve metric ``inputs`` (a dict, or a path to a JSON file) and record
     where they came from. Returns ``(inputs, provenance, error)``.
 
@@ -62,7 +62,7 @@ def _resolve_metric_inputs(
             from_run = handle.root / raw_inputs
             p = from_run if from_run.exists() else (Path.cwd() / raw_inputs)
         if not p.exists():
-            return None, {}, (
+            return {}, {}, (
                 f"inputs file not found: {raw_inputs} (looked under the run dir "
                 "and the working dir). Write the file in your script first, then "
                 "pass its path."
@@ -71,9 +71,9 @@ def _resolve_metric_inputs(
             text = p.read_text()
             inputs = json.loads(text)
         except Exception as exc:  # noqa: BLE001
-            return None, {}, f"failed to read inputs file {p}: {exc}"
+            return {}, {}, f"failed to read inputs file {p}: {exc}"
         if not isinstance(inputs, dict):
-            return None, {}, f"inputs file {p} must contain a JSON object"
+            return {}, {}, f"inputs file {p} must contain a JSON object"
         sha = "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
         # Is this file a recorded, unmodified capture (input-provenance v2)?
         from autointerp.tools.provenance import capture_for_relpath, verify_capture
@@ -96,7 +96,7 @@ def _resolve_metric_inputs(
         return inputs, {"source": "file", "ref": ref, "sha256": sha}, None
     if isinstance(raw_inputs, dict):
         return raw_inputs, {"source": "inline"}, None
-    return None, {}, "inputs must be an object/dict or a path to a JSON file"
+    return {}, {}, "inputs must be an object/dict or a path to a JSON file"
 
 
 def _input_gate_error(handle: RunHandle, provenance: dict) -> str | None:
