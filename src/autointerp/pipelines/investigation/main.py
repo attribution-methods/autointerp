@@ -95,6 +95,14 @@ is no one to answer, and the run will stall.
   outputs. A run whose criteria are not backed by model_forward captures is
   flagged UNSUBSTANTIATED in the final report and does NOT count as a real
   result — an honest INCONCLUSIVE is far better than an invented PASS.
+- A placeholder/empty `model_forward` capture is REJECTED at write time:
+  `record_capture("...", {"prompts": []}, source="model_forward")` and the like
+  raise "no measurement data". The fix is NEVER to retry a stub, wrap the load in
+  a try/except that writes an empty capture on failure, or request a revision —
+  it is to make the real forward pass succeed: load the model, run it on the real
+  prompts, and capture the genuine logits/predictions. If the model genuinely
+  cannot load (e.g. gated repo), switch to a concrete loadable open-weights model
+  and run it for real; do not paper over a load failure with a placeholder.
 - Commit non-metric typed artifacts via `commit_artifact` (PromptBatch,
   ActivationCacheRef, CandidateSite, InterventionResult, …). Here too `split`
   and `provenance_token` are top-level arguments, never payload fields — the

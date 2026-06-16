@@ -71,6 +71,30 @@ def _infer_n(value: Any) -> int | None:
     return None
 
 
+def _has_measurement(value: Any) -> bool:
+    """True iff ``value`` carries actual measurement data — the kind a forward
+    pass produces: a number, a non-empty array, or generated text. False for
+    empty containers (``[]``, ``{}``, ``{"prompts": []}``) and label-only stubs
+    (``{"placeholder": True, "notes": "..."}``). Used to reject the placeholder
+    capture an agent writes to satisfy the gate without running the model.
+
+    A ``bool`` is NOT a measurement (it is a flag); a ``str`` alone is not (a
+    note), but a non-empty list of strings IS (generated text). Numbers and
+    nested structures that themselves contain measurements count.
+    """
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        return True
+    if isinstance(value, str) or value is None:
+        return False
+    if isinstance(value, (list, tuple)):
+        return len(value) > 0
+    if isinstance(value, dict):
+        return any(_has_measurement(v) for v in value.values())
+    return False
+
+
 def record_to(
     run_dir: str | Path,
     name: str,
@@ -89,6 +113,16 @@ def record_to(
         raise ValueError(f"source must be one of {CAPTURE_SOURCES}, got {source!r}")
     if not isinstance(name, str) or not name:
         raise ValueError("capture name (non-empty string) is required")
+    if source == "model_forward" and not _has_measurement(value):
+        raise ValueError(
+            f"model_forward capture {name!r} carries no measurement data "
+            "(empty or placeholder). A real forward pass produces at least one "
+            "row of numbers/logits/predictions or generated text. Run the model "
+            "on real prompts and capture the actual outputs — do not write a "
+            "placeholder/stub capture to satisfy the gate. (If the value is "
+            "genuinely hand-specified and not a measurement, use source='manual', "
+            "but then it cannot ground a causal/behavioral criterion.)"
+        )
     cdir = _captures_dir(run_dir)
     cdir.mkdir(parents=True, exist_ok=True)
     blob = _canonical_bytes(value)
