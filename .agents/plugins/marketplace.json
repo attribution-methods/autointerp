@@ -1,0 +1,20 @@
+{
+  "name": "autointerp",
+  "interface": {
+    "displayName": "Autointerp"
+  },
+  "plugins": [
+    {
+      "name": "autointerp-skills",
+      "source": {
+        "source": "local",
+        "path": "./plugins/autointerp-skills"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

@@ -8,28 +8,81 @@ from typing import Any, Dict, List, Optional
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-MODEL_ALIASES: Dict[str, str] = {
-    "llama-3.1-8b": "meta-llama/Llama-3.1-8B-Instruct",
-    "llama-3.1-70b": "meta-llama/Llama-3.1-70B-Instruct",
-    "llama-3.3-70b": "meta-llama/Llama-3.3-70B-Instruct",
-    "qwen2.5-7b": "Qwen/Qwen2.5-7B-Instruct",
-    "qwen2.5-14b": "Qwen/Qwen2.5-14B-Instruct",
-    "qwen2.5-32b": "Qwen/Qwen2.5-32B-Instruct",
-    "qwen2.5-72b": "Qwen/Qwen2.5-72B-Instruct",
-    "qwen3-235b": "Qwen/Qwen3-235B-A22B-Instruct-2507",
-    "gemma-2-2b": "google/gemma-2-2b-it",
-    "gemma-2-9b": "google/gemma-2-9b-it",
-    "gemma-2-27b": "google/gemma-2-27b-it",
-    "gemma-3-27b": "google/gemma-3-27b-it",
-    "mistral-small": "mistralai/Mistral-Small-Instruct-2409",
-}
-
-PREQUANTIZED_ALIASES = {"qwen3-235b"}
-MODELS_WITHOUT_SYSTEM_ROLE = {"gemma"}
+# Aliases + canonicalization live in a torch-free module so lightweight layers
+# (spec finalize, validation, planner) can canonicalize without importing torch.
+# Re-exported here for back-compat: existing `from autointerp.tools.model import
+# resolve_model_id, MODEL_ALIASES` keeps working.
+from .model_aliases import MODEL_ALIASES as MODEL_ALIASES  # re-export  # noqa: E402
+from .model_aliases import (  # noqa: E402
+    MODELS_WITHOUT_SYSTEM_ROLE,
+    PREQUANTIZED_ALIASES,
+    resolve_model_id,
+)
+from .model_aliases import (  # noqa: E402  # re-export for external callers
+    looks_like_placeholder_model as looks_like_placeholder_model,
+)
 
 
-def resolve_model_id(model_name: str) -> str:
-    return MODEL_ALIASES.get(model_name, model_name)
+def _resolve_via_hub_search(model_name: str) -> Optional[str]:
+    """Dynamic fallback: find the canonical Hub repo for a bare/colloquial name
+    (e.g. ``pythia-160m`` -> ``EleutherAI/pythia-160m``). Returns a repo whose
+    basename matches exactly (high confidence) — preferring the most-downloaded
+    — or None. Best-effort and never raises, so an offline box just gets the
+    original error."""
+    try:
+        from huggingface_hub import HfApi
+
+        results = list(HfApi().list_models(search=model_name, sort="downloads", limit=25))
+    except Exception:
+        return None
+    target = model_name.split("/")[-1].lower()
+    for m in results:  # already sorted by downloads, descending
+        if m.id.split("/")[-1].lower() == target:
+            return m.id
+    return None
+
+
+def _assert_gpu_arch_supported(device: str) -> None:
+    """Fail fast, with an actionable message, when the GPU's compute capability
+    is not in this PyTorch build's kernel list — the "no kernel image is
+    available for execution on the device" failure (e.g. a Blackwell B200 /
+    sm_100 on a torch compiled only up to sm_90).
+
+    Crucially this is NOT a model-size problem: every CUDA kernel fails, so
+    switching to a smaller model does not help and is not a valid spec
+    revision. The fix is a Blackwell-capable PyTorch."""
+    if device != "cuda" or not torch.cuda.is_available():
+        return
+    try:
+        major, minor = torch.cuda.get_device_capability(0)
+        sm = f"sm_{major}{minor}"
+        arches = list(torch.cuda.get_arch_list())
+        name = torch.cuda.get_device_name(0)
+    except Exception:
+        return
+    if not arches or sm in arches:
+        return
+    raise RuntimeError(
+        f"GPU not supported by this PyTorch build: {name} is {sm}, but torch "
+        f"{torch.__version__} (CUDA {torch.version.cuda}) only ships kernels for "
+        f"{arches}. No CUDA computation can run on this device — a SMALLER MODEL "
+        f"WILL NOT HELP and is not a valid spec revision. Fix the environment: "
+        f"install a {sm}-capable PyTorch (for Blackwell/B200: `pip install "
+        f"--upgrade torch --index-url https://download.pytorch.org/whl/cu128`), "
+        f"or pass device='cpu' for a tiny pilot only."
+    )
+
+
+def _looks_like_missing_repo(exc: Exception) -> bool:
+    name = type(exc).__name__
+    if name in {"RepositoryNotFoundError", "HFValidationError", "EntryNotFoundError"}:
+        return True
+    text = str(exc).lower()
+    return (
+        "404" in text
+        or "not a valid model identifier" in text
+        or "is not a local folder" in text
+    )
 
 
 def infer_model_type(model_name: str) -> str:
@@ -64,7 +117,7 @@ class ModelHandle:
     model: Any
     tokenizer: Any
     device: str = "cuda"
-    dtype: torch.dtype = torch.bfloat16
+    dtype: torch.dtype = torch.float32
     model_type: str = "unknown"
 
     @property
@@ -77,6 +130,8 @@ class ModelHandle:
                 return len(inner.layers)
             if hasattr(inner, "model") and hasattr(inner.model, "layers"):
                 return len(inner.model.layers)
+        if hasattr(self.model, "transformer") and hasattr(self.model.transformer, "h"):
+            return len(self.model.transformer.h)
         config = self.model.config
         for name in ("num_hidden_layers", "n_layer", "num_layers"):
             if hasattr(config, name):
@@ -119,6 +174,8 @@ class ModelHandle:
                 return inner.layers[layer_idx]
             if hasattr(inner, "model") and hasattr(inner.model, "layers"):
                 return inner.model.layers[layer_idx]
+        if hasattr(self.model, "transformer") and hasattr(self.model.transformer, "h"):
+            return self.model.transformer.h[layer_idx]
         raise ValueError(f"Could not access layer {layer_idx}")
 
     def filter_messages(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
@@ -215,12 +272,23 @@ class ModelHandle:
 def load_model(
     model_name: str,
     device: str = "cuda",
-    dtype: torch.dtype = torch.bfloat16,
+    dtype: torch.dtype = torch.float32,
     quantization: Optional[str] = None,
     trust_remote_code: bool = True,
 ) -> ModelHandle:
+    _assert_gpu_arch_supported(device)
     model_id = resolve_model_id(model_name)
-    tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
+    except Exception as exc:
+        # Dynamic fallback: the name may be a colloquial id (e.g. 'pythia-160m')
+        # that lives under an org prefix on the Hub. Search for the canonical
+        # repo and retry, rather than failing on a stale alias table.
+        found = _resolve_via_hub_search(model_name) if _looks_like_missing_repo(exc) else None
+        if not found or found == model_id:
+            raise
+        model_id = found
+        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
     tokenizer.padding_side = "left"
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token

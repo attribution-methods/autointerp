@@ -19,14 +19,19 @@ dependencies = [
   "prompt-toolkit>=3.0.0",
   "python-dotenv>=1.0.0",
   "litellm>=1.70.0",
+  "fastmcp>=2.0.0",
 ]
 
 [project.optional-dependencies]
-mcp = [
-  "fastmcp>=2.0.0",
-]
+# Back-compat alias: fastmcp moved into the core dependencies, so
+# `pip install -e ".[mcp]"` from older docs/scripts keeps working as a no-op.
+mcp = []
 mechinterp = [
   "numpy>=1.26.0",
+  # pip installs PyPI's default torch wheel (CUDA kernels only up to sm_90). On
+  # Blackwell GPUs (B200/sm_100, RTX 50xx/sm_120) run `python
+  # scripts/install_torch.py` after install to get the cu128 build — a version
+  # specifier can't pick the CUDA build, only the install index can.
   "torch>=2.2.0",
   "transformers>=4.40.0",
   "scikit-learn>=1.4.0",
@@ -34,19 +39,23 @@ mechinterp = [
   "safetensors>=0.4.0",
   "huggingface-hub>=0.22.0",
   "datasets>=2.18.0",
+  "sae-lens>=4.0.0",
+  "requests>=2.31.0",
 ]
 dev = [
   "pytest>=8.0.0",
-  "ruff>=0.4.0",
-  "mypy>=1.9.0",
+  # Pinned to minor series so CI results are reproducible — unpinned
+  # linters made CI red the day stricter releases shipped.
+  "ruff>=0.15,<0.16",
+  "mypy>=2.1,<2.2",
   "types-PyYAML>=6.0.12",
 ]
 all = [
-  "autointerp[mcp,mechinterp,dev]",
+  "autointerp[mechinterp,dev]",
 ]
 
 [project.scripts]
-autointerp = "autointerp_agent.cli:main"
+autointerp = "autointerp_agent.entry:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -55,6 +64,10 @@ include = ["autointerp*", "autointerp_agent*"]
 [tool.setuptools.package-data]
 autointerp = ["py.typed"]
 autointerp_agent = ["py.typed"]
+
+[tool.pytest.ini_options]
+# Only collect the real suite under tests/.
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
