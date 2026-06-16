@@ -39,6 +39,166 @@ def _err(exc: Exception) -> tuple[str, bool]:
     return f"{type(exc).__name__}: {exc}", False
 
 
+def _resolve_metric_inputs(
+    handle: RunHandle, raw_inputs: Any
+) -> tuple[dict, dict, str | None]:
+    """Resolve metric ``inputs`` (a dict, or a path to a JSON file) and record
+    where they came from. Returns ``(inputs, provenance, error)``.
+
+    provenance is ``{"source": "inline"}`` for a typed dict, or
+    ``{"source": "file", "ref": <relpath>, "sha256": <hash>}`` for a file — so
+    every MetricResult is traceable to the data it was computed from."""
+    import hashlib
+    from pathlib import Path
+
+    if isinstance(raw_inputs, str):
+        # A relative path may be written either under the run dir (write_file's
+        # root) or under the agent's working dir (a `bash` heredoc's cwd) — try
+        # both, the same way the agent's read_file/write_file resolve, so the
+        # agent isn't forced to `cp` files between the two.
+        if Path(raw_inputs).is_absolute():
+            p = Path(raw_inputs)
+        else:
+            from_run = handle.root / raw_inputs
+            p = from_run if from_run.exists() else (Path.cwd() / raw_inputs)
+        if not p.exists():
+            return {}, {}, (
+                f"inputs file not found: {raw_inputs} (looked under the run dir "
+                "and the working dir). Write the file in your script first, then "
+                "pass its path."
+            )
+        try:
+            text = p.read_text()
+            inputs = json.loads(text)
+        except Exception as exc:  # noqa: BLE001
+            return {}, {}, f"failed to read inputs file {p}: {exc}"
+        if not isinstance(inputs, dict):
+            return {}, {}, f"inputs file {p} must contain a JSON object"
+        sha = "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+        # Is this file a recorded, unmodified capture (input-provenance v2)?
+        from autointerp.tools.provenance import capture_for_relpath, verify_capture
+
+        cap = capture_for_relpath(handle.root, raw_inputs)
+        if cap is not None and verify_capture(handle.root, cap):
+            return inputs, {
+                "source": "capture",
+                "ref": cap["data_relpath"],
+                "sha256": cap["sha256"],
+                "capture_id": cap["capture_id"],
+                "capture_source": cap.get("source"),
+                "model_id": cap.get("model_id"),
+                "n": cap.get("n"),
+            }, None
+        try:
+            ref = p.resolve().relative_to(handle.root.resolve()).as_posix()
+        except ValueError:
+            ref = str(p)
+        return inputs, {"source": "file", "ref": ref, "sha256": sha}, None
+    if isinstance(raw_inputs, dict):
+        return raw_inputs, {"source": "inline"}, None
+    return {}, {}, "inputs must be an object/dict or a path to a JSON file"
+
+
+def _input_gate_error(handle: RunHandle, provenance: dict) -> str | None:
+    """Enforce the input-provenance bar for the agent's metric tools.
+
+    v2 (``require_captured_inputs``): inputs must be a ``model_forward`` capture
+    — proven to come from a real forward pass. v1 (``require_sourced_inputs``):
+    inputs must at least come from a produced file, never inline literals."""
+    source = provenance.get("source")
+    if getattr(handle.flags, "require_captured_inputs", False):
+        if source == "capture" and provenance.get("capture_source") == "model_forward":
+            return None
+        return (
+            "metric inputs must be a model_forward capture. In your script, run "
+            "the model on the dataset, then call "
+            "`autointerp.tools.provenance.record_capture(name, inputs_dict, "
+            "source='model_forward', model_id=..., prompt_batch=...)` — it "
+            "returns a path like 'captures/<id>.json'. Pass THAT path as "
+            "`inputs`. Plain files and inline values are rejected so every "
+            "verdict is proven to come from a real model run, not hand-typed "
+            "numbers."
+        )
+    if handle.flags.require_sourced_inputs and source == "inline":
+        return (
+            "metric inputs must come from a file your script produced, not "
+            "inline literals. Compute the inputs by running the model in a "
+            "script, write them to e.g. scratch/<name>.json, then pass "
+            'inputs="scratch/<name>.json". Inline values are rejected so every '
+            "result is traceable to a real model run."
+        )
+    return None
+
+
+def _blames_environment(reason: str) -> bool:
+    """Does a revision reason blame the box/network/model-loading for what is
+    really a fixable script error? The classic weak-driver failure: a wrong-repo
+    404 (e.g. raw `from_pretrained("gpt2-small")`) or a slow load, reported as
+    "hardware/network can't load a real model" and used to bail to a spec
+    revision instead of fixing the script. Phrases are specific so a genuine
+    methodological revision is never caught."""
+    r = reason.lower()
+    triggers = (
+        "hardware restriction", "hardware/network", "no gpu", "without a gpu",
+        "without gpu", "network restriction", "load a real model",
+        "cannot load the model", "can't load the model", "could not load the model",
+        "unable to load the model", "not available in the current environment",
+        "offline", "no internet", "synthetic model output", "pre-warmed capture",
+    )
+    return any(t in r for t in triggers)
+
+
+def _has_model_forward_capture(handle: RunHandle) -> bool:
+    """True once at least one capture file exists — proof the model was actually
+    loaded and run at least once in this run."""
+    captures = handle.root / "captures"
+    return captures.is_dir() and any(captures.iterdir())
+
+
+def _did_any_empirical_work(handle: RunHandle) -> bool:
+    """Has the agent actually run experiments in this run?
+
+    True if it committed a metric/artifact/criterion, or wrote any file to its
+    work dirs. Used to reject a `request_spec_revision` that comes before any
+    real attempt — the classic weak-agent failure of treating "I haven't
+    produced the metric's inputs yet" as a spec defect."""
+    state = read_state(handle.state_path)
+    if (
+        state.provenance_tokens_consumed > 0
+        or state.criteria_evaluated
+        or any(rec.artifact_refs for rec in state.stage_status.values())
+    ):
+        return True
+    for sub in ("scripts", "scratch", "findings", "activations", "generations",
+                "captures"):
+        d = handle.root / sub
+        if d.is_dir() and any(d.iterdir()):
+            return True
+    return False
+
+
+def _all_criteria_evaluated(handle: RunHandle) -> bool:
+    """True when every pre-registered success criterion already has a verdict.
+
+    A FAIL terminates the run on its own, so reaching here non-terminal means the
+    evaluated criteria are PASS/INCONCLUSIVE — the verdict is in and there is
+    nothing left to revise. Used to refuse a `request_spec_revision` that would
+    otherwise strand a finished run (the agent hit an unrelated stage-gate snag
+    and reached for a revision instead of just calling advance_stage to finish)."""
+    from autointerp.spec import InvestigationSpec
+
+    try:
+        spec = InvestigationSpec.model_validate_json(handle.spec_path.read_text())
+    except Exception:  # noqa: BLE001 — never let the guard itself crash the handler
+        return False
+    if not spec.success_criteria:
+        return False
+    state = read_state(handle.state_path)
+    return all(
+        c.criterion_id in state.criteria_evaluated for c in spec.success_criteria
+    )
+
+
 def create_investigation_tools(handle: RunHandle) -> list[Any]:
     """Build Tier-2 ToolSpecs bound to ``handle``.
 
@@ -86,18 +246,12 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
             return "metric (string) is required", False
         if not isinstance(metric_id, str) or not metric_id:
             return "metric_id (non-empty string) is required", False
-        if isinstance(inputs, str):
-            import json as _json
-            from pathlib import Path as _Path
-            p = _Path(inputs) if _Path(inputs).is_absolute() else handle.root / inputs
-            if not p.exists():
-                return f"inputs file not found: {p}", False
-            try:
-                inputs = _json.loads(p.read_text())
-            except Exception as exc:
-                return f"failed to read inputs file {p}: {exc}", False
-        if not isinstance(inputs, dict):
-            return "inputs must be an object/dict or a path to a JSON file", False
+        inputs, provenance, err = _resolve_metric_inputs(handle, inputs)
+        if err:
+            return err, False
+        sourcing_err = _input_gate_error(handle, provenance)
+        if sourcing_err:
+            return sourcing_err, False
         if not isinstance(split, str) or not split:
             return "split (non-empty string) is required", False
         try:
@@ -112,6 +266,7 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
                 metadata=metadata,
                 criterion_id=criterion_id,
                 inconclusive_reason=inconclusive_reason,
+                input_provenance=provenance,
             )
         except (MetricRegistryError, ArtifactGateError, CriterionGateError, GuardError) as exc:
             return _err(exc)
@@ -128,18 +283,12 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
             return "metric (string) is required", False
         if not isinstance(metric_id, str) or not metric_id:
             return "metric_id (non-empty string) is required", False
-        if isinstance(inputs, str):
-            import json as _json
-            from pathlib import Path as _Path
-            p = _Path(inputs) if _Path(inputs).is_absolute() else handle.root / inputs
-            if not p.exists():
-                return f"inputs file not found: {p}", False
-            try:
-                inputs = _json.loads(p.read_text())
-            except Exception as exc:
-                return f"failed to read inputs file {p}: {exc}", False
-        if not isinstance(inputs, dict):
-            return "inputs must be an object/dict or a path to a JSON file", False
+        inputs, provenance, err = _resolve_metric_inputs(handle, inputs)
+        if err:
+            return err, False
+        sourcing_err = _input_gate_error(handle, provenance)
+        if sourcing_err:
+            return sourcing_err, False
         try:
             payload, token = compute_metric(
                 handle,
@@ -149,6 +298,7 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
                 threshold=threshold,
                 comparator=comparator,
                 metadata=metadata,
+                input_provenance=provenance,
             )
         except (MetricRegistryError, GuardError) as exc:
             return _err(exc)
@@ -214,6 +364,48 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
         prior = args.get("prior_results_ref")
         if not isinstance(reason, str) or not reason:
             return "reason (non-empty string) is required", False
+        if _all_criteria_evaluated(handle):
+            return (
+                "request_spec_revision rejected — every pre-registered success "
+                "criterion has already been evaluated, so the run's verdict is "
+                "already decided; there is nothing to revise. Do NOT request a "
+                "revision over a stage-gating snag. Call advance_stage to close "
+                "out the run (it terminates as COMPLETED once all criteria are "
+                "evaluated, regardless of any remaining stages). If a later stage "
+                "still has uncommitted work you care about, commit its metric "
+                "first, then advance_stage — but the criteria verdict stands "
+                "either way.",
+                False,
+            )
+        if not _did_any_empirical_work(handle):
+            return (
+                "request_spec_revision rejected — you have not run a single "
+                "experiment yet (no scripts run, no artifacts committed, no "
+                "metric computed). A metric reporting 'missing required input "
+                "keys' (e.g. logit_diff needs target_logits and foil_logits) "
+                "does NOT mean the spec is wrong: those inputs are DATA YOU "
+                "PRODUCE. Load the model (`from autointerp.tools.model import "
+                "load_model`), run it on the dataset prompts in a script, save "
+                "the logits to scratch/, then pass them to "
+                "compute_and_commit_metric. Do the experiment first. "
+                "request_spec_revision is only for a genuine spec contradiction "
+                "you hit AFTER actually attempting the work.",
+                False,
+            )
+        if _blames_environment(reason) and not _has_model_forward_capture(handle):
+            return (
+                "request_spec_revision rejected — this reads as a hardware / "
+                "network / model-loading limitation, but the spec's model loads "
+                "fine on this box and no model_forward capture exists yet, so the "
+                "model was never successfully loaded here. The cause is almost "
+                "always a SCRIPT bug: passing a display name (e.g. 'gpt2-small') "
+                "to a raw `from_pretrained` 404s — use `load_model(...)`, which "
+                "resolves it to the real Hub repo; or a command errored / timed "
+                "out. Fix the script and re-run it. Do NOT revise the spec, switch "
+                "to a smaller model, or substitute synthetic/offline outputs for "
+                "real model runs — none of those is the problem.",
+                False,
+            )
         try:
             req = request_spec_revision(handle, reason=reason, prior_results_ref=prior)
         except RevisionGateError as exc:
@@ -268,9 +460,11 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
                     "metric_id": {"type": "string"},
                     "inputs": {
                         "description": (
-                            "Metric inputs as a dict, OR a path (string) to a "
-                            "JSON file containing the inputs dict. Use a file "
-                            "path when inputs are large (e.g. per-sample arrays)."
+                            "A PATH (string) to a JSON file your script wrote "
+                            "with the metric's inputs, e.g. "
+                            "'scratch/logit_diff_inputs.json'. Inline literal "
+                            "values are rejected — inputs must be traceable to a "
+                            "real model run."
                         ),
                     },
                     "split": {
@@ -320,11 +514,11 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
                     "metric": {"type": "string", "enum": metric_enum},
                     "metric_id": {"type": "string"},
                     "inputs": {
-                        "type": "object",
-                        "additionalProperties": True,
                         "description": (
-                            "Required-input map for the metric. For "
-                            "metric='custom', also include "
+                            "A PATH (string) to a JSON file your script wrote "
+                            "with the metric's inputs (inline literals are "
+                            "rejected). For metric='custom', the file's object "
+                            "must also include "
                             "'__custom_name__': '<custom_metric_def.name>'."
                         ),
                     },

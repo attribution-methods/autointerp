@@ -268,6 +268,10 @@ def test_format_tool_event_semantics() -> None:
     # plan was written, so one approval line covers it.
     assert "approved and locked in" in fmt("finalize_spec", {}, True)
     assert "bash[/bold][dim] · ls -la" in fmt("bash", {"command": "ls -la"}, True)
+    # A multi-line script reads as distinct commands, not a flattened run-on.
+    multi = fmt("bash", {"command": "ls -la\nls -la prompt_batches || true\nwc -l x"}, True)
+    assert "ls -la ; ls -la prompt_batches || true ; wc -l x" in multi
+    assert "ls -la ls -la" not in multi
     assert "scripts/x.py" in fmt("write_file", {"path": "scripts/x.py"}, True)
     # Investigation Tier-2 tools — now a primary surface for the feed (the
     # auto-launched run renders through this).
@@ -275,8 +279,12 @@ def test_format_tool_event_semantics() -> None:
     assert "computed accuracy" in fmt(
         "compute_and_commit_metric", {"metric": "accuracy"}, True
     )
-    assert "committed MetricResult" in fmt(
+    # The artifact kind is humanized in the feed too (no raw CamelCase).
+    assert "committed metric result" in fmt(
         "commit_artifact", {"kind": "MetricResult"}, True
+    )
+    assert "committed intervention result" in fmt(
+        "commit_artifact", {"kind": "InterventionResult"}, True
     )
     assert "evaluated criterion" in fmt(
         "evaluate_criterion", {"criterion_id": "c1"}, True
@@ -887,6 +895,52 @@ def test_repl_turn_detects_finalized_spec_and_reports_cost(
     assert "this turn" in output and "$0.0123" in output  # per-turn cost line
 
 
+def test_investigation_crash_does_not_kill_session(tmp_path: Path, monkeypatch) -> None:
+    """An investigation that raises must NOT take the session down — it's caught,
+    surfaced, and the REPL returns to the prompt. (The run-1 NaN crash propagated
+    all the way out of run_investigation and WOULD have killed the session.)"""
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+    from prompt_toolkit.output import DummyOutput
+
+    console = _console()
+    config = AgentConfig(model_name="anthropic/claude-sonnet-4-5")
+    registry = SkillRegistry({})
+    context = ContextManager(skill_registry=registry, model_name=config.model_name)
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+
+    async def fake_turn(prompt, config, context, router, observer=None, **kwargs):
+        (spec_dir / "demo_rev1.json").write_text("{}")  # finalize → on_finalize fires
+        return "locked in"
+
+    monkeypatch.setattr(repl, "run_agent_turn", fake_turn)
+
+    crashed = {"called": False}
+
+    async def boom(spec_path):
+        crashed["called"] = True
+        raise RuntimeError("NaN exploded the run")
+
+    async def go():
+        with create_pipe_input() as pipe:
+            pipe.send_text("approve\r/exit\r")  # launch (crashes), then leave
+            with create_app_session(input=pipe, output=DummyOutput()):
+                return await repl.run_spec_repl(
+                    config=config, context=context, router=object(), console=console,
+                    registry=registry, spec_dir=spec_dir, max_turns=5,
+                    state_dir=tmp_path, on_finalize=boom,
+                )
+
+    result = asyncio.run(go())
+    out = console.file.getvalue()
+    assert crashed["called"]  # the investigation DID run and raised
+    assert result is None  # the session exited cleanly via /exit — NOT a crash
+    assert "stopped on an error" in out and "still alive" in out
+    assert "NaN exploded" in out  # the real reason surfaced
+    assert "Back to design" in out  # returned to the prompt afterwards
+
+
 def test_cli_import_stays_litellm_free() -> None:
     """Startup-latency guard. `import litellm` reads thousands of files
     (~12s on network filesystems) and must happen on the first agent turn,
@@ -1144,3 +1198,206 @@ def test_dispatch_clear_rotates_session(tmp_path: Path) -> None:
     handled, _ = asyncio.run(repl.handle_repl_command("/clear", ui))
     assert handled
     assert ui.session_id != "old-id" and ui.turn == 0 and not ui.resumed
+
+
+def test_looks_like_approval() -> None:
+    for yes in ("Approve.", "approve", "yes", "yes go ahead", "go ahead",
+                "lock it in", "sounds good", "Approved!", "ok", "lgtm",
+                "go ahead, revise it and re-run",
+                # natural go-aheads that must also count (the "Continue" bug)
+                "Continue.", "continue", "keep going", "go", "let's go",
+                "proceed", "run it", "launch it", "finalize", "ship it",
+                "go for it", "lock it",
+                # an explicit approval phrase inside a longer reply (the user
+                # answered the agent's questions AND approved in one message)
+                "I want a local model. Around 300 is fine. No domain focus. I approve otherwise.",
+                "Looks good, go ahead and run it on gpt2.",
+                "that all sounds good to me, lgtm"):
+        assert repl._looks_like_approval(yes), yes
+    for no in ("yes, but use a bigger model", "approve after you change the model",
+               "how does this work?", "use distilgpt2 instead", "", "no",
+               "wait, change the dataset", "can you explain the metric first?",
+               "continue but switch the model first",
+               # an approval with a caveat is NOT a clean go-ahead
+               "I approve, but change the model to gpt2-large first",
+               "I'll approve once you fix the dataset"):
+        assert not repl._looks_like_approval(no), no
+
+
+def test_resume_hint_shows_and_persists_on_exit(tmp_path) -> None:
+    """On exit the user gets the exact command to resume THIS session — and the
+    session is force-persisted so `--continue <id>` resolves EVEN at turn 0 (the
+    'I Ctrl-C'd immediately and saw nothing' bug)."""
+    import types
+
+    from autointerp_agent.sessions import SessionStore
+
+    store = SessionStore(root=tmp_path)
+    ui = types.SimpleNamespace(
+        session_store=store, session_id="sess-1", turn=0,  # exited before a turn
+        context=types.SimpleNamespace(messages=[]),
+        config=types.SimpleNamespace(model_name="gpt2"),
+        cost=types.SimpleNamespace(to_dict=lambda: {}),
+        spec_dir=None,
+    )
+    console = _console()
+    repl._print_resume_hint(console, ui)
+    assert "autointerp --continue sess-1" in console.file.getvalue()
+    assert store.load("sess-1") is not None  # persisted → the id resolves
+
+    # No hint without a session store (non-interactive caller).
+    c3 = _console()
+    repl._print_resume_hint(
+        c3, types.SimpleNamespace(session_store=None, session_id="x", turn=5)
+    )
+    assert c3.file.getvalue() == ""
+
+
+def test_resume_hint_renders_uniform_color(tmp_path) -> None:
+    """The id must not be two-toned: rich's number highlighter used to tint only
+    the digit runs (20260615/153036) cyan, leaving the dashes + hex 'f71f' white.
+    The whole command should render as one uniform span."""
+    import io
+    import types
+
+    from rich.console import Console
+
+    from autointerp_agent.sessions import SessionStore
+
+    sid = "20260615-153036-f71f"
+    ui = types.SimpleNamespace(
+        session_store=SessionStore(root=tmp_path), session_id=sid, turn=0,
+        context=types.SimpleNamespace(messages=[]),
+        config=types.SimpleNamespace(model_name="gpt2"),
+        cost=types.SimpleNamespace(to_dict=lambda: {}),
+        spec_dir=None,
+    )
+    console = Console(file=io.StringIO(), force_terminal=True, width=120,
+                      color_system="standard")
+    repl._print_resume_hint(console, ui)
+    raw = console.file.getvalue()
+    # the command (incl. the id) is one contiguous styled run — no ANSI breaks
+    # splitting the digits from the dashes/hex the way the highlighter did.
+    assert f"autointerp --continue {sid}" in raw
+    assert "\x1b[1m-" not in raw  # the old bold-default dash artifact is gone
+
+
+class _FakeRouter:
+    """Minimal router stub: records call_tool calls and returns a fixed result,
+    optionally running a side effect (e.g. writing a spec file) first."""
+
+    def __init__(self, result, side_effect=None):
+        self.result = result
+        self.side_effect = side_effect
+        self.calls: list = []
+
+    async def call_tool(self, name, args):
+        self.calls.append((name, args))
+        if self.side_effect is not None:
+            self.side_effect()
+        return self.result
+
+
+def test_force_finalize_locks_in_on_user_approval(tmp_path) -> None:
+    """When the user approved but the agent didn't finalize, the REPL locks the
+    plan in deterministically via finalize_spec — no reliance on the model."""
+    import asyncio
+
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    before = repl._snapshot_specs(spec_dir)
+
+    def _write_spec() -> None:
+        (spec_dir / "plan_rev1.json").write_text("{}")
+
+    router = _FakeRouter(("Plan finalized as revision 1, saved to …", True), _write_spec)
+    new = asyncio.run(repl._force_finalize(router, _console(), spec_dir, before))
+    assert any(p.name == "plan_rev1.json" for p in new)  # the new spec is returned
+    assert router.calls[0][0] == "finalize_spec"
+    assert router.calls[0][1]["approver_kind"] == "human"  # the human approved
+
+
+def test_force_finalize_noop_when_draft_not_ready(tmp_path) -> None:
+    """If the draft isn't finalize-ready, force-finalize writes nothing and shows
+    a PLAIN-LANGUAGE note (not a raw pydantic 'structural errors' blob) — a
+    half-formed plan is never launched on a stray 'continue'."""
+    import asyncio
+
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    before = repl._snapshot_specs(spec_dir)
+    router = _FakeRouter(("Cannot finalize — spec has structural errors:\nfoo", False))
+    console = _console()
+    new = asyncio.run(repl._force_finalize(router, console, spec_dir, before))
+    assert new == set()
+    out = console.file.getvalue()
+    assert "isn't fully filled in yet" in out  # plain language
+    assert "structural error" not in out.lower()  # no raw blob leaked
+
+    # a NON-structural blocker is shown (cleaned), so real issues aren't hidden
+    c2 = _console()
+    r2 = _FakeRouter(("Cannot finalize — metric x is not runnable", False))
+    asyncio.run(repl._force_finalize(r2, c2, spec_dir, before))
+    assert "metric x is not runnable" in c2.file.getvalue()
+
+
+def test_humanize_identifiers_translates_leaked_schema_names() -> None:
+    """Internal CamelCase identifiers leaked into PROSE become plain language —
+    including the hallucinated 'InvestigationPlan' that no detect-list covers.
+    Distinctive terms are COLORED (backtick-wrapped → accent inline code) like
+    the underscored identifiers; everyday single words stay plain."""
+    h = repl._humanize_identifiers
+    # distinctive schema/type terms: humanized AND colored
+    assert h("draft a concrete InvestigationPlan") == "draft a concrete `investigation plan`"
+    assert h("commit an InterventionResult") == "commit an `intervention result`"
+    assert h("update the InvestigationSpec") == "update the `investigation plan`"
+    assert h("the MetricResult and CandidateSite") == "the `metric result` and `candidate site`"
+    # EVERY casing/spacing of "investigation plan" normalizes to the colored
+    # lowercase term — incl. the spaced Title Case form a real run leaked
+    # ("convert this into a formal Investigation Plan").
+    assert h("a formal Investigation Plan") == "a formal `investigation plan`"
+    assert h("the investigation plan here") == "the `investigation plan` here"
+    # no double-wrap when several forms appear together
+    assert "``" not in h("InvestigationSpec, Investigation Plan, InvestigationPlan")
+    # everyday single words: humanized but NOT colored
+    assert h("ModelRef on DatasetSpec") == "model on dataset"
+    assert "investigation plan" in h("I'll build the InvestigationPlan now.")
+
+
+def test_humanize_identifiers_preserves_code_and_plain_english() -> None:
+    """Genuine `code` references and ordinary words must be left alone."""
+    h = repl._humanize_identifiers
+    # inline code + fenced code are untouched (the agent may show real schema code)
+    assert h("see `InvestigationSpec` here") == "see `InvestigationSpec` here"
+    assert "InvestigationSpec" in h("```\nspec = InvestigationSpec()\n```")
+    # the ordinary English word, planning prose, and model names never match
+    assert h("we ran 3 Investigations") == "we ran 3 Investigations"
+    assert h("the investigation planning process") == "the investigation planning process"
+    assert h("using GPT2 / gpt-neo-125M") == "using GPT2 / gpt-neo-125M"
+
+
+def test_render_answer_shows_plain_language_not_identifiers() -> None:
+    """End to end: the user never sees 'InvestigationPlan' in a rendered reply."""
+    console = _console(width=120)
+    repl.render_answer(console, "I'll draft a concrete InvestigationPlan with stages.")
+    out = console.file.getvalue()
+    assert "investigation plan" in out
+    assert "InvestigationPlan" not in out
+
+
+def test_write_file_event_shows_run_dir_location() -> None:
+    """During an investigation, a write to `scripts/x.py` is shown under the run
+    dir so it can't be mistaken for the repo's own scripts/."""
+    line = repl._format_tool_event(
+        "write_file", {"path": "scripts/step0_setup.py"}, True,
+        run_dir="runs/my_run_rev1",
+    )
+    assert "runs/my_run_rev1/scripts/step0_setup.py" in line
+    # No run dir (plain REPL) → raw path, unchanged.
+    line2 = repl._format_tool_event("write_file", {"path": "scripts/x.py"}, True)
+    assert "scripts/x.py" in line2 and "runs/" not in line2
+    # Absolute paths are left as-is.
+    line3 = repl._format_tool_event(
+        "write_file", {"path": "/tmp/abs.py"}, True, run_dir="runs/r1"
+    )
+    assert "/tmp/abs.py" in line3

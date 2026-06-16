@@ -150,12 +150,20 @@ def test_tier2_tool_round_trip(tmp_path: Path) -> None:
     tools = {t.name: t for t in create_investigation_tools(handle)}
     tool = tools["compute_and_commit_metric"]
 
+    # Inputs must be a model_forward capture (input-provenance v2) — record one
+    # the way the agent's script would.
+    from autointerp.tools.provenance import record_to
+    cap = record_to(
+        handle.root, "acc_inputs",
+        {"predictions": [1, 1, 1, 1], "labels": [1, 1, 1, 1]},
+        source="model_forward", model_id="gpt2",
+    )
     out_str, ok = asyncio.run(
         tool.handler(
             {
                 "metric": "accuracy",
                 "metric_id": "acc-001",
-                "inputs": {"predictions": [1, 1, 1, 1], "labels": [1, 1, 1, 1]},
+                "inputs": cap,
                 "split": "dev",
                 "threshold": 0.5,
                 "comparator": ">=",

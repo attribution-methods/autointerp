@@ -98,6 +98,14 @@ class RunHandle:
     def progress_path(self) -> Path:
         return self.root / "progress.md"
 
+    @property
+    def captures_dir(self) -> Path:
+        return self.root / "captures"
+
+    @property
+    def captures_ledger_path(self) -> Path:
+        return self.root / "captures.jsonl"
+
     def stage_findings_dir(self, stage_idx: int, stage_name: str) -> Path:
         return self.findings_dir / f"stage_{stage_idx}_{stage_name}"
 
@@ -114,6 +122,7 @@ def _make_subdirs(handle: RunHandle) -> None:
         handle.findings_dir,
         handle.scripts_dir,
         handle.scratch_dir,
+        handle.captures_dir,
     ):
         d.mkdir(parents=True, exist_ok=True)
 

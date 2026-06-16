@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from autointerp.pipelines.investigation import init_run
+from autointerp.pipelines.investigation import AblationFlags, init_run
 from autointerp.pipelines.investigation.main import (
     build_system_prompt,
     prepare_run,
@@ -187,7 +187,10 @@ def test_create_investigation_tools_registers_all(tmp_path: Path) -> None:
 
 def test_tool_compute_then_commit_roundtrip(tmp_path: Path) -> None:
     spec = InvestigationSpec.model_validate_json(_spec_path(tmp_path).read_text())
-    handle = init_run(spec, runs_root=tmp_path / "runs")
+    # Not a provenance test — use inline inputs directly.
+    handle = init_run(spec, runs_root=tmp_path / "runs",
+                      flags=AblationFlags(require_sourced_inputs=False,
+                      require_captured_inputs=False))
     tools = {t.name: t for t in create_investigation_tools(handle)}
 
     out, ok = asyncio.run(
@@ -221,7 +224,9 @@ def test_tool_compute_then_commit_roundtrip(tmp_path: Path) -> None:
 
 def test_tool_compute_metric_unknown_returns_ok_false(tmp_path: Path) -> None:
     spec = InvestigationSpec.model_validate_json(_spec_path(tmp_path).read_text())
-    handle = init_run(spec, runs_root=tmp_path / "runs")
+    handle = init_run(spec, runs_root=tmp_path / "runs",
+                      flags=AblationFlags(require_sourced_inputs=False,
+                      require_captured_inputs=False))
     tools = {t.name: t for t in create_investigation_tools(handle)}
     out, ok = asyncio.run(
         tools["compute_metric"].handler(
@@ -234,7 +239,9 @@ def test_tool_compute_metric_unknown_returns_ok_false(tmp_path: Path) -> None:
 
 def test_tool_advance_stage_blocks_then_succeeds(tmp_path: Path) -> None:
     spec = InvestigationSpec.model_validate_json(_spec_path(tmp_path).read_text())
-    handle = init_run(spec, runs_root=tmp_path / "runs")
+    handle = init_run(spec, runs_root=tmp_path / "runs",
+                      flags=AblationFlags(require_sourced_inputs=False,
+                      require_captured_inputs=False))
     tools = {t.name: t for t in create_investigation_tools(handle)}
     out, ok = asyncio.run(tools["advance_stage"].handler({}))
     assert ok is False
@@ -273,6 +280,10 @@ def test_tool_request_revision_terminates(tmp_path: Path) -> None:
     spec = InvestigationSpec.model_validate_json(_spec_path(tmp_path).read_text())
     handle = init_run(spec, runs_root=tmp_path / "runs")
     tools = {t.name: t for t in create_investigation_tools(handle)}
+    # A revision is only accepted after a genuine attempt (the gate rejects a
+    # bail before any work); simulate that the agent ran something.
+    handle.scratch_dir.mkdir(parents=True, exist_ok=True)
+    (handle.scratch_dir / "attempt.json").write_text("{}")
     out, ok = asyncio.run(
         tools["request_spec_revision"].handler({"reason": "mismatch"})
     )

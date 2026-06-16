@@ -11,6 +11,7 @@ behavior.
 git clone https://github.com/attribution-methods/autointerp.git
 cd autointerp
 python -m pip install -e ".[mechinterp]"   # extra = local model loading (torch)
+python scripts/install_torch.py            # GPU-match torch (see note below)
 export ANTHROPIC_API_KEY=...   # optional — skip it and `autointerp` will
                                # walk you through model + key setup and can
                                # save both to .env (see /model, /help)
@@ -18,6 +19,13 @@ export ANTHROPIC_API_KEY=...   # optional — skip it and `autointerp` will
 
 You'll need a GPU for any run that loads a real model (GPT-2-small needs
 <2 GB, anything bigger needs a real card).
+
+> **Blackwell / new GPUs:** PyPI's default `torch` wheel only ships CUDA
+> kernels up to `sm_90`, so on a B200 (`sm_100`) or RTX 50-series (`sm_120`)
+> every CUDA op fails with *"no kernel image is available for execution on the
+> device."* `scripts/install_torch.py` detects your GPU and installs the right
+> build (cu128 for Blackwell). It's idempotent — re-run it anytime. (If you
+> skip it and hit that error, autointerp now tells you exactly this.)
 
 ## 1. Design a spec (Stage 0) and run it — in one command
 

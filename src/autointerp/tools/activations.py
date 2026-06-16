@@ -35,11 +35,32 @@ def resolve_layer(layer: LayerLike, n_layers: int) -> int:
     return layer
 
 
+_COMPONENT_WORDS = {
+    "resid", "residual", "hidden", "block", "mlp", "ffn", "feed_forward",
+    "feedforward", "attn", "attention", "self_attn", "head",
+}
+
+
 def parse_component_spec(spec: str, n_layers: Optional[int] = None) -> ComponentSpec:
     text = spec.strip().upper()
     match = re.match(r"^L(\d+(?:\.\d+)?(?:-\d+)?)", text)
     if not match:
-        raise ValueError(f"Invalid component spec: {spec}")
+        # Most common cause: a COMPONENT name ("attn", "self_attn") was passed
+        # where a LAYER is expected — i.e. the caller misordered positional args.
+        # Say so explicitly; the bare "Invalid component spec" sent weak drivers
+        # into a spiral that ended in a needless spec revision.
+        hint = ""
+        if spec.strip().lower() in _COMPONENT_WORDS:
+            hint = (
+                f" — {spec!r} is a COMPONENT, not a layer. Layer and component are "
+                "SEPARATE arguments; pass the layer as an int (e.g. 6) or 'L6', and "
+                "the component as its own argument. Check your argument order."
+            )
+        raise ValueError(
+            f"Invalid layer spec {spec!r}. Expected an int layer index or a string "
+            f"like 'L6' (layer 6), 'L6H0' (layer 6, head 0), 'L6MLP', 'L6ATTN', or "
+            f"a range 'L6-8'.{hint}"
+        )
     layer_part = match.group(1)
     rest = text[match.end():]
 
@@ -83,19 +104,36 @@ def parse_component_spec(spec: str, n_layers: Optional[int] = None) -> Component
     return ComponentSpec(layers=layers, component=component, heads=heads)
 
 
+_COMPONENT_CANON = {
+    "resid": "resid", "residual": "resid", "hidden": "resid", "block": "resid",
+    "mlp": "mlp", "ffn": "mlp", "feed_forward": "mlp", "feedforward": "mlp",
+    "attn": "attn", "attention": "attn", "self_attn": "attn", "attn_out": "attn",
+    "head": "attn",  # whole-attention module; per-head selection is upstream
+}
+
+
 def component_module(handle: ModelHandle, layer_idx: int, component: str) -> Any:
     layer = handle.layer(layer_idx)
-    if component == "resid":
+    key = _COMPONENT_CANON.get(str(component).strip().lower())
+    if key is None:
+        raise ValueError(
+            f"Unknown component {component!r}. Valid components are 'resid' (the "
+            f"whole block), 'mlp', and 'attn' (aliases like 'self_attn' are "
+            f"accepted). The layer is a separate argument; combined strings like "
+            f"'L6H0' are a layer spec, not a component."
+        )
+    if key == "resid":
         return layer
-    if component == "mlp":
-        for name in ("mlp", "feed_forward", "ffn"):
-            if hasattr(layer, name):
-                return getattr(layer, name)
-    if component in {"attn", "head"}:
-        for name in ("self_attn", "attention", "attn"):
-            if hasattr(layer, name):
-                return getattr(layer, name)
-    raise ValueError(f"Could not find {component} module at layer {layer_idx}")
+    candidates = {"mlp": ("mlp", "feed_forward", "ffn"),
+                  "attn": ("self_attn", "attention", "attn")}[key]
+    for name in candidates:
+        if hasattr(layer, name):
+            return getattr(layer, name)
+    raise ValueError(
+        f"Could not locate the {key!r} submodule at layer {layer_idx} on this "
+        f"model (looked for attributes {candidates}); the architecture may name "
+        f"it differently."
+    )
 
 
 def _select_component_output(output: Any) -> torch.Tensor:

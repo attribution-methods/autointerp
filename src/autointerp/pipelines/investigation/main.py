@@ -61,6 +61,40 @@ is no one to answer, and the run will stall.
   field inside any payload. Only drop to the manual `compute_metric` →
   `commit_artifact` path (passing back the returned payload verbatim plus its
   `provenance_token`) if you genuinely need the raw payload first.
+- A metric's `inputs` are DATA YOU PRODUCE by running the model — logits,
+  activations, patched/clean outputs, probe scores — not pre-existing files.
+  The workflow for EVERY metric:
+    1. In a script, load the model with `load_model` — it maps the spec's name
+       to the right Hub repo and handles device/dtype:
+         from autointerp.tools.model import load_model
+         h = load_model("<the spec's model id>")  # h.model, h.tokenizer, h.device
+       Do NOT pass the spec's name to a raw `AutoModel.../GPT2....from_pretrained`:
+       display names like "gpt2-small" are not Hub repos, so a raw call 404s. A
+       "not a valid model identifier" / "Repository Not Found" / 404 is a SCRIPT
+       bug (wrong repo id) — never "no hardware/network", and never a reason to
+       request_spec_revision or switch models. Then run it on the dataset prompts
+       to compute the values.
+    2. Record them as a capture, which writes the file AND logs that it came
+       from a real run:
+         from autointerp.tools.provenance import record_capture
+         path = record_capture("logit_diff_inputs",
+                    {"target_logits": [...], "foil_logits": [...]},
+                    source="model_forward", model_id="gpt2", prompt_batch="<id>")
+       It returns a path like "captures/<id>.json".
+    3. Pass THAT path as `inputs` to compute_and_commit_metric.
+  Inputs that are not a recorded model_forward capture are REJECTED — this is
+  how a verdict is proven to come from a real run, not hand-typed numbers.
+  Synthetic *stimuli* (prompts you feed the model) are fine; invented
+  *measurements* (the model's outputs) are not. A "missing required input keys"
+  error means RUN the model to produce those arrays — it is NOT a reason to
+  request_spec_revision, and dataset/model_id/seed are NOT metric inputs.
+- NEVER fabricate measurements. Do not pass invented, placeholder, "example",
+  or round-number values (e.g. `target_logits=[2.3]`), and do not compute a
+  metric on a single hand-picked sample. Run the model over the dataset's real
+  samples and `record_capture(... source="model_forward" ...)` the actual
+  outputs. A run whose criteria are not backed by model_forward captures is
+  flagged UNSUBSTANTIATED in the final report and does NOT count as a real
+  result — an honest INCONCLUSIVE is far better than an invented PASS.
 - Commit non-metric typed artifacts via `commit_artifact` (PromptBatch,
   ActivationCacheRef, CandidateSite, InterventionResult, …). Here too `split`
   and `provenance_token` are top-level arguments, never payload fields — the
@@ -74,8 +108,32 @@ is no one to answer, and the run will stall.
   INCONCLUSIVE: the value is still logged, the run is NOT terminated, and the
   criterion counts as evaluated. Use this for honest non-results — not to
   dodge a FAIL you could defend. A FAIL still terminates the run.
-- If results contradict the spec's hypothesis or methodology, do NOT silently
-  reroute — call `request_spec_revision` with a clear `reason`.
+- A metric whose INPUTS you cannot produce — e.g. a causal `patch_effect_recovery`
+  when no candidate sites were generated in an earlier stage — is an INCONCLUSIVE
+  criterion: record it with `inconclusive_reason`, `advance_stage`, and FINISH the
+  run with a report. It is NOT a spec contradiction and NOT a reason to
+  `request_spec_revision`. Always prefer finishing with an honest INCONCLUSIVE
+  over pausing the whole run.
+- Reserve `request_spec_revision` for when the spec is self-contradictory or the
+  EVIDENCE you gathered refutes its hypothesis/methodology — not for work you
+  simply did not set up. Do NOT silently reroute around such a contradiction.
+- Run multi-line Python from a FILE, not a heredoc: `write_file('scripts/x.py',
+  '<full python>')` then `bash('python scripts/x.py')`. Do NOT use `python -
+  <<PY ...`; embedded newlines get mangled into literal `\\n` and the command
+  fails to parse. A failed bash command (syntax/heredoc error), a missing file,
+  or any tool error is YOUR bug to fix by re-issuing a correct call — it is NOT
+  an environment/GPU/model limitation and NOT a reason to request_spec_revision
+  or switch to a smaller model.
+- When the run reaches a terminal state, your FINAL message is the report the
+  user reads. Make it plain-language and interpretive, in this shape: (1) the
+  question and hypothesis you tested; (2) the verdict on the hypothesis —
+  supported / not supported / inconclusive — and WHY, tied to each criterion's
+  result; (3) what was concretely found or learned (e.g. which layers/heads/
+  features carry the signal, effect sizes); (4) caveats and next steps. Do NOT
+  just restate metric numbers or list artifact filenames. If the run did not
+  actually run the model (you will be warned the results are unsubstantiated),
+  say so plainly: nothing was confirmed, the verdicts are not valid, and the
+  run must be redone against a real model — never claim success.
 
 # Token discipline
 
@@ -93,9 +151,11 @@ context for the rest of the run. Be ruthless:
 
 # Helper modules already implemented — DO NOT REINVENT
 
-Importable Python helpers under `autointerp.tools.*` (the repo root is on
-sys.path; if not, `sys.path.insert(0, "src")` first). Use these from your
-scripts before writing forward-pass / hook / patching code by hand:
+Your bash/scripts run INSIDE this run directory — write files with relative
+paths (`scripts/x.py`, `scratch/y.json`) and they stay here; do NOT write to
+the repo. The `autointerp` package is installed and imports from anywhere, so
+just `from autointerp.tools... import ...` (no `sys.path` hacks). Use these
+helpers before writing forward-pass / hook / patching code by hand:
 
 - `autointerp.tools.model` — `load_model(model_id, ...)` returns a
   `ModelHandle` carrying the HF model, tokenizer, dtype, device.
@@ -114,6 +174,9 @@ scripts before writing forward-pass / hook / patching code by hand:
 - `autointerp.tools.probes` — `train_probe(...)`, `probe_direction(...)`.
 - `autointerp.tools.sae` — feature inspection helpers.
 - `autointerp.tools.generation` — generation-time intervention helpers.
+- `autointerp.tools.provenance` — `record_capture(name, value, source=
+  "model_forward", model_id=…, prompt_batch=…)` → records a metric's inputs as
+  proven model output and returns the path to pass to compute_and_commit_metric.
 
 Every one of these encapsulates the standard hook bookkeeping. Reach for
 them first; only hand-roll if a helper is genuinely missing what you need.

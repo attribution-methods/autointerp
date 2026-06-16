@@ -52,9 +52,11 @@ from autointerp.spec import (
     Budget,
     ContrastSpec,
     Criterion,
+    CustomMetricDef,
     DatasetSpec,
     InvestigationSpec,
     InvestigationStage,
+    MetricFamily,
     MetricName,
     ModelRef,
     PatternId,
@@ -434,6 +436,100 @@ def test_advance_final_stage_rolls_back_on_unevaluated(tmp_path: Path) -> None:
     assert state.current_stage_idx == 1
     assert state.terminal_state is None
     assert state.stage_status["1"].status is StageStatus.IN_PROGRESS
+
+
+# ---- custom-metric stage gating + verdict-complete short-circuit -----------
+
+_SURPRISAL_SOURCE = (
+    "def compute(inputs):\n"
+    "    vals = inputs['surprisals']\n"
+    "    return sum(vals) / len(vals)\n"
+)
+
+
+def _custom_multistage_spec() -> InvestigationSpec:
+    """A custom metric declared in TWO stages but tied to ONE criterion (in the
+    first stage) — the real run's shape. Reproduces the gate snag (declared
+    'custom' vs a metric recorded under its def name) and the dead-later-stage
+    stall."""
+    defn = CustomMetricDef(
+        name="surprisal_mean",
+        description="Mean of token-wise surprisal values.",
+        family=MetricFamily.BEHAVIORAL,
+        value_range=(0.0, None),
+        direction="higher",
+        requires_inputs=["surprisals"],
+        source_code=_SURPRISAL_SOURCE,
+    )
+    return InvestigationSpec(
+        spec_id="custom-multistage",
+        revision=1,
+        question="q",
+        hypothesis="h",
+        phenomenon_id="custom",
+        behavior=BehaviorSpec(behavior_id="b", description="d"),
+        model=ModelRef(model_id="gpt2"),
+        dataset=DatasetSpec(dataset_id="ds", source="generated", n_samples=10,
+                            split="dev", seed=1),
+        contrast=ContrastSpec(contrast_id="c", positive_template="{x}",
+                              negative_template="{y}", pairing="matched"),
+        stages=[
+            StageSpec(stage=InvestigationStage.BLACK_BOX, pattern=PatternId.CUSTOM,
+                      tools=[ToolName.BLACKBOX_PROBE], metrics=[MetricName.CUSTOM]),
+            StageSpec(stage=InvestigationStage.LOCALIZATION, pattern=PatternId.CUSTOM,
+                      tools=[ToolName.ACTIVATION_CACHE], metrics=[MetricName.CUSTOM]),
+        ],
+        success_criteria=[
+            Criterion(criterion_id="c-surprise", description="mean surprisal high",
+                      metric=MetricName.CUSTOM, comparator=">=", threshold=1.0,
+                      on_split="dev", custom_metric_def=defn),
+        ],
+        budget=Budget(),
+        status=SpecStatus.APPROVED,
+        approval=Approval(approver="t", approver_kind="agent", approved_at=_now()),
+    )
+
+
+def _commit_surprisal(handle, *, criterion_id: str | None = None):
+    from autointerp.pipelines.investigation.metrics import compute_and_commit_metric
+
+    return compute_and_commit_metric(
+        handle, metric="custom", metric_id="sm-1",
+        inputs={"__custom_name__": "surprisal_mean", "surprisals": [2.0, 4.0]},
+        split="dev", threshold=1.0, comparator=">=", criterion_id=criterion_id,
+    )
+
+
+def test_committed_custom_satisfies_declared_custom(tmp_path: Path) -> None:
+    """A committed custom metric is recorded under its def name ('surprisal_mean'),
+    but the stage declares the enum 'custom'. The advance gate must count it, else
+    it falsely reports the declared 'custom' missing and strands the run."""
+    handle = init_run(_custom_multistage_spec(), runs_root=tmp_path)
+    _commit_surprisal(handle)  # committed, criterion NOT yet evaluated
+    view = current_stage_view(handle)
+    assert "custom" in view["committed_metric_names"]  # recognized as 'custom'
+    # The gate no longer reports 'custom' missing → advances to the next stage.
+    out = advance_stage(handle)
+    assert out["current_stage_idx"] == 1
+    assert out["terminal_state"] is None  # criterion unevaluated → not done yet
+
+
+def test_run_completes_when_all_criteria_pass_before_last_stage(tmp_path: Path) -> None:
+    """Verdict-complete short-circuit: the sole criterion passes in stage 0, so
+    advance_stage terminates the run as COMPLETED without forcing it through the
+    later, criterion-free localization stage — the exact stall that reported an
+    otherwise-finished run as INCOMPLETE."""
+    handle = init_run(_custom_multistage_spec(), runs_root=tmp_path)
+    _commit_surprisal(handle, criterion_id="c-surprise")  # evaluates → PASS (3.0)
+    state = read_state(handle.state_path)
+    assert state.criteria_evaluated["c-surprise"].verdict is Verdict.PASS
+    assert state.terminal_state is None  # not terminal until the agent advances
+
+    out = advance_stage(handle)  # from stage 0, with all criteria evaluated
+    assert out["terminal_state"] == "completed"
+    state = read_state(handle.state_path)
+    assert state.terminal_state is TerminalState.COMPLETED
+    assert state.current_stage_idx == len(_custom_multistage_spec().stages)  # 2
 
 
 # ---- revision exit --------------------------------------------------------
