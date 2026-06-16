@@ -1,0 +1,29 @@
+# Ground-truth TEMPLATE — shape only, no real answers.
+#
+# This file is committed so the structure is discoverable. The REAL answers must
+# NOT live here. Copy this to your separate private store and fill it in, e.g.:
+#
+#     cp case_studies/ground_truth.example.yaml case_studies/private/ground_truth.yaml
+#     # ...fill in real answers...  (case_studies/private/ is git-ignored)
+#
+# Then point tooling at it with the AUTOINTERP_CASE_STUDY_GROUND_TRUTH env var,
+# or rely on the git-ignored default path case_studies/private/ground_truth.yaml.
+#
+# For a real (adversarial) evaluation, this file must be ABSENT on the machine
+# where the agent runs — the agent can read any file in its checkout, so the only
+# robust "out of reach" is "not present." See docs/case_studies.md.
+#
+# Keys under `answers:` must exactly match the case_id values in golden.yaml.
+
+version: "0.1-private"
+answers:
+  emotions-before-misalignment:
+    case_id: emotions-before-misalignment
+    summary: <one-sentence expected answer>
+    acceptance_criteria:
+      - <what a correct investigation must demonstrate>
+    references:
+      - <url or citation, if any>
+    source: unpublished        # published | unpublished
+    notes: <handling notes, e.g. replication caveats>
+  # ... one block per case_id in golden.yaml ...

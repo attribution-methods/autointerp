@@ -1,43 +1,54 @@
 #!/usr/bin/env python3
-"""Validate public case-study catalogs."""
+"""Validate the public case-study catalog (schema only).
+
+The catalog is spoiler-free by construction: ``CaseStudySpec`` has no answer
+field and forbids extra keys, so an expected answer accidentally added to
+``golden.yaml`` fails to load here. We also schema-check the committed
+ground-truth TEMPLATE so its shape stays valid. We never load or print the real
+private ground truth.
+"""
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-from autointerp.case_studies import Visibility, load_case_study_catalog
+import yaml
+
+from autointerp.case_studies import (
+    CaseStudyCatalog,
+    GroundTruthSet,
+    load_case_study_catalog,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CATALOG = ROOT / "case_studies" / "golden.yaml"
-PUBLIC_REPO_FORBIDDEN = [
-    "single linear direction",
-    "single direction",
-    "pathscopes works surprisingly well",
-    "much better than what is reported",
-]
+GROUND_TRUTH_TEMPLATE = ROOT / "case_studies" / "ground_truth.example.yaml"
 
 
 def validate_catalog(path: Path) -> list[str]:
     errors: list[str] = []
-    catalog = load_case_study_catalog(path)
+    catalog: CaseStudyCatalog = load_case_study_catalog(path)
     if len(catalog.cases) != 10:
         errors.append(f"{path}: expected 10 golden cases, found {len(catalog.cases)}")
     for case in catalog.cases:
-        if not case.recommended_skills:
-            errors.append(f"{case.case_id}: missing recommended_skills")
-        if not case.required_evidence:
-            errors.append(f"{case.case_id}: missing required_evidence")
-        if case.visibility == Visibility.PRIVATE_REDACTED:
-            if case.expected_answer.status != "private_redacted":
-                errors.append(f"{case.case_id}: private case has non-private expected answer")
-            if not case.expected_answer.redaction_reason:
-                errors.append(f"{case.case_id}: private case missing redaction reason")
-    text = path.read_text().lower()
-    for phrase in PUBLIC_REPO_FORBIDDEN:
-        if phrase in text:
-            errors.append(f"{path}: contains private or over-specific phrase: {phrase!r}")
+        if not case.question.strip().endswith("?"):
+            errors.append(f"{case.case_id}: question must be phrased as a question")
+        for field in ("recommended_skills", "suggested_methods", "required_evidence"):
+            if not getattr(case, field):
+                errors.append(f"{case.case_id}: missing {field}")
     return errors
+
+
+def validate_template(path: Path) -> list[str]:
+    """Schema-check the committed ground-truth template (shape only)."""
+    if not path.exists():
+        return [f"{path}: missing ground-truth template"]
+    try:
+        GroundTruthSet.model_validate(yaml.safe_load(path.read_text()))
+    except Exception as exc:  # noqa: BLE001 — surface the validation reason
+        return [f"{path}: invalid ground-truth template: {exc}"]
+    return []
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -45,6 +56,8 @@ def main(argv: list[str] | None = None) -> int:
     errors: list[str] = []
     for path in paths:
         errors.extend(validate_catalog(path))
+    if DEFAULT_CATALOG in paths:
+        errors.extend(validate_template(GROUND_TRUTH_TEMPLATE))
     if errors:
         for error in errors:
             print(error)
@@ -57,4 +70,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
