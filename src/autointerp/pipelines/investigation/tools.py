@@ -272,6 +272,7 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
         patience = disco.patience if disco else 2
         n_subagents = disco.n_subagents if disco else 1
         archive_size = disco.archive_size if disco else 5
+        archive_code_in_context = disco.archive_code_in_context if disco else 1
         propose_mode = disco.propose_mode if disco else "single"
         max_turns = disco.max_turns_per_iteration if disco else 20
         top_k = disco.top_k if disco else 20
@@ -314,6 +315,7 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
                 patience=patience,
                 n_subagents=n_subagents,
                 archive_size=archive_size,
+                archive_code_in_context=archive_code_in_context,
                 propose_mode=propose_mode,
                 max_turns_per_iteration=max_turns,
                 seeds=seeds,

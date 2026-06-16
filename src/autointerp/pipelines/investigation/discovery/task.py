@@ -48,6 +48,10 @@ class HillClimbConfig:
     n_subagents: int = 1
     # Top-K candidates kept as the archive (population). >=1.
     archive_size: int = 5
+    # How many top candidates' FULL code to inline in the proposal prompt
+    # (besides the parent). The rest appear only as a compact leaderboard;
+    # agentic proposers read full code from disk on demand. 0 = parent only.
+    archive_code_in_context: int = 1
     # "single" = one LLM completion per proposal; "agentic" = a tool-using
     # subagent via run_agent_turn.
     propose_mode: str = "single"

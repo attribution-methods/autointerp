@@ -41,10 +41,22 @@ vLLM/HF) by setting `DiscoveryConfig.model`. No `claude-agent-sdk` dependency.
 
 ## Memory
 
-- **Working memory (in prompt):** the parent being improved, the top-K archive
-  (full code + reward), and the full trail (every attempt + reward/failure).
-- **On disk:** `archive.jsonl` (population, enables resume), `loop_log.jsonl`,
-  `results/<candidate>.json`, `cost.json`.
+Bounded context + structured lookup (avoids re-sending every program each
+proposal):
+
+- **In the prompt (cheap, fixed-size):** a deterministic progress summary
+  (best reward, attempts-since-best, failure counts), a compact leaderboard
+  (one line per archived candidate, no code), the recent trail (last ~12
+  attempts; older ones noted as a count), and FULL code for only the parent +
+  `archive_code_in_context` top candidates (default 1).
+- **Structured memory on disk:** `archive.jsonl` (population, enables resume),
+  `results/<candidate>.json`, each `<candidate>.py`, `loop_log.jsonl`,
+  `cost.json`.
+- **Agentic mode** points the subagent at the on-disk store and lets it read
+  any candidate's full code with its file tools — full history is available on
+  demand without inflating every prompt. Single-completion mode can't look up,
+  so it relies on the bounded inline context (raise `archive_code_in_context`
+  if it needs more).
 
 ## Pre-registration discipline
 

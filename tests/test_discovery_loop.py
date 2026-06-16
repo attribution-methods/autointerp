@@ -244,3 +244,76 @@ def test_handler_refuses_when_stage_lacks_tool(tmp_path) -> None:
         {"task": "rank SAE features", "dry_run": True}))
     assert not ok
     assert "does not list `discover_features`" in out
+
+
+# ---- memory: bounded context + structured lookup --------------------------
+
+
+def _archive(n: int) -> list[dict]:
+    return [
+        {"candidate": f"cand_{i:03d}", "reward": 0.9 - i * 0.1,
+         "code": f"# program {i}\ndef score():\n    return {i}\n"}
+        for i in range(n)
+    ]
+
+
+def test_prompt_inlines_only_parent_plus_n(tmp_path) -> None:
+    from pathlib import Path
+
+    from autointerp.pipelines.investigation.discovery.engine import _build_user_prompt
+    from autointerp.pipelines.investigation.discovery.task import HillClimbTask
+
+    arch = _archive(5)  # 5 candidates in the archive
+    task = HillClimbTask(
+        name="t", task_text="rank", reward_metric="combined_auc_k",
+        reward_description="", candidate_template=Path("x"),
+        contract_instructions="c",
+    )
+    prompt = _build_user_prompt(
+        task=task, parent=arch[0], archive=arch, log=[],
+        iteration=2, n_inline=1, agentic=False, session_dir=tmp_path,
+    )
+    # All 5 appear in the compact leaderboard...
+    for e in arch:
+        assert e["candidate"] in prompt
+    # ...but only parent + 1 extra have FULL code inlined (2 code fences).
+    assert prompt.count("```python") == 2
+    # Single mode: no structured-lookup pointer.
+    assert "Structured memory" not in prompt
+
+
+def test_prompt_agentic_points_to_disk(tmp_path) -> None:
+    from pathlib import Path
+
+    from autointerp.pipelines.investigation.discovery.engine import _build_user_prompt
+    from autointerp.pipelines.investigation.discovery.task import HillClimbTask
+
+    arch = _archive(4)
+    task = HillClimbTask(
+        name="t", task_text="rank", reward_metric="combined_auc_k",
+        reward_description="", candidate_template=Path("x"),
+        contract_instructions="c",
+    )
+    prompt = _build_user_prompt(
+        task=task, parent=arch[0], archive=arch, log=[],
+        iteration=2, n_inline=0, agentic=True, session_dir=tmp_path,
+    )
+    # n_inline=0 → only the parent's code is inlined.
+    assert prompt.count("```python") == 1
+    # Agentic mode points at the structured store for on-demand lookup.
+    assert "archive.jsonl" in prompt and "Structured memory" in prompt
+
+
+def test_insights_summary_is_deterministic() -> None:
+    from autointerp.pipelines.investigation.discovery.engine import _insights
+
+    log = [
+        {"candidate": "cand_000", "reward": 0.5},
+        {"candidate": "cand_001", "status": "eval_failed"},
+        {"candidate": "cand_002", "reward": 0.8},
+        {"candidate": "cand_003", "reward": 0.7},
+    ]
+    summary = _insights(log)
+    assert "best=0.8000 (cand_002)" in summary
+    assert "1 successful attempts since best" in summary
+    assert "eval_failed×1" in summary

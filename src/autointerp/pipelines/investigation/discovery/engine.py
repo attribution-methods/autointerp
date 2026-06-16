@@ -137,26 +137,85 @@ def _pick_parents(archive: list[dict[str, Any]], n: int) -> list[dict[str, Any] 
     return parents
 
 
-def _trail_block(log: list[dict[str, Any]]) -> str:
+# Keep the *inline* trail bounded; older attempts stay in loop_log.jsonl.
+_TRAIL_TAIL = 12
+
+
+def _leaderboard(archive: list[dict[str, Any]]) -> str:
+    """Compact one-line-per-candidate summary (no code)."""
+    if not archive:
+        return "Archive empty — you are improving the baseline template."
+    return "\n".join(
+        f"  {e['candidate']}: reward={e.get('reward', 0.0):.4f}" for e in archive
+    )
+
+
+def _insights(log: list[dict[str, Any]]) -> str:
+    """Deterministic rolling summary distilled from the trail (no LLM)."""
+    rewarded = [e for e in log if e.get("reward") is not None]
+    failed = [e for e in log if e.get("reward") is None]
+    if not rewarded:
+        return f"No successful evaluations yet ({len(failed)} failed proposals)."
+    best_i = max(range(len(rewarded)), key=lambda i: rewarded[i]["reward"])
+    best = rewarded[best_i]
+    since = len(rewarded) - 1 - best_i
+    fail_kinds: dict[str, int] = {}
+    for e in failed:
+        fail_kinds[e.get("status", "failed")] = fail_kinds.get(e.get("status", "failed"), 0) + 1
+    fail_note = (
+        "; failures: " + ", ".join(f"{k}×{v}" for k, v in sorted(fail_kinds.items()))
+        if fail_kinds else ""
+    )
+    return (
+        f"best={best['reward']:.4f} ({best['candidate']}); "
+        f"{since} successful attempts since best; "
+        f"{len(rewarded)} evaluated, {len(failed)} failed{fail_note}."
+    )
+
+
+def _trail_tail(log: list[dict[str, Any]]) -> str:
     if not log:
         return "No attempts yet."
+    tail = log[-_TRAIL_TAIL:]
     rows = []
-    for e in log:
+    for e in tail:
         cand = e.get("candidate", "?")
-        if "reward" in e and e["reward"] is not None:
+        if e.get("reward") is not None:
             rows.append(f"  {cand}: reward={e['reward']:.4f}")
         else:
             rows.append(f"  {cand}: {e.get('status', 'failed')}")
-    return "\n".join(rows)
+    prefix = (
+        f"  (+{len(log) - len(tail)} earlier attempts — see loop_log.jsonl)\n"
+        if len(log) > len(tail) else ""
+    )
+    return prefix + "\n".join(rows)
 
 
-def _archive_block(archive: list[dict[str, Any]]) -> str:
-    if not archive:
-        return "Archive empty — you are improving the baseline template."
-    parts = []
+def _inline_code_block(
+    parent: dict[str, Any] | None,
+    archive: list[dict[str, Any]],
+    *,
+    n_extra: int,
+) -> str:
+    """Full code for the parent + up to n_extra other top candidates (deduped)."""
+    shown: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    if parent is not None:
+        shown.append(parent)
+        seen.add(parent["candidate"])
     for e in archive:
+        if len(shown) >= 1 + max(0, n_extra):
+            break
+        if e["candidate"] not in seen:
+            shown.append(e)
+            seen.add(e["candidate"])
+    if not shown:
+        return "Baseline template only (see the contract). Improve on it."
+    parts = []
+    for e in shown:
+        role = "parent (improve this)" if e is parent else "archived"
         parts.append(
-            f"### {e['candidate']} (reward={e.get('reward', 0.0):.4f})\n"
+            f"### {e['candidate']} — {role} (reward={e.get('reward', 0.0):.4f})\n"
             f"```python\n{e.get('code', '')}\n```"
         )
     return "\n\n".join(parts)
@@ -169,25 +228,30 @@ def _build_user_prompt(
     archive: list[dict[str, Any]],
     log: list[dict[str, Any]],
     iteration: int,
+    n_inline: int,
+    agentic: bool,
+    session_dir: Path,
 ) -> str:
-    if parent is None:
-        parent_block = (
-            "Parent: the baseline template (see the archive/contract). Improve "
-            "on it."
-        )
-    else:
-        parent_block = (
-            f"Parent to improve: {parent['candidate']} "
-            f"(reward={parent.get('reward', 0.0):.4f}):\n"
-            f"```python\n{parent.get('code', '')}\n```"
+    lookup = ""
+    if agentic:
+        lookup = (
+            "\n## Structured memory (read on demand)\n"
+            f"Full code + scores for every candidate live under `{session_dir}`:\n"
+            "- `archive.jsonl` — current top-K (candidate, reward, code)\n"
+            "- `results/<candidate>.json` — full eval payload per candidate\n"
+            "- `<candidate>.py` — each candidate's source\n"
+            "Use your file tools to read any you want to study; only the parent "
+            "and a couple of top candidates are inlined below to save context.\n"
         )
     return (
         f"Task: {task.task_text}\n"
         f"Reward to maximize: `{task.reward_metric}`.\n"
         f"Round {iteration}.\n\n"
-        f"{parent_block}\n\n"
-        f"## Archive (best candidates so far)\n{_archive_block(archive)}\n\n"
-        f"## Trail (everything tried, including failures)\n{_trail_block(log)}\n\n"
+        f"## Progress\n{_insights(log)}\n\n"
+        f"## Leaderboard (top candidates)\n{_leaderboard(archive)}\n\n"
+        f"## Recent trail\n{_trail_tail(log)}\n"
+        f"{lookup}\n"
+        f"## Candidate code\n{_inline_code_block(parent, archive, n_extra=n_inline)}\n\n"
         "Propose ONE improved candidate."
     )
 
@@ -290,7 +354,9 @@ async def run_hillclimb(
                 code: str | None = template_dst.read_text()
             else:
                 user_prompt = _build_user_prompt(
-                    task=task, parent=parent, archive=archive, log=log, iteration=rnd
+                    task=task, parent=parent, archive=archive, log=log, iteration=rnd,
+                    n_inline=cfg.archive_code_in_context,
+                    agentic=(cfg.propose_mode == "agentic"), session_dir=session_dir,
                 )
                 code = await _propose_one(
                     task=task, cfg=cfg, session_dir=session_dir, candidate=candidate,

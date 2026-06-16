@@ -616,6 +616,10 @@ class DiscoveryConfig(StrictBaseModel):
     n_subagents: int = Field(ge=1, default=1)
     # Top-K candidates retained as the search population (archive).
     archive_size: int = Field(ge=1, default=5)
+    # How many top candidates' FULL code to inline in the proposal prompt
+    # (besides the parent). The rest appear only as a compact leaderboard;
+    # agentic proposers read full code from disk on demand. 0 = parent only.
+    archive_code_in_context: int = Field(ge=0, default=1)
 
     # Proposer: "single" = one LLM completion; "agentic" = a tool-using
     # subagent (run_agent_turn) that may run its own experiments.
