@@ -176,6 +176,7 @@ def test_create_investigation_tools_registers_all(tmp_path: Path) -> None:
         "get_budget",
         "get_progress",
         "request_spec_revision",
+        "discover_features",
     }
     # Each tool exposes a JSON schema and a handler.
     for tool in tools:

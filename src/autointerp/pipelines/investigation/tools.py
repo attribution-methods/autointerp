@@ -220,6 +220,115 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
             return _err(exc)
         return _ok(req.model_dump())
 
+    async def _discover_features_handler(args: dict[str, Any]) -> tuple[str, bool]:
+        import asyncio
+
+        from autointerp.pipelines.investigation.discovery import run_discovery_subagent
+        from autointerp.spec import InvestigationSpec, ToolName
+
+        # --- Stage gating: only legal when the active stage lists the tool. ---
+        try:
+            spec = InvestigationSpec.model_validate_json(handle.spec_path.read_text())
+        except Exception as exc:
+            return _err(exc)
+        state = read_state(handle.state_path)
+        idx = state.current_stage_idx
+        if idx >= len(spec.stages):
+            return "discover_features: no active stage to discover for", False
+        stage = spec.stages[idx]
+        if ToolName.DISCOVER_FEATURES not in stage.tools:
+            return (
+                f"discover_features: stage {stage.stage.value} (idx {idx}) does "
+                f"not list `discover_features` in its tools — refused. Add it via "
+                f"a spec revision, or call it only in a stage that allows it.",
+                False,
+            )
+
+        task = args.get("task")
+        if not isinstance(task, str) or not task:
+            return "task (non-empty string) is required", False
+
+        # --- Bind reward to the stage's pre-registered metrics. ---
+        allowed = sorted({m.value for m in stage.metrics})
+        reward_metric = args.get("reward_metric")
+        if reward_metric is None:
+            reward_metric = allowed[0] if len(allowed) == 1 else None
+            if reward_metric is None:
+                return (
+                    f"discover_features: reward_metric is required when the stage "
+                    f"lists multiple pre-registered metrics: {allowed}. Pick one.",
+                    False,
+                )
+        elif reward_metric not in allowed:
+            return (
+                f"discover_features: reward_metric={reward_metric!r} is not in the "
+                f"stage's pre-registered metrics: {allowed}. Pick one, or open a "
+                f"spec revision via `request_spec_revision`.",
+                False,
+            )
+
+        # --- Search budget from the frozen DiscoveryConfig (or defaults). ---
+        disco = stage.discovery
+        max_iterations = int(args.get("max_iterations",
+                                      disco.max_iterations if disco else 8))
+        patience = int(disco.patience if disco else 2)
+        top_k = int(disco.top_k if disco else 20)
+        k_grid = list(disco.k_grid) if disco else [1, 5, 10, 20, 50]
+        evaluator = args.get("evaluator", disco.evaluator if disco else None)
+        dry_run = bool(args.get("dry_run", False))
+
+        # --- Model: reuse the runtime's configured model/temperature. ---
+        try:
+            from autointerp_agent.config import load_config
+            cfg = load_config()
+            default_model, temperature = cfg.model_name, cfg.temperature
+        except Exception:
+            default_model, temperature = "anthropic/claude-sonnet-4-5", None
+        model = str(args.get("model") or default_model)
+
+        session_name = str(args.get("session_name") or f"stage{idx:02d}")
+        session_dir = handle.discovery_dir / session_name
+        try:
+            result = await asyncio.to_thread(
+                run_discovery_subagent,
+                session_dir=session_dir,
+                task=task,
+                reward_metric=reward_metric,
+                reward_description=(
+                    f"Discovery reward `{reward_metric}` — see metrics/"
+                    f"{reward_metric}.md for the contract."
+                ),
+                model=model,
+                temperature=temperature,
+                max_iterations=max_iterations,
+                patience=patience,
+                top_k=top_k,
+                k_grid=k_grid,
+                evaluator=evaluator,
+                dry_run=dry_run,
+            )
+        except Exception as exc:
+            return _err(exc)
+
+        return _ok(
+            {
+                "session_dir": str(result.session_dir),
+                "best_candidate": result.best_candidate,
+                "best_reward": result.best_reward,
+                "best_summary": result.best_summary,
+                "iterations_run": result.iterations_run,
+                "terminated_by": result.terminated_by,
+                "log": result.log,
+                "next_step": (
+                    "Advisory only — no gated artifact was committed. Inspect "
+                    "best_summary.top_features. To record them, build a "
+                    "CandidateSite / FeatureFinding and call commit_artifact. To "
+                    "register the reward as a checkable value, call compute_metric "
+                    f"({reward_metric}) on a heldout split, then commit_artifact."
+                ),
+            }
+        )
+
     metric_enum = sorted(m.value for m in MetricName)
 
     return [
@@ -428,6 +537,57 @@ def create_investigation_tools(handle: RunHandle) -> list[Any]:
                 "required": ["reason"],
             },
             handler=_request_revision_handler,
+        ),
+        ToolSpec(
+            name="discover_features",
+            description=(
+                "Spawn an iterative hill-climbing sub-agent that searches for a "
+                "ranking algorithm maximizing a reward metric. Only allowed in "
+                "stages whose `tools` list includes `discover_features`. The "
+                "sub-agent writes algorithm_v{N}.py candidates under the run's "
+                "discovery/ tree, evaluates each via the discovery harness, and "
+                "returns the best candidate's reward + top features. ADVISORY: it "
+                "does NOT commit gated artifacts. Afterwards, call commit_artifact "
+                "(CandidateSite / FeatureFinding) and compute_metric + "
+                "commit_artifact (MetricResult) to record evidence. Use "
+                "dry_run=true for a deterministic smoke test (no model/LLM)."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "description": "Free-text description of what to rank / discover.",
+                    },
+                    "reward_metric": {
+                        "type": "string",
+                        "description": (
+                            "Reward to maximize. Must be one of the stage's "
+                            "pre-registered metrics; defaults to the only one if "
+                            "the stage lists a single metric."
+                        ),
+                    },
+                    "max_iterations": {"type": "integer"},
+                    "evaluator": {
+                        "type": "string",
+                        "description": "module:attr for the real (GPU) evaluator.",
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Deterministic stub iteration (no model/LLM). For CI.",
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": "Override the proposal LLM (default: runtime model).",
+                    },
+                    "session_name": {
+                        "type": "string",
+                        "description": "Override session sub-dir name under discovery/.",
+                    },
+                },
+                "required": ["task"],
+            },
+            handler=_discover_features_handler,
         ),
     ]
 

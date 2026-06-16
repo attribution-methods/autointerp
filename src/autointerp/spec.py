@@ -76,6 +76,9 @@ class MetricName(str, Enum):
     STEERING_EFFECT_SIZE = "steering_effect_size"
     MUTUAL_INFORMATION = "mutual_information"
     CAUSAL_INDIRECT_EFFECT = "causal_indirect_effect"
+    MEAN_ABLATION_AUC_K = "mean_ablation_auc_k"
+    MEAN_STEERING_AUC_K = "mean_steering_auc_k"
+    COMBINED_AUC_K = "combined_auc_k"
     CUSTOM = "custom"
 
 
@@ -95,6 +98,7 @@ class ToolName(str, Enum):
     ATTENTION_HEADS = "attention_heads"
     ACTIVATION_CACHE = "activation_cache"
     QK_OV_DECOMPOSITION = "qk_ov_decomposition"
+    DISCOVER_FEATURES = "discover_features"
 
 
 class MetricMeta(StrictBaseModel):
@@ -239,6 +243,24 @@ METRIC_META: dict[MetricName, MetricMeta] = {
         requires_inputs=["mediated_effect", "total_effect"],
         one_line="Pearl-style indirect effect mediated through a component.",
     ),
+    MetricName.MEAN_ABLATION_AUC_K: MetricMeta(
+        name=MetricName.MEAN_ABLATION_AUC_K, family=MetricFamily.CAUSAL,
+        value_range=(0.0, 1.0), direction="higher",
+        requires_inputs=["delta_curve_per_pair"],
+        one_line="Mean over pairs of the normalized ablation-delta AUC across a top-K sweep.",
+    ),
+    MetricName.MEAN_STEERING_AUC_K: MetricMeta(
+        name=MetricName.MEAN_STEERING_AUC_K, family=MetricFamily.FEATURE,
+        value_range=(0.0, 1.0), direction="higher",
+        requires_inputs=["delta_curve_per_pair"],
+        one_line="Mean over pairs of the normalized steering-delta AUC across a top-K sweep.",
+    ),
+    MetricName.COMBINED_AUC_K: MetricMeta(
+        name=MetricName.COMBINED_AUC_K, family=MetricFamily.CAUSAL,
+        value_range=(0.0, 1.0), direction="higher",
+        requires_inputs=["mean_ablation_auc_k", "mean_steering_auc_k"],
+        one_line="0.5*(mean_ablation_auc_k + mean_steering_auc_k). Default discovery-stage reward.",
+    ),
     MetricName.CUSTOM: MetricMeta(
         name=MetricName.CUSTOM, family=MetricFamily.BEHAVIORAL,
         value_range=(None, None), direction="either",
@@ -312,6 +334,11 @@ TOOL_META: dict[ToolName, ToolMeta] = {
         name=ToolName.QK_OV_DECOMPOSITION, requires_fields=[],
         families_emitted=[MetricFamily.LOCALIZATION],
         one_line="Decompose head circuits into QK (where to attend) and OV (what to write).",
+    ),
+    ToolName.DISCOVER_FEATURES: ToolMeta(
+        name=ToolName.DISCOVER_FEATURES, requires_fields=["contrast"],
+        families_emitted=[MetricFamily.FEATURE, MetricFamily.CAUSAL],
+        one_line="Hill-climb a ranking algorithm against a reward via an iterative sub-agent.",
     ),
 }
 
@@ -570,6 +597,24 @@ class AbortPredicate(StrictBaseModel):
         return self
 
 
+class DiscoveryConfig(StrictBaseModel):
+    """Search-budget configuration for a stage that uses `discover_features`.
+
+    Optional and small by design — the hill-climbing sub-agent reads these
+    knobs; if absent, the tool falls back to its own defaults. The reward
+    metric is NOT set here: it is bound at runtime to the stage's
+    pre-registered `metrics` list so the agent can pick among allowed metrics
+    but not invent a new one.
+    """
+
+    max_iterations: int = Field(ge=1, default=8)
+    patience: int = Field(ge=1, default=2)
+    top_k: int = Field(ge=1, default=20)
+    k_grid: list[int] = Field(default_factory=lambda: [1, 5, 10, 20, 50])
+    # `module:attr` for the real (GPU) evaluator. None → dry-run only.
+    evaluator: str | None = None
+
+
 class StageSpec(StrictBaseModel):
     stage: InvestigationStage
     pattern: PatternId
@@ -577,11 +622,22 @@ class StageSpec(StrictBaseModel):
     metrics: list[MetricName]
     budget: Budget = Field(default_factory=Budget)
     notes: str | None = None
+    discovery: DiscoveryConfig | None = None
 
     @model_validator(mode="after")
     def _has_tools(self) -> "StageSpec":
         if not self.tools:
             raise ValueError(f"stage {self.stage} must declare at least one tool")
+        return self
+
+    @model_validator(mode="after")
+    def _discovery_needs_reward_metric(self) -> "StageSpec":
+        if ToolName.DISCOVER_FEATURES in self.tools and not self.metrics:
+            raise ValueError(
+                f"stage {self.stage} lists `discover_features` but declares no "
+                "metrics; the discovery reward must be one of the stage's "
+                "pre-registered metrics"
+            )
         return self
 
 

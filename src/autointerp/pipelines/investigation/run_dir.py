@@ -91,6 +91,10 @@ class RunHandle:
         return self.root / "scratch"
 
     @property
+    def discovery_dir(self) -> Path:
+        return self.root / "discovery"
+
+    @property
     def report_path(self) -> Path:
         return self.root / "report.json"
 

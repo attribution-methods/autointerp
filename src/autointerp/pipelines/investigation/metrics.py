@@ -451,6 +451,106 @@ def _minimality(inputs: dict[str, Any]) -> float:
     return min(drops)
 
 
+def _mean_auc_k(inputs: dict[str, Any], *, name: MetricName) -> float:
+    """Mean over per-pair normalized delta curves of the area under each curve.
+
+    Used for ``mean_ablation_auc_k`` / ``mean_steering_auc_k``: each
+    ``delta_curve_per_pair[i]`` is the per-pair top-K sweep curve, with deltas
+    already normalized to [0, 1]. Each curve is integrated by the trapezoid
+    rule on its own K grid and normalized by the K-range, so the result is in
+    [0, 1].
+
+    Required inputs:
+      - delta_curve_per_pair: list[list[float]] — one curve per contrast pair,
+        length >= 2 each, values in [0, 1].
+    Optional inputs:
+      - k_grid: list[float] | None — K values for each column. Defaults to the
+        natural index 0..len-1 (uniform spacing).
+    """
+    _require_keys(name, inputs, ("delta_curve_per_pair",))
+    raw = inputs["delta_curve_per_pair"]
+    if not isinstance(raw, list) or not raw:
+        raise MetricRegistryError(
+            f"{name.value}.delta_curve_per_pair must be a non-empty list of lists"
+        )
+    grid = inputs.get("k_grid")
+    aucs: list[float] = []
+    for p_idx, curve in enumerate(raw):
+        if not isinstance(curve, list) or len(curve) < 2:
+            raise MetricRegistryError(
+                f"{name.value}.delta_curve_per_pair[{p_idx}] must be a list of length >= 2"
+            )
+        ys = _as_float_list(name, f"delta_curve_per_pair[{p_idx}]", curve)
+        for j, y in enumerate(ys):
+            if y < 0.0 - 1e-9 or y > 1.0 + 1e-9:
+                raise MetricRegistryError(
+                    f"{name.value}.delta_curve_per_pair[{p_idx}][{j}]={y} not in [0, 1]; "
+                    "normalize deltas before calling this metric"
+                )
+        if grid is None:
+            xs = [float(i) for i in range(len(ys))]
+        else:
+            xs = _as_float_list(name, "k_grid", grid)
+            if len(xs) != len(ys):
+                raise MetricRegistryError(
+                    f"{name.value}: k_grid length {len(xs)} != curve length {len(ys)} "
+                    f"at pair {p_idx}"
+                )
+        area = sum(
+            (xs[i + 1] - xs[i]) * 0.5 * (ys[i + 1] + ys[i])
+            for i in range(len(xs) - 1)
+        )
+        x_span = xs[-1] - xs[0]
+        if x_span <= 0:
+            raise MetricRegistryError(
+                f"{name.value}: k_grid not strictly increasing at pair {p_idx}"
+            )
+        aucs.append(area / x_span)
+    return sum(aucs) / len(aucs)
+
+
+def _mean_ablation_auc_k(inputs: dict[str, Any]) -> float:
+    return _mean_auc_k(inputs, name=MetricName.MEAN_ABLATION_AUC_K)
+
+
+def _mean_steering_auc_k(inputs: dict[str, Any]) -> float:
+    return _mean_auc_k(inputs, name=MetricName.MEAN_STEERING_AUC_K)
+
+
+def _combined_auc_k(inputs: dict[str, Any]) -> float:
+    """0.5 * (mean_ablation_auc_k + mean_steering_auc_k); discovery reward.
+
+    Accepts either pre-computed scalars (``mean_ablation_auc_k`` /
+    ``mean_steering_auc_k``) or raw per-pair curves under
+    ``ablation_delta_curve_per_pair`` / ``steering_delta_curve_per_pair``.
+    """
+    name = MetricName.COMBINED_AUC_K
+    if "mean_ablation_auc_k" in inputs and "mean_steering_auc_k" in inputs:
+        try:
+            abl = float(inputs["mean_ablation_auc_k"])
+            steer = float(inputs["mean_steering_auc_k"])
+        except (TypeError, ValueError) as exc:
+            raise MetricRegistryError(
+                f"{name.value}: pre-computed scalar inputs must be numeric"
+            ) from exc
+        return 0.5 * (abl + steer)
+    _require_keys(
+        name, inputs,
+        ("ablation_delta_curve_per_pair", "steering_delta_curve_per_pair"),
+    )
+    abl = _mean_auc_k(
+        {"delta_curve_per_pair": inputs["ablation_delta_curve_per_pair"],
+         "k_grid": inputs.get("k_grid")},
+        name=MetricName.MEAN_ABLATION_AUC_K,
+    )
+    steer = _mean_auc_k(
+        {"delta_curve_per_pair": inputs["steering_delta_curve_per_pair"],
+         "k_grid": inputs.get("k_grid")},
+        name=MetricName.MEAN_STEERING_AUC_K,
+    )
+    return 0.5 * (abl + steer)
+
+
 REGISTRY: dict[MetricName, MetricImpl] = {
     MetricName.ACCURACY: MetricImpl(
         name=MetricName.ACCURACY,
@@ -529,6 +629,24 @@ REGISTRY: dict[MetricName, MetricImpl] = {
         required_inputs=("full_model_metric", "only_component_metric"),
         compute=_sufficiency,
         one_line="only_component_metric / full_model_metric, clipped to [0, 1].",
+    ),
+    MetricName.MEAN_ABLATION_AUC_K: MetricImpl(
+        name=MetricName.MEAN_ABLATION_AUC_K,
+        required_inputs=("delta_curve_per_pair",),
+        compute=_mean_ablation_auc_k,
+        one_line="Trapezoid AUC of normalized ablation-delta curves, averaged across pairs.",
+    ),
+    MetricName.MEAN_STEERING_AUC_K: MetricImpl(
+        name=MetricName.MEAN_STEERING_AUC_K,
+        required_inputs=("delta_curve_per_pair",),
+        compute=_mean_steering_auc_k,
+        one_line="Trapezoid AUC of normalized steering-delta curves, averaged across pairs.",
+    ),
+    MetricName.COMBINED_AUC_K: MetricImpl(
+        name=MetricName.COMBINED_AUC_K,
+        required_inputs=("mean_ablation_auc_k", "mean_steering_auc_k"),
+        compute=_combined_auc_k,
+        one_line="0.5 * (mean_ablation_auc_k + mean_steering_auc_k); discovery default reward.",
     ),
 }
 
