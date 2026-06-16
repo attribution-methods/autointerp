@@ -326,10 +326,36 @@ async def run_hillclimb(
     proposals_made = sum(1 for _ in (session_dir / "results").glob("*.json"))
     no_improve = 0
     iterations_run = 0
-    terminated_by = "max_iters"
+    terminated_by = "seeded" if cfg.dry_run else "max_iters"
 
-    n_rounds = 1 if cfg.dry_run else cfg.max_iterations
-    width = 1 if cfg.dry_run else max(1, cfg.n_subagents)
+    async def _eval_code(candidate: str, code: str) -> dict[str, Any]:
+        summary = await _evaluate(session_dir, candidate, code, cfg)
+        if summary is None:
+            return {"candidate": candidate, "status": "eval_failed"}
+        return {
+            "candidate": candidate,
+            "reward": float(summary.get("objective_value", 0.0)),
+            "summary": summary,
+            "code": code,
+        }
+
+    # --- Seed the population with the evaluated baseline template, so the
+    # search never returns worse than its starting point (baseline = floor).
+    if not archive:
+        seed_name = f"cand_{proposals_made:03d}"
+        proposals_made += 1
+        seed_code = template_dst.read_text()
+        (session_dir / f"{seed_name}{task.artifact_suffix}").write_text(seed_code)
+        rec = await _eval_code(seed_name, seed_code)
+        log.append({"round": 0, **{k: rec[k] for k in rec if k != "summary" and k != "code"}})
+        if "reward" in rec:
+            archive = _merge(archive, rec, cfg.archive_size)
+            _save_archive(session_dir, archive)
+        iterations_run = 1
+
+    # Dry-run stops at the seeded baseline (no LLM).
+    n_rounds = 0 if cfg.dry_run else cfg.max_iterations
+    width = max(1, cfg.n_subagents)
 
     for rnd in range(1, n_rounds + 1):
         # Budget gate (token cap for this discovery call).
@@ -346,34 +372,19 @@ async def run_hillclimb(
             idx = proposals_made
             proposals_made += 1
             candidate = f"cand_{idx:03d}"
-            if cfg.dry_run:
-                # Deterministic: copy the template, no LLM.
-                (session_dir / f"{candidate}{task.artifact_suffix}").write_text(
-                    template_dst.read_text()
-                )
-                code: str | None = template_dst.read_text()
-            else:
-                user_prompt = _build_user_prompt(
-                    task=task, parent=parent, archive=archive, log=log, iteration=rnd,
-                    n_inline=cfg.archive_code_in_context,
-                    agentic=(cfg.propose_mode == "agentic"), session_dir=session_dir,
-                )
-                code = await _propose_one(
-                    task=task, cfg=cfg, session_dir=session_dir, candidate=candidate,
-                    system_prompt=system_prompt, user_prompt=user_prompt,
-                    cost_tracker=cost_tracker,
-                )
+            user_prompt = _build_user_prompt(
+                task=task, parent=parent, archive=archive, log=log, iteration=rnd,
+                n_inline=cfg.archive_code_in_context,
+                agentic=(cfg.propose_mode == "agentic"), session_dir=session_dir,
+            )
+            code = await _propose_one(
+                task=task, cfg=cfg, session_dir=session_dir, candidate=candidate,
+                system_prompt=system_prompt, user_prompt=user_prompt,
+                cost_tracker=cost_tracker,
+            )
             if code is None:
                 return {"candidate": candidate, "status": "no_proposal"}
-            summary = await _evaluate(session_dir, candidate, code, cfg)
-            if summary is None:
-                return {"candidate": candidate, "status": "eval_failed"}
-            return {
-                "candidate": candidate,
-                "reward": float(summary.get("objective_value", 0.0)),
-                "summary": summary,
-                "code": code,
-            }
+            return await _eval_code(candidate, code)
 
         results = await asyncio.gather(*[_make(p) for p in parents])
 
