@@ -368,59 +368,80 @@ def head_patch_sweep(
 # ---------------------------------------------------------------------------
 
 
+def _normalize_senders(sender: "HeadSite | Sequence[HeadSite]") -> List[HeadSite]:
+    """Accept a single ``(layer, head)`` or a list of them; return a list.
+
+    A ``HeadSite`` is a 2-tuple of ints; a list of sites is a sequence of such
+    tuples. We disambiguate by looking at the first element.
+    """
+    seq = list(sender)
+    if len(seq) == 2 and all(isinstance(x, int) for x in seq):
+        return [(int(seq[0]), int(seq[1]))]  # a single (layer, head)
+    return [(int(layer), int(head)) for (layer, head) in seq]
+
+
 def path_patch(
     handle: ModelHandle,
     clean_prompts: Sequence[str],
     corrupt_prompts: Sequence[str],
-    sender: HeadSite,
+    sender: "HeadSite | Sequence[HeadSite]",
     metric: Callable[[torch.Tensor], torch.Tensor],
     patch_positions: Optional[Sequence[int]] = None,
     freeze_layers: Optional[Iterable[int]] = None,
     clean_cache: Optional[Dict[int, torch.Tensor]] = None,
     corrupt_cache: Optional[Dict[int, torch.Tensor]] = None,
 ) -> Dict[str, Any]:
-    """Single-step path patching: sender's direct effect on the model logits.
+    """Single-step path patching: the sender(s)' direct effect on the logits.
+
+    ``sender`` is either ONE ``(layer, head)`` site or a LIST of them. A list
+    patches that whole SET of heads together — necessary for distributed
+    circuits (e.g. IOI's name-mover heads, a direction spread across heads),
+    where any single head recovers ≈ 0 of the effect even though the set
+    recovers most of it. Patching one head is the common-but-wrong special case.
 
     Protocol (Wang et al. 2022, simplified):
 
-    1. Cache clean ``z`` at the sender layer and corrupt ``z`` at every
+    1. Cache clean ``z`` at the sender layers and corrupt ``z`` at every
        layer that should be frozen on the path (``freeze_layers``, defaults
-       to all layers other than the sender's).
-    2. Run the corrupt prompts with: sender head ``z`` overridden to the
+       to all layers other than the senders').
+    2. Run the corrupt prompts with: each sender head's ``z`` overridden to the
        clean value, every other head's ``z`` overridden to its corrupt
        value (so receiver inputs match the unpatched corrupt run except
-       through the sender).
+       through the senders).
     3. Measure ``metric`` on the resulting logits.
 
     The reported ``recovery`` is ``(metric_patched - metric_corrupt) /
     (metric_clean - metric_corrupt)``.
     """
-    sender_layer, sender_head = sender
+    senders = _normalize_senders(sender)
+    sender_layers = sorted({s[0] for s in senders})
+    sender_set = {(int(l), int(h)) for (l, h) in senders}
     if freeze_layers is None:
         freeze_layers = [
-            layer for layer in range(handle.n_layers) if layer != sender_layer
+            layer for layer in range(handle.n_layers) if layer not in sender_layers
         ]
     freeze_layers = [
         resolve_layer(int(layer), handle.n_layers) for layer in freeze_layers
     ]
 
-    needed = sorted(set([sender_layer, *freeze_layers]))
+    needed = sorted(set([*sender_layers, *freeze_layers]))
     if clean_cache is None:
-        clean_cache = cache_head_z(handle, clean_prompts, layers=[sender_layer])
+        clean_cache = cache_head_z(handle, clean_prompts, layers=sender_layers)
     if corrupt_cache is None:
         corrupt_cache = cache_head_z(handle, corrupt_prompts, layers=needed)
 
     patches: List[HeadPatch] = [
         HeadPatch(
-            layer=sender_layer,
-            head=sender_head,
-            source=clean_cache[sender_layer][:, :, sender_head, :],
+            layer=sl,
+            head=sh,
+            source=clean_cache[sl][:, :, sh, :],
             positions=patch_positions,
         )
+        for (sl, sh) in senders
     ]
     for layer in freeze_layers:
         for head in range(handle.n_heads):
-            if layer == sender_layer and head == sender_head:
+            if (layer, head) in sender_set:
                 continue
             patches.append(
                 HeadPatch(
@@ -443,7 +464,8 @@ def path_patch(
     patched_m = float(metric(patched_logits).mean())
     gap = clean_m - corrupt_m
     return {
-        "sender": sender,
+        "sender": senders[0] if len(senders) == 1 else senders,
+        "senders": senders,
         "clean_metric": clean_m,
         "corrupt_metric": corrupt_m,
         "patched_metric": patched_m,

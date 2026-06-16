@@ -170,15 +170,20 @@ helpers before writing forward-pass / hook / patching code by hand:
   patched_metric, recovery}` — exactly the inputs `patch_effect_recovery` needs.
 - `autointerp.tools.causal_metrics` — PUSH-BUTTON bridge for a causal criterion,
   so you NEVER abandon `patch_effect_recovery`/`ablation_drop` for "I couldn't
-  produce captures". `best_patch_site(handle, clean, corrupt, metric)` picks a
-  sender head; `patch_recovery_capture(handle, clean, corrupt, sender, metric)`
-  runs the passes, records the scalar triple as a `model_forward` capture, and
-  returns the relpath — pass it straight to
-  `compute_and_commit_metric(metric="patch_effect_recovery", inputs=<relpath>,
-  criterion_id=…)`. `ablation_drop_capture(handle, prompts, sites, metric)` is
-  the same for `ablation_drop`. `metric` maps `[batch, vocab]` final-token logits
-  to `[batch]` (e.g. a target-minus-foil logit diff). Import EXACTLY:
-  `from autointerp.tools.causal_metrics import best_patch_site, patch_recovery_capture, ablation_drop_capture`
+  produce captures". For a circuit question the ONE-CALL default is
+  `circuit_recovery_capture(handle, clean, corrupt, metric)`: it sweeps heads,
+  takes the top-k by recovery, patches that whole SET together, records the
+  `model_forward` capture, and returns the relpath. Use the SET, not one head —
+  most circuits are distributed, so a single head reports recovery ≈ 0 and looks
+  like a false negative. (Lower-level pieces if you need them:
+  `best_patch_sites(...)` returns the ranked sites and
+  `patch_recovery_capture(handle, clean, corrupt, sender_or_sites, metric)`
+  accepts a single site OR a list.) `ablation_drop_capture(handle, prompts,
+  sites, metric)` is the same push-button for `ablation_drop`. Pass the returned
+  relpath straight to `compute_and_commit_metric(metric="patch_effect_recovery",
+  inputs=<relpath>, criterion_id=…)`. `metric` maps `[batch, vocab]` final-token
+  logits to `[batch]` (e.g. a target-minus-foil logit diff). Import EXACTLY:
+  `from autointerp.tools.causal_metrics import circuit_recovery_capture, best_patch_sites, patch_recovery_capture, ablation_drop_capture`
   — these are the real names; do not invent module names like `metric_utils`.
 - `autointerp.tools.lenses` — `logit_lens(handle, hidden_state)`,
   `direct_logit_attribution(handle, ...)`, `top_tokens(...)`.

@@ -61,6 +61,15 @@ system_prompt: |
     are fine on gpt2 / gpt2-medium. An unnecessary switch costs a reload and can
     break white-box tooling; escalate only when the behaviour genuinely needs
     scale or instruction-tuning.
+  - Some phenomena are about the REASONING TRACE itself — chain-of-thought
+    faithfulness, thought anchors, whether a stated reason causes the answer.
+    These only exist in a model that actually EMITS multi-step reasoning, so the
+    target must be a reasoning / instruct model that produces a CoT (a small local
+    reasoning-tuned or instruct model, e.g. a Qwen/Llama-instruct or a distilled
+    reasoning model) — a base model like gpt2 has no chain-of-thought for a
+    faithfulness claim to even be about. If the question is "is the model's
+    reasoning faithful / which step matters", infer that it needs such a model and
+    propose one; do not try to measure CoT faithfulness on a base model.
   - Match the METHOD and the DATA to the phenomenon — don't default to the
     circuit / logit-lens / patching machinery just because it dominates the
     skill list. Many phenomena are best measured behaviorally or
@@ -83,6 +92,24 @@ system_prompt: |
     vs ablated, made push-button by `autointerp.tools.causal_metrics`),
     `effect_size`, or `auroc` for a probe's separability — not `logit_diff` on
     templates.
+  - Frame the PROMPTS for how the target model was trained. A base model (gpt2,
+    pythia-*-base, gpt-neo) only CONTINUES text — it does not answer
+    "Question: …? Answer:" prompts; posing a task as instruction/Q&A to a base
+    model elicits gibberish and a near-zero behavioral score that looks like a
+    real negative but is just a format mismatch. Elicit the behavior as the
+    NATURAL CONTINUATION of realistic text and read it off the next-token
+    distribution. Canonical interp tasks have a standard paradigm — IOI is the
+    completion "When Mary and John went to the store, John gave a drink to →
+    Mary", scored by the IO-vs-subject logit/accuracy, NOT a "who is the indirect
+    object?" question — so use that paradigm rather than reinventing the task as a
+    quiz. Use a chat/Q&A format ONLY for an instruct model. (This is the flip side
+    of capability-matching: pick the right model, then prompt it in its native
+    format.)
+  - Use an adequate SAMPLE SIZE for any behavioral/accuracy criterion. A score
+    over 2–3 hand-typed examples is noise — it cannot distinguish a real effect
+    from chance and will swing a verdict on luck. Use enough items (order tens,
+    e.g. ≥ 20–50, more if cheap) drawn programmatically so the metric is stable;
+    a clean run on a meaningful sample beats a fast one on a toy sample.
   - Build the spec INCREMENTALLY across turns. Do not dump JSON at the user.
   - Stay focused — ask the user about one design decision at a time. It's
     fine for a single message to combine a recommendation, a worked example,

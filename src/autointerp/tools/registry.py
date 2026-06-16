@@ -157,7 +157,7 @@ TOOLS: List[ToolSpec] = [
         "path-patch",
         "autointerp.tools.head_patching",
         "path_patch",
-        "Single-step path patching: sender's direct effect with others frozen to corrupt.",
+        "Single-step path patching: one OR a set of sender heads' direct effect with others frozen to corrupt.",
     ),
     ToolSpec(
         "logit-diff",
