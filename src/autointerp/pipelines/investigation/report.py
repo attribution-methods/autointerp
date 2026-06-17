@@ -8,10 +8,11 @@ at the run's terminal state.
 from __future__ import annotations
 
 import json
+import warnings
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from autointerp import schemas as S
 from autointerp.spec import InvestigationSpec
@@ -21,15 +22,32 @@ from .state import Verdict, read_state
 
 
 def _load_all(dir_: Path, glob: str, cls: type[BaseModel]) -> list[Any]:
+    """Load every ``glob`` match in ``dir_`` as ``cls``, skipping bad files.
+
+    Report assembly runs at the run's terminal state and must never crash on
+    stray or malformed files. The agent can write arbitrary JSON into these
+    directories (e.g. a hand-rolled activation-cache sidecar in ``activations/``
+    via a bash-run script), so files that aren't valid JSON, aren't readable,
+    or don't match the artifact schema are skipped with a warning rather than
+    aborting the whole report.
+    """
     if not dir_.is_dir():
         return []
     out: list[Any] = []
     for path in sorted(dir_.glob(glob)):
         try:
             payload = json.loads(path.read_text())
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, OSError):
             continue
-        out.append(cls.model_validate(payload))
+        try:
+            out.append(cls.model_validate(payload))
+        except ValidationError as exc:
+            warnings.warn(
+                f"report: skipping off-schema {path.name} "
+                f"(does not match {cls.__name__}): {exc.error_count()} error(s)",
+                stacklevel=2,
+            )
+            continue
     return out
 
 
