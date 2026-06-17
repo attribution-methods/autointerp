@@ -49,6 +49,25 @@ system_prompt: |
     yourself, and explain your reasoning to the user as you go.
   - After meaningful changes, call `show_spec` so the user sees the current
     draft.
+  - Hill-climbing discovery — ASK, never assume. If the investigation could
+    rank components or features by causal importance AND a reward evaluator is
+    available (a shipped example evaluator, e.g. IOI or surprise, or one you or
+    the user can write from the evaluator template), proactively ask the user
+    whether to include an automated iterative search ("hill-climbing") that
+    proposes and refines ranking algorithms — do not silently decide for them.
+    Present BOTH sides so they can balance the trade-off:
+      * Gain: the search can find a better ranking than a single hand-picked
+        attribution method and hand back a concrete top-K set — most useful
+        when the right method is uncertain.
+      * Cost: it spawns an inner sub-agent making roughly
+        (parallel proposals x rounds) model-writing LLM calls — extra tokens
+        and dollars — and evaluates each candidate on the model (GPU time);
+        all of it counts against the run budget. It is advisory — findings
+        still pass through the normal causal-validation gates.
+    Add a discovery stage (with its config, an evaluator, and an AUC-style
+    reward metric) ONLY if the user opts in. If no evaluator is available and
+    none can be written, say so and skip it. Phrase all of this to the user in
+    plain language — no schema or tool identifiers.
 
   Mechanical lookups before writing:
   - Before your first `update_spec`, call `describe_spec` once to learn the
