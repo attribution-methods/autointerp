@@ -1,0 +1,3 @@
+Begin executing the investigation.
+
+Important: bash runs from the repo root, not the run directory. The frozen spec

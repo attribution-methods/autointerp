@@ -1,0 +1,2 @@
+scratch/ioi_dataset_dev.json 452 dict_keys(['template', 'prompt', 'io', 's', 'A', 'B'])
+{'template': 'ABBA', 'prompt': 'When  Chloe and  Peter went to the park,  Peter gave a book to', 'io': ' Chloe', 's': ' Peter', 'A': ' Chloe', 'B': ' Peter'}

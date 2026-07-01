@@ -1,0 +1,20 @@
+{
+  "metric_id": "stage0_accuracy",
+  "value": 0.996,
+  "numerator": null,
+  "denominator": null,
+  "threshold": 0.95,
+  "passed": true,
+  "metadata": {
+    "source": "ioi_stage0_bridge",
+    "metric_name": "accuracy",
+    "metric_family": "behavioral",
+    "inputs_hash": "sha256:7ed90e3ca88d5693fb7e80d00510c2c657a13c173c05ee2c42d04cf0917364ab",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 0,
+      "split": "dev",
+      "committed_at": "2026-05-08T22:17:21.364494Z"
+    }
+  }
+}

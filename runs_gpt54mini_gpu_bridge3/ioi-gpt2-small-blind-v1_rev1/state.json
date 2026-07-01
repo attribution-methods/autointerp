@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "spec_id": "ioi-gpt2-small-blind-v1",
+  "spec_revision": 1,
+  "run_id": "ioi-gpt2-small-blind-v1_rev1",
+  "run_started_at": "2026-05-08T03:20:13.133632Z",
+  "run_ended_at": "2026-05-08T03:38:00.266334Z",
+  "current_stage_idx": 2,
+  "stage_status": {
+    "0": {
+      "stage": "black_box",
+      "status": "completed",
+      "started_at": "2026-05-08T03:20:17.831129Z",
+      "ended_at": "2026-05-08T03:20:17.861052Z",
+      "abort_reason": null,
+      "artifact_refs": [
+        "prompt_batches/ioi_stage0_dev_pairs.json",
+        "findings/stage_0_black_box/metric_stage0_accuracy.json",
+        "findings/stage_0_black_box/metric_stage0_logit_diff.json"
+      ]
+    },
+    "1": {
+      "stage": "localization",
+      "status": "completed",
+      "started_at": "2026-05-08T03:28:21.706634Z",
+      "ended_at": "2026-05-08T03:28:21.762863Z",
+      "abort_reason": null,
+      "artifact_refs": [
+        "findings/stage_1_localization/candidate_stage1_L8H6.json",
+        "findings/stage_1_localization/candidate_stage1_L9H9.json",
+        "findings/stage_1_localization/candidate_stage1_L8H10.json",
+        "findings/stage_1_localization/candidate_stage1_L7H9.json",
+        "findings/stage_1_localization/candidate_stage1_L10H0.json",
+        "findings/stage_1_localization/candidate_stage1_L9H7.json",
+        "findings/stage_1_localization/candidate_stage1_L7H3.json",
+        "findings/stage_1_localization/candidate_stage1_L10H6.json",
+        "findings/stage_1_localization/candidate_stage1_L10H10.json",
+        "findings/stage_1_localization/candidate_stage1_L10H1.json",
+        "findings/stage_1_localization/metric_stage1_kl_to_clean.json",
+        "findings/stage_1_localization/metric_stage1_patch_effect_recovery.json"
+      ]
+    },
+    "2": {
+      "stage": "activation_analysis",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "3": {
+      "stage": "intervention",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "4": {
+      "stage": "validation",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    }
+  },
+  "criteria_evaluated": {
+    "behavioral-sanity": {
+      "passed": true,
+      "value": 0.996,
+      "metric": "accuracy",
+      "comparator": ">=",
+      "threshold": 0.95,
+      "metric_result_ref": "findings/stage_0_black_box/metric_stage0_accuracy.json",
+      "evaluated_at": "2026-05-08T03:20:17.857786Z"
+    },
+    "localization-recovery": {
+      "passed": true,
+      "value": 1.0,
+      "metric": "patch_effect_recovery",
+      "comparator": ">=",
+      "threshold": 0.85,
+      "metric_result_ref": "findings/stage_1_localization/metric_stage1_patch_effect_recovery.json",
+      "evaluated_at": "2026-05-08T03:28:21.759376Z"
+    }
+  },
+  "abort_triggered": null,
+  "budget_consumed": {
+    "tool_calls": 21,
+    "bash_calls": 0,
+    "gpu_seconds": 0.0,
+    "wallclock_seconds": 0.0,
+    "samples": 0
+  },
+  "spec_revision_requested": {
+    "reason": "Stage 2 localization evidence from the prior head-patching sweep indicates the clean-corrupt logit_diff gap is only 1.4209 nats, below the spec's advisory 2.0-nat threshold for meaningful patching, and the best single-head recovery is only 0.4508, far below the stage-1 localization target. This makes the current activation_analysis plan underpowered relative to the promised IOI circuit discovery methodology; I recommend revising the spec to either relax the stage-1/2 expectations, permit broader residual/MLP analysis, or supply a stronger clean-corrupt contrast.",
+    "prior_results_ref": "scratch/ioi_stage1_head_patch_results.json",
+    "requested_at": "2026-05-08T03:38:00.266334Z"
+  },
+  "terminal_state": "revision_requested",
+  "pending_provenance_tokens": {},
+  "provenance_tokens_consumed": 4
+}

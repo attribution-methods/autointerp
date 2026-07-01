@@ -1,0 +1,1 @@
+ModelHandle cuda torch.bfloat16

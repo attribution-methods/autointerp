@@ -1,0 +1,5 @@
+names=29 prompts=500
+accuracy=0.9960
+mean_logit_diff=3.0129
+first_prompt= When James and Susan went to the mall, Susan gave a book to
+first_diff= 4.625

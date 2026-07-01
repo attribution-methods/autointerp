@@ -1,0 +1,4 @@
+runs_gpt54mini_gpu_fixed/ioi-gpt2-small-blind-v1_rev1/spec.json
+runs_gpt54mini_gpu/ioi-gpt2-small-blind-v1_rev1/spec.json
+runs/ioi-gpt2-small-blind-v1_rev1/spec.json
+runs_gpt54mini/ioi-gpt2-small-blind-v1_rev1/spec.json

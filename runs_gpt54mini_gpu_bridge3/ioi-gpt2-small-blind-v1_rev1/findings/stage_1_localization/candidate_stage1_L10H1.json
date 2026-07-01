@@ -1,0 +1,22 @@
+{
+  "site_id": "stage1_L10H1",
+  "source": "gpt2.attn.c_proj_input",
+  "method": "clean_to_corrupt_final_token_head_patch",
+  "score": 0.04609632724873536,
+  "layer": 10,
+  "component": "attn",
+  "head_index": 1,
+  "token_index": -1,
+  "feature_id": null,
+  "evidence_refs": [],
+  "metadata": {
+    "rank": 10,
+    "patched_metric": 1.6575,
+    "metric": "patch_effect_recovery",
+    "_provenance": {
+      "stage_idx": 1,
+      "split": "dev",
+      "committed_at": "2026-05-08T03:28:21.741114Z"
+    }
+  }
+}

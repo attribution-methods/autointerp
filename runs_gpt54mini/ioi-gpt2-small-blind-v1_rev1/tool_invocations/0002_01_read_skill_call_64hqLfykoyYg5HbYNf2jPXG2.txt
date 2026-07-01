@@ -1,0 +1,33 @@
+# activation-cache
+
+# Activation Cache
+
+## Workflow
+
+1. Decide the prompt set, layer set, component set, and token positions before running the model.
+2. Use chat-template formatting consistently across all compared prompts.
+3. Cache residual stream activations first; add MLP, attention, or head outputs only for a narrower follow-up question.
+4. Store metadata with model id, tokenizer settings, prompt text, token ids, layer, component, and position.
+5. Reuse the same cache for lenses, probes, SAE features, patching, and attribution whenever possible.
+
+## Tools
+
+Use `../../src/autointerp/tools/model.py` and `../../src/autointerp/tools/activations.py`:
+
+```python
+from autointerp.tools import load_model
+from autointerp.tools.activations import capture_activations, parse_component_spec
+
+handle = load_model("qwen2.5-7b", device="cuda")
+prompt = handle.format_messages([{"role": "user", "content": "What is your goal?"}])
+acts = capture_activations(handle, [prompt], layer=0.7, component="resid", token_index=-1)
+spec = parse_component_spec("L0.7MLP", handle.n_layers)
+```
+
+## Component Specs
+
+Use `L12`, `L12MLP`, `L12ATTN`, `L12H3`, `L10-14`, or `L0.7` for a fractional layer. Prefer absolute layers in saved artifacts after resolving fractions.
+
+## Cautions
+
+Tokenization drift can dominate small effects. Never compare activations from prompts formatted with different chat templates, different BOS handling, or different padding sides unless that is the variable under test.

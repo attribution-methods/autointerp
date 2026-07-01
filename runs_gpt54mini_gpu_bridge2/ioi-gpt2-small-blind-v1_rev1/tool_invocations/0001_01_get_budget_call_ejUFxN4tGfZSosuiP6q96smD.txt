@@ -1,0 +1,7 @@
+{
+  "tool_calls": 6,
+  "bash_calls": 0,
+  "gpu_seconds": 0.0,
+  "wallclock_seconds": 0.0,
+  "samples": 0
+}

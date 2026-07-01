@@ -1,0 +1,11 @@
+lens_layers 12 kl_range 23.25 470.0
+/home/cog/ryan/autointerp/src/autointerp/tools/lenses.py:98: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /opt/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:835.)
+  row["kl_to_final"] = float(F.kl_div(layer_log_probs, final_probs, reduction="sum"))
+Traceback (most recent call last):
+  File "<stdin>", line 18, in <module>
+  File "/home/cog/ryan/autointerp/src/autointerp/tools/patching.py", line 96, in sweep_patch_sites
+    layer_idx = resolve_layer(layer, handle.n_layers)
+  File "/home/cog/ryan/autointerp/src/autointerp/tools/activations.py", line 33, in resolve_layer
+    if layer < 0:
+TypeError: '<' not supported between instances of 'tuple' and 'int'

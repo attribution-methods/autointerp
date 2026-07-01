@@ -1,0 +1,2 @@
+/bin/sh: 1: cannot create scratch/ioi_stage0.py: Directory nonexistent
+python: can't open file '/home/cog/ryan/autointerp/scratch/ioi_stage0.py': [Errno 2] No such file or directory

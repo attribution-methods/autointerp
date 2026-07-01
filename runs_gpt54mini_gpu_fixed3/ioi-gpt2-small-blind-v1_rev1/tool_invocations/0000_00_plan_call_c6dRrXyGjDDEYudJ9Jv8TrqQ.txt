@@ -1,0 +1,3 @@
+- [in_progress] Inspect frozen spec/current stage and available skills
+- [pending] Run Stage 0 black-box evaluation on generated IOI dev set and commit metrics
+- [pending] Advance stage and begin Stage 1 localization planning

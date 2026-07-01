@@ -1,0 +1,5 @@
+{
+  "reason": "The approved spec references spec.json and a dev dataset for IOI behavioral auditing, but the local run directory does not contain the frozen spec file yet and the black-box stage requires dataset-driven prompts/metrics that are not currently available through the provided artifacts. I need the concrete prompt batch / dataset artifact or a revised spec pointing to accessible inputs before I can validly compute stage-0 metrics without fabricating inputs.",
+  "prior_results_ref": "load_model('gpt2', device='cpu') succeeded; torch.cuda.is_available()=False",
+  "requested_at": "2026-05-07T04:08:52.524501Z"
+}

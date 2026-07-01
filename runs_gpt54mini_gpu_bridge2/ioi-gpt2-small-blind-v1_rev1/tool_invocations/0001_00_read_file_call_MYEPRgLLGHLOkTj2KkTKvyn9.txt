@@ -1,0 +1,20 @@
+     1	{
+     2	  "batch_id": "ioi_stage0_dev_pairs",
+     3	  "behavior_id": "ioi-io-over-s-logit",
+     4	  "cases": [
+     5	    {
+     6	      "prompt_id": "ioi-dev-0000",
+     7	      "messages": [
+     8	        {
+     9	          "role": "user",
+    10	          "content": "When James and Susan went to the mall, Susan gave a book to"
+    11	        }
+    12	      ],
+    13	      "prefill": null,
+    14	      "expected_behavior": " James",
+    15	      "tags": [
+    16	        "ioi",
+    17	        "abba"
+    18	      ],
+    19	      "metadata": {
+    20	        "template": "ABBA",

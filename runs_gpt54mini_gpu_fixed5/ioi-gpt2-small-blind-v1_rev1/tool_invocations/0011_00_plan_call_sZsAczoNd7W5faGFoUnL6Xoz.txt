@@ -1,0 +1,4 @@
+- [completed] Inspect current stage and available skills
+- [completed] Run stage 0 smoke script to generate metric inputs
+- [in_progress] Compute and commit stage 0 metrics
+- [pending] Evaluate criterion(s) and advance stage

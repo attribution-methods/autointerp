@@ -1,0 +1,4 @@
+- [in_progress] Read frozen spec and stage-specific skills; inspect run state
+- [pending] Generate IOI dev/heldout datasets from spec notes and build prompt batches
+- [pending] Run stage 0 black-box metric computations on dev split
+- [pending] Commit metrics and advance stage if criteria met

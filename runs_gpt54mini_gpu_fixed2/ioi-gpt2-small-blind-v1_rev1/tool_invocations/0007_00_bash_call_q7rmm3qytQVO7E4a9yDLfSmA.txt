@@ -1,0 +1,4 @@
+  File "<stdin>", line 5
+    from autointerp.tools.generation import generate_ioi_dataset if False else None
+                                                                 ^^
+SyntaxError: invalid syntax

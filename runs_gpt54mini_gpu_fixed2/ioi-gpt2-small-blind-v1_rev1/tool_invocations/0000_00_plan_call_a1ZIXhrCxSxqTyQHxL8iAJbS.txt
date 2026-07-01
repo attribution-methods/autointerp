@@ -1,0 +1,5 @@
+- [in_progress] Inspect stage, skills, and spec context
+- [pending] Run black-box IOI sanity check on dev set
+- [pending] Localize heads with logit lens and activation patching
+- [pending] Perform causal analysis / candidate circuit construction
+- [pending] Validate heldout circuit and evaluate criteria

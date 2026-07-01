@@ -1,0 +1,5 @@
+- [in_progress] Load model and prepare dev prompts/targets for localization
+- [pending] Run logit lens across layers and save summary
+- [pending] Run head patch sweep across all heads at END and save recovery matrix
+- [pending] Commit kl_to_clean and patch_effect_recovery metric results
+- [pending] Advance to next stage after criteria handling

@@ -1,0 +1,15 @@
+/home/cog/ryan/autointerp/runs_gpt54mini_gpu_bridge2/ioi-gpt2-small-blind-v1_rev1
+INVESTIGATION_LOG.md
+activations
+assistant_turns.jsonl
+findings
+generations
+log.jsonl
+prompt_batches
+scratch
+scripts
+spec.json
+state.json
+tool_invocations
+tool_invocations.jsonl
+ioi_stage0_dev_pairs.json

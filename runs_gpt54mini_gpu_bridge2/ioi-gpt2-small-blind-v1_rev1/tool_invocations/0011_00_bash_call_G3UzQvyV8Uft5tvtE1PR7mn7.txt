@@ -1,0 +1,2 @@
+(handle: 'ModelHandle', prompt: 'str', source_activation: 'torch.Tensor', layers: 'Iterable[LayerLike]', components: 'Iterable[str]' = ('resid',), patch_positions: 'Sequence[int]' = (-1,), max_new_tokens: 'int' = 64) -> 'List[Dict[str, str]]'
+None

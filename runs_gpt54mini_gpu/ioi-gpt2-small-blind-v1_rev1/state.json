@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "spec_id": "ioi-gpt2-small-blind-v1",
+  "spec_revision": 1,
+  "run_id": "ioi-gpt2-small-blind-v1_rev1",
+  "run_started_at": "2026-05-07T04:56:01.585292Z",
+  "run_ended_at": "2026-05-07T04:56:55.120673Z",
+  "current_stage_idx": 0,
+  "stage_status": {
+    "0": {
+      "stage": "black_box",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "1": {
+      "stage": "localization",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "2": {
+      "stage": "activation_analysis",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "3": {
+      "stage": "intervention",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "4": {
+      "stage": "validation",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    }
+  },
+  "criteria_evaluated": {},
+  "abort_triggered": null,
+  "budget_consumed": {
+    "tool_calls": 0,
+    "bash_calls": 0,
+    "gpu_seconds": 0.0,
+    "wallclock_seconds": 0.0,
+    "samples": 0
+  },
+  "spec_revision_requested": {
+    "reason": "GPU forward pass on GPT-2-small failed due to CUDA CUBLAS allocation error when attempting stage 0 black-box metric computation. This appears to be an infrastructure/runtime issue rather than a spec problem, but I cannot complete the mandated metric work under the current GPU conditions. No prompt batch artifact existed yet, so dataset generation was being implemented directly from the spec notes as requested. Need a revision or environment reset if the GPU context can be stabilized.",
+    "prior_results_ref": "stage0_attempt_cuda_cublas_alloc_failed",
+    "requested_at": "2026-05-07T04:56:55.120673Z"
+  },
+  "terminal_state": "revision_requested",
+  "pending_provenance_tokens": {},
+  "provenance_tokens_consumed": 0
+}

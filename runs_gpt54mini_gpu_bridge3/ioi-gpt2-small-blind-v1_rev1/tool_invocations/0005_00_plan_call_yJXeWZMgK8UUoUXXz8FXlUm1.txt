@@ -1,0 +1,3 @@
+- [completed] Inspect current stage and relevant skill instructions
+- [in_progress] Load stage 1 head candidates summary and compute stage 2 required metrics
+- [pending] Commit metric artifacts, evaluate any satisfied criteria, and advance stage

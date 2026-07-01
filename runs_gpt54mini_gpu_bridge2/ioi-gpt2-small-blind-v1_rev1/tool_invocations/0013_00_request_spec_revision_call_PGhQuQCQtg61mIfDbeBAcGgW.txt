@@ -1,0 +1,5 @@
+{
+  "reason": "The available activation_patching helpers in this run do not expose the head-level patch sweep/path-patching workflow assumed by Stage 1. The documented sweep_patch_sites function is generation-only and returns text outputs, not a logit_diff-based per-(layer, head) recovery matrix. I cannot satisfy the immutable Stage 1 metric/notes as written with the available tool contract, so I am requesting a spec revision to align Stage 1 localization with the actual helper interfaces.",
+  "prior_results_ref": "runs_gpt54mini_gpu_bridge2/ioi-gpt2-small-blind-v1_rev1/scratch/lens_summary.json",
+  "requested_at": "2026-05-08T02:57:03.544397Z"
+}

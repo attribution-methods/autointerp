@@ -1,0 +1,3 @@
+n_cases 500
+ioi-dev-0000 When James and Susan went to the mall, Susan gave a book to | IO  James | S  Susan
+ioi-dev-0001 When James and Susan went to the mall, James gave a book to | IO  Susan | S  James

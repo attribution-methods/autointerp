@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "<stdin>", line 4, in <module>
+  File "/usr/lib/python3.10/pathlib.py", line 1134, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+  File "/usr/lib/python3.10/pathlib.py", line 1119, in open
+    return self._accessor.open(self, mode, buffering, encoding, errors,
+FileNotFoundError: [Errno 2] No such file or directory: 'runs_gpt54mini_gpu_bridge2/ioi-gpt2-small-blind-v1_rev1/prompt_batches/ioi_stage0_dev_pairs.json'

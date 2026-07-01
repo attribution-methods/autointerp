@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/home/cog/ryan/autointerp/scratch/ioi_stage0.py", line 15, in <module>
+    assert len(pairs)>=600
+AssertionError

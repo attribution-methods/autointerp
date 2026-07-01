@@ -1,0 +1,23 @@
+cuda True
+' John' [1757] 1
+' Mary' [5335] 1
+' Tom' [4186] 1
+' Sarah' [10490] 1
+' James' [3700] 1
+' Kate' [16693] 1
+' Robert' [5199] 1
+' Lisa' [15378] 1
+' Alice' [14862] 1
+' Bob' [5811] 1
+' Michael' [3899] 1
+' Jennifer' [16348] 1
+' David' [3271] 1
+' Emily' [17608] 1
+' Daniel' [7806] 1
+' Laura' [16753] 1
+' Paul' [3362] 1
+' Amy' [14235] 1
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 2370.10it/s]

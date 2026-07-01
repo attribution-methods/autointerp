@@ -1,0 +1,49 @@
+dev 500 held 100
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]
+Loading weights:  47%|████▋     | 69/148 [00:00<00:00, 686.56it/s]
+Loading weights:  93%|█████████▎| 138/148 [00:00<00:00, 649.25it/s]
+Loading weights: 100%|██████████| 148/148 [00:00<00:00, 496.12it/s]
+Traceback (most recent call last):
+  File "/home/cog/ryan/autointerp/scratch/ioi_stage0.py", line 47, in <module>
+    out=model.model(**ids)
+  File "/home/cog/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/cog/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/cog/.local/lib/python3.10/site-packages/transformers/utils/generic.py", line 900, in wrapper
+    output = func(self, *args, **kwargs)
+  File "/home/cog/.local/lib/python3.10/site-packages/transformers/models/gpt2/modeling_gpt2.py", line 691, in forward
+    transformer_outputs: BaseModelOutputWithPastAndCrossAttentions = self.transformer(
+  File "/home/cog/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/cog/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/cog/.local/lib/python3.10/site-packages/transformers/utils/generic.py", line 976, in wrapper
+    output = func(self, *args, **kwargs)
+  File "/home/cog/.local/lib/python3.10/site-packages/transformers/utils/output_capturing.py", line 248, in wrapper
+    outputs = func(self, *args, **kwargs)
+  File "/home/cog/.local/lib/python3.10/site-packages/transformers/models/gpt2/modeling_gpt2.py", line 617, in forward
+    hidden_states = block(
+  File "/home/cog/.local/lib/python3.10/site-packages/transformers/modeling_layers.py", line 93, in __call__
+    return super().__call__(*args, **kwargs)
+  File "/home/cog/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/cog/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/cog/.local/lib/python3.10/site-packages/transformers/models/gpt2/modeling_gpt2.py", line 274, in forward
+    attn_output, _ = self.attn(
+  File "/home/cog/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/cog/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/cog/.local/lib/python3.10/site-packages/transformers/models/gpt2/modeling_gpt2.py", line 185, in forward
+    query_states, key_states, value_states = self.c_attn(hidden_states).split(self.split_size, dim=2)
+  File "/home/cog/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/cog/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/cog/.local/lib/python3.10/site-packages/transformers/pytorch_utils.py", line 121, in forward
+    x = torch.addmm(self.bias, x.view(-1, x.size(-1)), self.weight)
+RuntimeError: CUDA error: CUBLAS_STATUS_ALLOC_FAILED when calling `cublasCreate(handle)`

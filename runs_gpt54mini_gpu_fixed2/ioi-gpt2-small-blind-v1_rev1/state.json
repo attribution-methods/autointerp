@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "spec_id": "ioi-gpt2-small-blind-v1",
+  "spec_revision": 1,
+  "run_id": "ioi-gpt2-small-blind-v1_rev1",
+  "run_started_at": "2026-05-07T17:08:32.717065Z",
+  "run_ended_at": "2026-05-07T17:29:16.048392Z",
+  "current_stage_idx": 0,
+  "stage_status": {
+    "0": {
+      "stage": "black_box",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "1": {
+      "stage": "localization",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "2": {
+      "stage": "activation_analysis",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "3": {
+      "stage": "intervention",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "4": {
+      "stage": "validation",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    }
+  },
+  "criteria_evaluated": {},
+  "abort_triggered": null,
+  "budget_consumed": {
+    "tool_calls": 0,
+    "bash_calls": 0,
+    "gpu_seconds": 0.0,
+    "wallclock_seconds": 0.0,
+    "samples": 0
+  },
+  "spec_revision_requested": {
+    "reason": "The black-box IOI sanity computation via a naive full forward pass on 500 prompts timed out under the run budget, preventing stage-0 metric completion. The spec appears valid, but the investigation needs a more efficient dataset/evaluation workflow (e.g., batched generation/data helpers or a lower-overhead evaluation path) to proceed within budget.",
+    "prior_results_ref": "timeout on initial dev-set behavioral check",
+    "requested_at": "2026-05-07T17:29:16.048392Z"
+  },
+  "terminal_state": "revision_requested",
+  "pending_provenance_tokens": {},
+  "provenance_tokens_consumed": 0
+}

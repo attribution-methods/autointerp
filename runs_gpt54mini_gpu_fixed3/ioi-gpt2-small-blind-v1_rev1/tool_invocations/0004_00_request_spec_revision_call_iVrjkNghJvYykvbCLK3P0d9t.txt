@@ -1,0 +1,5 @@
+{
+  "reason": "The metric tool requires an inputs object/dict, but the available interface for compute_metric does not expose inputs in this run; Stage 0 cannot be completed through the required metric-commit path. Please revise the spec/tool contract so MetricResults can be computed and committed for accuracy/logit_diff as required.",
+  "prior_results_ref": "stdout from scripts/run_ioi_stage0_smoke.py: accuracy=0.9960, mean_logit_diff=3.0129",
+  "requested_at": "2026-05-08T00:50:29.021803Z"
+}

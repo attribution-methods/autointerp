@@ -1,0 +1,2 @@
+counts 29 500 100
+{'template': 'ABBA', 'prompt': 'When  James and  Susan went to the mall,  Susan gave a book to', 'io': ' James', 's': ' Susan'}

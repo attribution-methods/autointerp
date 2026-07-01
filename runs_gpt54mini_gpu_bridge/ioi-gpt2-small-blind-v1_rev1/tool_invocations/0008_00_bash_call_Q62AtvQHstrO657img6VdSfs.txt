@@ -1,0 +1,5 @@
+nrows 12
+0 40.0 [{'token': ' the', 'token_id': 262, 'logit': 28.75}, {'token': ' a', 'token_id': 257, 'logit': 21.875}, {'token': ' "', 'token_id': 366, 'logit': 20.5}]
+/home/cog/ryan/autointerp/src/autointerp/tools/lenses.py:98: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /opt/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:835.)
+  row["kl_to_final"] = float(F.kl_div(layer_log_probs, final_probs, reduction="sum"))

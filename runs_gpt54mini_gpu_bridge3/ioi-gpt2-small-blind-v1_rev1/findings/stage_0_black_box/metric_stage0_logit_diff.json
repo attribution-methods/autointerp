@@ -1,0 +1,20 @@
+{
+  "metric_id": "stage0_logit_diff",
+  "value": 3.012937545776367,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "source": "ioi_stage0_bridge",
+    "metric_name": "logit_diff",
+    "metric_family": "behavioral",
+    "inputs_hash": "sha256:013968360a298cbdc47d5680fdcc747ba0d5beecf732a53fbd03a529974c06e1",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 0,
+      "split": "dev",
+      "committed_at": "2026-05-08T03:20:17.853768Z"
+    }
+  }
+}

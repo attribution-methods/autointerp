@@ -1,0 +1,5 @@
+{
+  "reason": "Stage 0 cannot proceed because compute_metric(accuracy) is rejecting the provided dev accuracy inputs with inconsistent internal lengths, despite the smoke script producing a 500-sample dev file. This blocks committing the required MetricResult and therefore blocks criterion evaluation/advancement. Please revise the spec or metric contract to clarify the expected accuracy input schema for IOI stage 0.",
+  "prior_results_ref": "scratch/ioi_stage0_metric_inputs.json",
+  "requested_at": "2026-05-08T00:56:53.291690Z"
+}

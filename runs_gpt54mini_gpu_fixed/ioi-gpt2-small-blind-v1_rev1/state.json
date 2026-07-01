@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "spec_id": "ioi-gpt2-small-blind-v1",
+  "spec_revision": 1,
+  "run_id": "ioi-gpt2-small-blind-v1_rev1",
+  "run_started_at": "2026-05-07T17:06:15.758404Z",
+  "run_ended_at": "2026-05-07T17:07:34.207198Z",
+  "current_stage_idx": 0,
+  "stage_status": {
+    "0": {
+      "stage": "black_box",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "1": {
+      "stage": "localization",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "2": {
+      "stage": "activation_analysis",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "3": {
+      "stage": "intervention",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "4": {
+      "stage": "validation",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    }
+  },
+  "criteria_evaluated": {},
+  "abort_triggered": null,
+  "budget_consumed": {
+    "tool_calls": 0,
+    "bash_calls": 0,
+    "gpu_seconds": 0.0,
+    "wallclock_seconds": 0.0,
+    "samples": 0
+  },
+  "spec_revision_requested": {
+    "reason": "The generated IOI dataset implementation using the specified GPT-2 single-token names and balanced ABBA/BABA templates yields only 51.4% accuracy (logit_diff mean 0.60) on the 500 dev samples, far below the spec's required behavioral sanity threshold (>=0.95) and even the advisory abort threshold (>=0.9). This indicates the generated prompt construction does not match the intended IOI behavioral setup closely enough for the frozen spec's evaluation methodology. Please revise the dataset/generator specification or prompt construction details so the dev split produces the expected near-ceiling IOI behavior on GPT-2-small.",
+    "prior_results_ref": "scratch/ioi_dataset_dev.json",
+    "requested_at": "2026-05-07T17:07:34.207198Z"
+  },
+  "terminal_state": "revision_requested",
+  "pending_provenance_tokens": {},
+  "provenance_tokens_consumed": 0
+}

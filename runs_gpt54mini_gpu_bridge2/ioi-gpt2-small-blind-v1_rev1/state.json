@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "spec_id": "ioi-gpt2-small-blind-v1",
+  "spec_revision": 1,
+  "run_id": "ioi-gpt2-small-blind-v1_rev1",
+  "run_started_at": "2026-05-08T02:51:36.765380Z",
+  "run_ended_at": "2026-05-08T02:57:03.544397Z",
+  "current_stage_idx": 1,
+  "stage_status": {
+    "0": {
+      "stage": "black_box",
+      "status": "completed",
+      "started_at": "2026-05-08T02:51:41.419972Z",
+      "ended_at": "2026-05-08T02:51:41.450899Z",
+      "abort_reason": null,
+      "artifact_refs": [
+        "prompt_batches/ioi_stage0_dev_pairs.json",
+        "findings/stage_0_black_box/metric_stage0_accuracy.json",
+        "findings/stage_0_black_box/metric_stage0_logit_diff.json"
+      ]
+    },
+    "1": {
+      "stage": "localization",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "2": {
+      "stage": "activation_analysis",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "3": {
+      "stage": "intervention",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "4": {
+      "stage": "validation",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    }
+  },
+  "criteria_evaluated": {
+    "behavioral-sanity": {
+      "passed": true,
+      "value": 0.996,
+      "metric": "accuracy",
+      "comparator": ">=",
+      "threshold": 0.95,
+      "metric_result_ref": "findings/stage_0_black_box/metric_stage0_accuracy.json",
+      "evaluated_at": "2026-05-08T02:51:41.446845Z"
+    }
+  },
+  "abort_triggered": null,
+  "budget_consumed": {
+    "tool_calls": 6,
+    "bash_calls": 0,
+    "gpu_seconds": 0.0,
+    "wallclock_seconds": 0.0,
+    "samples": 0
+  },
+  "spec_revision_requested": {
+    "reason": "The available activation_patching helpers in this run do not expose the head-level patch sweep/path-patching workflow assumed by Stage 1. The documented sweep_patch_sites function is generation-only and returns text outputs, not a logit_diff-based per-(layer, head) recovery matrix. I cannot satisfy the immutable Stage 1 metric/notes as written with the available tool contract, so I am requesting a spec revision to align Stage 1 localization with the actual helper interfaces.",
+    "prior_results_ref": "runs_gpt54mini_gpu_bridge2/ioi-gpt2-small-blind-v1_rev1/scratch/lens_summary.json",
+    "requested_at": "2026-05-08T02:57:03.544397Z"
+  },
+  "terminal_state": "revision_requested",
+  "pending_provenance_tokens": {},
+  "provenance_tokens_consumed": 2
+}

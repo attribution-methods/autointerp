@@ -1,0 +1,5 @@
+{
+  "reason": "Stage 1 requires a full (layer, head) activation patching sweep from clean to corrupted prompts on the IOI dataset, but the available local artifact layout in this run does not expose the paired clean/corrupt prompt batch or a stage-ready prompt artifact. I can confirm logit-lens plumbing works, but I cannot responsibly complete the mandated ALL-head sweep and commit the required metrics without the paired prompt inputs. Please revise the spec/run setup to surface the stage-1 prompt batch or the paired contrast artifact in the current run directory so localization can proceed deterministically.",
+  "prior_results_ref": "scratch/stage1_logit_lens_sample.json",
+  "requested_at": "2026-05-08T02:39:36.621515Z"
+}

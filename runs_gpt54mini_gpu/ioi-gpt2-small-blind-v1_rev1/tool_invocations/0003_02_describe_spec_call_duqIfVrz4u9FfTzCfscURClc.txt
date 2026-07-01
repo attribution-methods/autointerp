@@ -1,0 +1,95 @@
+# InvestigationSpec — schema reference
+
+Field names below are the only valid top-level keys for `update_spec`. Any other key is rejected at patch time. Enum values are listed at the bottom under "Closed vocabularies".
+
+## Top-level fields
+
+- **`spec_id`** (required, str)
+- **`revision`** (optional, int)
+- **`parent_spec_id`** (optional, str | None)
+- **`prior_results_ref`** (optional, str | None)
+- **`revision_reason`** (optional, str | None)
+- **`question`** (required, str)
+- **`hypothesis`** (required, str)
+- **`phenomenon_id`** (required, str)
+- **`behavior`** (required, `BehaviorSpec`)
+- **`model`** (required, `ModelRef`)
+- **`dataset`** (required, `DatasetSpec`)
+- **`contrast`** (optional, `ContrastSpec` | None)
+- **`stages`** (required, list[`StageSpec`])
+- **`success_criteria`** (required, list[`Criterion`])
+- **`abort_if`** (optional, list[`AbortPredicate` | str])
+- **`max_revisions`** (optional, int)
+- **`budget`** (optional, `Budget`)
+- **`risks`** (optional, list[str])
+- **`status`** (optional, `SpecStatus`)
+- **`critiques`** (optional, list[`CritiqueNote`])
+- **`approval`** (optional, `Approval` | None)
+- **`metadata`** (optional, dict[str, typing.Any])
+
+## Nested types
+
+
+### `StageSpec`
+- **`stage`** (required, `InvestigationStage`)
+- **`pattern`** (required, `PatternId`)
+- **`tools`** (required, list[`ToolName`])
+- **`metrics`** (required, list[`MetricName`])
+- **`budget`** (optional, `Budget`)
+- **`notes`** (optional, str | None)
+
+### `Criterion`
+- **`criterion_id`** (required, str)
+- **`description`** (required, str)
+- **`metric`** (required, `MetricName`)
+- **`comparator`** (required, `>=` | `>` | `<=` | `<` | `==`)
+- **`threshold`** (required, float)
+- **`n_min`** (optional, int | None)
+- **`on_split`** (optional, `dev` | `test` | `heldout`)
+- **`metric_params`** (optional, dict[str, typing.Any])
+- **`custom_metric_def`** (optional, `CustomMetricDef` | None)
+
+### `DatasetSpec`
+- **`dataset_id`** (required, str)
+- **`source`** (required, `builtin` | `huggingface` | `generated` | `user_supplied`)
+- **`n_samples`** (required, int)
+- **`split`** (optional, `train` | `dev` | `test` | `heldout`)
+- **`seed`** (optional, int)
+- **`generator_id`** (optional, str | None)
+- **`notes`** (optional, str | None)
+- **`metadata`** (optional, dict[str, typing.Any])
+
+### `ContrastSpec`
+- **`contrast_id`** (required, str)
+- **`positive_template`** (required, str)
+- **`negative_template`** (required, str)
+- **`pairing`** (optional, `matched` | `unmatched`)
+- **`metadata`** (optional, dict[str, typing.Any])
+
+### `Budget`
+- **`max_tokens`** (optional, int | None)
+- **`max_gpu_seconds`** (optional, float | None)
+- **`max_samples`** (optional, int | None)
+- **`max_tool_calls`** (optional, int | None)
+- **`max_wallclock_seconds`** (optional, float | None)
+
+### `Approval`
+- **`approver`** (required, str)
+- **`approver_kind`** (required, `human` | `agent`)
+- **`approved_at`** (required, datetime)
+- **`notes`** (optional, str | None)
+
+### `CritiqueNote`
+- **`note_id`** (required, str)
+- **`severity`** (required, `info` | `warn` | `block`)
+- **`target_field`** (optional, str | None)
+- **`message`** (required, str)
+- **`proposed_fix`** (optional, str | None)
+
+## Closed vocabularies (enum values)
+
+- **`SpecStatus`**: `draft`, `under_critique`, `awaiting_approval`, `approved`, `rejected`, `superseded`
+- **`InvestigationStage`**: `setup`, `black_box`, `localization`, `activation_analysis`, `feature_analysis`, `intervention`, `validation`, `reporting`
+- **`PatternId`**: `blackbox_then_patching`, `probe_then_sae`, `dla_only`, `contrast_then_steer`, `custom`
+- **`ToolName`**: `blackbox_probe`, `linear_probe`, `logit_lens`, `direct_logit_attribution`, `activation_patching`, `path_patching`, `attribution_patching`, `sae_inspect`, `steering`, `contrastive_directions`, `attention_heads`, `activation_cache`, `qk_ov_decomposition`
+- **`MetricName`**: `auroc`, `accuracy`, `logit_diff`, `kl_to_clean`, `faithfulness`, `completeness`, `minimality`, `necessity_drop`, `sufficiency`, `patch_effect_recovery`, `hit_rate`, `effect_size`, `direct_contribution`, `ablation_drop`, `paraphrase_invariance`, `feature_activation_density`, `feature_label_quality`, `steering_effect_size`, `mutual_information`, `causal_indirect_effect`, `custom`

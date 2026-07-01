@@ -1,0 +1,4 @@
+- [in_progress] Inspect current stage and relevant skills/spec
+- [pending] Run Stage 0 smoke script on CUDA and capture metric inputs
+- [pending] Compute/commit Stage 0 metrics and evaluate criterion
+- [pending] Advance stage if Stage 0 completes

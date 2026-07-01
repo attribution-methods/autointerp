@@ -1,0 +1,48 @@
+{
+  "report_id": "ioi-gpt2-small-blind-v1_rev1",
+  "behavior": {
+    "behavior_id": "ioi-io-over-s-logit",
+    "description": "Given an IOI prompt of the form 'When [A] and [B] went to the [place], [B] gave a [object] to', the model assigns higher logit to the indirect-object name (A) than to the subject name (B) at the final-token prediction position. Holds across both ABBA and BABA template orderings.",
+    "risk_area": null,
+    "positive_examples": [],
+    "negative_examples": [],
+    "success_criteria": [],
+    "tags": [],
+    "metadata": {}
+  },
+  "models": [
+    {
+      "model_id": "gpt2",
+      "provider": "openai-community",
+      "revision": null,
+      "dtype": null,
+      "device": null,
+      "metadata": {}
+    }
+  ],
+  "prompt_batches": [],
+  "samples": [],
+  "findings": [],
+  "activation_caches": [],
+  "candidate_sites": [],
+  "feature_findings": [],
+  "validations": [],
+  "claims": [],
+  "limitations": [
+    "run terminal_state=revision_requested"
+  ],
+  "next_steps": [],
+  "metadata": {
+    "spec_id": "ioi-gpt2-small-blind-v1",
+    "spec_revision": 1,
+    "terminal_state": "revision_requested",
+    "criteria_evaluated": {},
+    "budget_consumed": {
+      "tool_calls": 0,
+      "bash_calls": 0,
+      "gpu_seconds": 0.0,
+      "wallclock_seconds": 0.0,
+      "samples": 0
+    }
+  }
+}

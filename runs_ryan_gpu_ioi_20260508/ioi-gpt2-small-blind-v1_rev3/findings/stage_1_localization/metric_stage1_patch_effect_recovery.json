@@ -1,0 +1,89 @@
+{
+  "metric_id": "stage1_patch_effect_recovery",
+  "value": 1.0,
+  "numerator": null,
+  "denominator": null,
+  "threshold": 0.85,
+  "passed": true,
+  "metadata": {
+    "source": "ioi_stage1_bridge",
+    "top_k": 10,
+    "top_heads": [
+      {
+        "layer": 8,
+        "head": 6,
+        "patched_metric": 2.234875,
+        "recovery": 0.45322793148880125
+      },
+      {
+        "layer": 9,
+        "head": 9,
+        "patched_metric": 2.21675,
+        "recovery": 0.4404918752744842
+      },
+      {
+        "layer": 8,
+        "head": 10,
+        "patched_metric": 1.945375,
+        "recovery": 0.2498023715415021
+      },
+      {
+        "layer": 7,
+        "head": 9,
+        "patched_metric": 1.891125,
+        "recovery": 0.2116820377689943
+      },
+      {
+        "layer": 10,
+        "head": 0,
+        "patched_metric": 1.779125,
+        "recovery": 0.13298199385155918
+      },
+      {
+        "layer": 9,
+        "head": 7,
+        "patched_metric": 1.737625,
+        "recovery": 0.10382081686429516
+      },
+      {
+        "layer": 7,
+        "head": 3,
+        "patched_metric": 1.733125,
+        "recovery": 0.10065876152832681
+      },
+      {
+        "layer": 10,
+        "head": 6,
+        "patched_metric": 1.700625,
+        "recovery": 0.07782169521299966
+      },
+      {
+        "layer": 10,
+        "head": 10,
+        "patched_metric": 1.676375,
+        "recovery": 0.060781730346947754
+      },
+      {
+        "layer": 10,
+        "head": 1,
+        "patched_metric": 1.65825,
+        "recovery": 0.04804567413263071
+      }
+    ],
+    "results_ref": "scratch/ioi_stage1_head_patch_results.json",
+    "metric_name": "patch_effect_recovery",
+    "metric_family": "causal",
+    "inputs_hash": "sha256:02f955b71977d4f5d13a80f16986bdc06e925dce7678222895ca4a42cf3a0354",
+    "registry_version": 1,
+    "unclipped_value": 1.2847606499780413,
+    "clipped_to_range": [
+      0.0,
+      1.0
+    ],
+    "_provenance": {
+      "stage_idx": 1,
+      "split": "dev",
+      "committed_at": "2026-05-08T22:23:51.002379Z"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+Begin executing the investigation.
+
+Important: bash runs from the repo root, not the run directory. The frozen spec
+for this run is under the selected runs root at
+<runs_root>/ioi-gpt2-small-blind-v1_rev1/spec.json after initialization, and
+the approved source spec is examples/specs/ioi-gpt2-small-blind-v1_rev1.json.
+Do not check only Path("spec.json") from repo root.
+
+The dataset source is generated: implement the IOI template generator directly
+from the spec notes, with single-token GPT-2 names, 500 dev samples, 100
+heldout samples, seed 42, and disjoint heldout name pairs. Do not request a
+spec revision because no prompt batch artifact exists; generation is explicitly
+specified.
+
+Critical IOI labels:
+- ABBA prompt: "When {A} and {B} went to the {place}, {B} gave a {object} to"
+  predicts A. Here IO=A and S=B.
+- BABA prompt: "When {A} and {B} went to the {place}, {A} gave a {object} to"
+  predicts B. Here IO=B and S=A.
+Do not score IO=A/S=B for both templates.
+
+CUDA is available on this machine through the inherited LD_LIBRARY_PATH. Use
+the GPU: load GPT-2 with device="cuda" or default CUDA behavior, and verify
+torch.cuda.is_available() before heavy work. Keep stdout compact.
+
+compute_metric requires metric, metric_id, and inputs as an object/dict.
+
+A working Stage 0 smoke implementation exists at
+scripts/run_ioi_stage0_smoke.py. It uses dtype=torch.float16, batch_size=16,
+the corrected ABBA/BABA labels, and gets accuracy about 0.996 and mean
+logit_diff about 3.01 on 500 dev prompts. It writes a compact-only helper file:
+scratch/ioi_stage0_metric_inputs_compact.json.
+
+Read only scratch/ioi_stage0_metric_inputs_compact.json. Do not open, print, or
+pass scratch/ioi_stage0_metric_inputs.json because it contains large raw arrays.
+After running the script, call:
+- compute_metric(metric="accuracy", metric_id="stage0_accuracy",
+  inputs=<compact_accuracy_inputs>, threshold=0.95, comparator=">=")
+- compute_metric(metric="logit_diff", metric_id="stage0_logit_diff",
+  inputs=<compact_logit_diff_inputs>)
+Then commit both returned MetricResult payloads with their provenance tokens.
+Do not call compute_metric without an inputs object.

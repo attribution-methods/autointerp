@@ -1,0 +1,5 @@
+{
+  "reason": "Stage 2 localization evidence from the prior head-patching sweep indicates the clean-corrupt logit_diff gap is only 1.4209 nats, below the spec's advisory 2.0-nat threshold for meaningful patching, and the best single-head recovery is only 0.4508, far below the stage-1 localization target. This makes the current activation_analysis plan underpowered relative to the promised IOI circuit discovery methodology; I recommend revising the spec to either relax the stage-1/2 expectations, permit broader residual/MLP analysis, or supply a stronger clean-corrupt contrast.",
+  "prior_results_ref": "scratch/ioi_stage1_head_patch_results.json",
+  "requested_at": "2026-05-08T03:38:00.266334Z"
+}

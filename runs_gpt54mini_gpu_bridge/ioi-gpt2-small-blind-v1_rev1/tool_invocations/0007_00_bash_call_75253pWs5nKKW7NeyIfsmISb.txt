@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "<stdin>", line 8, in <module>
+  File "/home/cog/ryan/autointerp/src/autointerp/tools/lenses.py", line 80, in logit_lens
+    hooks.append(handle.layer(layer_idx).register_forward_hook(make_hook(layer_idx)))
+  File "/home/cog/ryan/autointerp/src/autointerp/tools/model.py", line 125, in layer
+    return self.model.transformer.h[layer_idx]
+  File "/home/cog/.local/lib/python3.10/site-packages/torch/nn/modules/container.py", line 377, in __getitem__
+    return self._modules[self._get_abs_string_index(idx)]
+  File "/home/cog/.local/lib/python3.10/site-packages/torch/nn/modules/container.py", line 361, in _get_abs_string_index
+    raise IndexError(f"index {idx} is out of range")
+IndexError: index 12 is out of range

@@ -1,0 +1,22 @@
+{
+  "metric_id": "stage1_kl_to_clean",
+  "value": 0.11261033129505812,
+  "numerator": null,
+  "denominator": null,
+  "threshold": null,
+  "passed": null,
+  "metadata": {
+    "source": "ioi_stage1_bridge",
+    "top_k": 10,
+    "n_samples": 500,
+    "metric_name": "kl_to_clean",
+    "metric_family": "localization",
+    "inputs_hash": "sha256:ad65536114ea204cfe9f4b0a8991526c8f3b2ae821fb8eeb17d1451f7672ec1b",
+    "registry_version": 1,
+    "_provenance": {
+      "stage_idx": 1,
+      "split": "dev",
+      "committed_at": "2026-05-08T03:28:21.748475Z"
+    }
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "spec_id": "ioi-gpt2-small-blind-v1",
+  "spec_revision": 1,
+  "run_id": "ioi-gpt2-small-blind-v1_rev1",
+  "run_started_at": "2026-05-08T00:53:50.680593Z",
+  "run_ended_at": "2026-05-08T00:54:38.396808Z",
+  "current_stage_idx": 0,
+  "stage_status": {
+    "0": {
+      "stage": "black_box",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "1": {
+      "stage": "localization",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "2": {
+      "stage": "activation_analysis",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "3": {
+      "stage": "intervention",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    },
+    "4": {
+      "stage": "validation",
+      "status": "pending",
+      "started_at": null,
+      "ended_at": null,
+      "abort_reason": null,
+      "artifact_refs": []
+    }
+  },
+  "criteria_evaluated": {},
+  "abort_triggered": null,
+  "budget_consumed": {
+    "tool_calls": 1,
+    "bash_calls": 0,
+    "gpu_seconds": 0.0,
+    "wallclock_seconds": 0.0,
+    "samples": 0
+  },
+  "spec_revision_requested": {
+    "reason": "Stage 0 metric evaluation is blocked by a broken accuracy metric contract in the run environment: compute_metric('accuracy') truncates the provided boolean arrays and reports mismatched effective lengths (e.g. predictions 358 vs labels 237) despite the stage0 smoke artifact containing 500/500 aligned entries. The spec requires using compute_metric, but the metric registry behavior is inconsistent with the provided artifact, preventing a valid Stage 0 commit and any criterion evaluation. Please revise the metric handling or provide an alternate approved accuracy metric pathway for this run.",
+    "prior_results_ref": "scratch/ioi_stage0_metric_inputs.json",
+    "requested_at": "2026-05-08T00:54:38.396808Z"
+  },
+  "terminal_state": "revision_requested",
+  "pending_provenance_tokens": {
+    "tok_31b72f9e22c80788a04821258d456840": {
+      "metric": "logit_diff",
+      "metric_id": "stage0_logit_diff",
+      "value": 4.1582191780821915,
+      "inputs_hash": "sha256:aa5e40cf30955a1f385b5f9f6d15ac4d00c89f862115bd264bed2725cee71544",
+      "issued_at": "2026-05-08T00:54:30.628568Z",
+      "stage_idx": 0
+    }
+  },
+  "provenance_tokens_consumed": 0
+}
